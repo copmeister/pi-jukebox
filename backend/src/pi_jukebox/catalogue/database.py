@@ -36,6 +36,7 @@ class Catalogue:
         with self.connect() as connection:
             connection.executescript(SCHEMA_SQL)
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            connection.execute("PRAGMA optimize")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -438,7 +439,15 @@ class Catalogue:
 def count_rows(catalogue: Catalogue, table: str) -> int:
     """Return a table count for tests and diagnostics using a fixed allow-list."""
 
-    allowed_tables: Iterable[str] = ("artists", "albums", "tracks", "artwork", "scan_runs")
+    allowed_tables: Iterable[str] = (
+        "artists",
+        "albums",
+        "tracks",
+        "artwork",
+        "scan_runs",
+        "queue_items",
+        "queue_state",
+    )
     if table not in allowed_tables:
         raise ValueError(f"Unsupported table: {table}")
     with catalogue.connect() as connection:

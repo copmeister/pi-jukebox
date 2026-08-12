@@ -1,6 +1,6 @@
 # pi-jukebox
 
-A touchscreen-first local music jukebox for Raspberry Pi. The backend catalogues one local music folder and securely serves catalogue tracks to the React interface for basic browser playback. Persistent queues and the visualiser are intentionally not implemented yet.
+A touchscreen-first local music jukebox for Raspberry Pi. The backend catalogues one local music folder, securely serves catalogue tracks, and owns a persistent SQLite playback queue used by the React interface. The visualiser and Raspberry Pi deployment are intentionally not implemented yet.
 
 The primary display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface also retains secondary layouts for 1024×600 and 800×480 landscape screens.
 
@@ -69,12 +69,29 @@ npm.cmd --prefix frontend run dev -- --host 127.0.0.1
 
 Open <http://127.0.0.1:5173> in your browser.
 
-Choose an album track or a track search result to begin playback. The persistent mini-player and Now Playing screen provide play/pause, previous/next within the selected album, seeking, volume, and mute. The Search screen includes its own collapsible touch keypad; a physical keyboard continues to work during Windows development.
+Use a track's **Actions** menu for Play Now, Play Next, or Add to Queue. Album details also provide Play Album and Add Album to Queue. The Queue screen shows the current track separately, lets you move upcoming items with large Up/Down buttons, and supports removal and confirmed clearing. The persistent mini-player and Now Playing screen provide play/pause, queue-aware previous/next, seeking, volume, and mute. Search includes its own collapsible touch keypad; a physical keyboard continues to work during Windows development.
+
+Queue order and the current queue item persist in SQLite across browser refreshes and backend restarts. Restored audio remains paused and restarts from the beginning after one Play tap. Playback position is deliberately not saved, and restored audio never autoplays.
 
 Useful backend addresses:
 
 - Health check: <http://127.0.0.1:8000/api/health>
 - Interactive API documentation: <http://127.0.0.1:8000/docs>
+
+Queue endpoints include:
+
+- `GET /api/queue` — complete current/upcoming snapshot
+- `POST /api/queue/tracks/{track_id}` — Add to Queue
+- `POST /api/queue/tracks/{track_id}/next` — Play Next
+- `POST /api/queue/tracks/{track_id}/play-now` — Play Now
+- `POST /api/queue/albums/{album_id}` — Add Album to Queue
+- `POST /api/queue/albums/{album_id}/play` — replace with and play an album
+- `DELETE /api/queue/items/{queue_item_id}` — remove an upcoming item
+- `DELETE /api/queue/upcoming` — clear upcoming items only
+- `POST /api/queue/items/{queue_item_id}/move` — move an upcoming item up or down
+- `POST /api/queue/advance` — atomically complete the expected current item
+
+See [the API reference](docs/api.md) for request and response details.
 
 ## Scan the configured library
 
@@ -133,6 +150,8 @@ npm.cmd --prefix frontend run build
 
 ## Current scope
 
-The backend provides an incremental SQLite catalogue, background scanning, search, album and track queries, cached embedded artwork, and range-capable audio responses addressed only by catalogue track ID. The responsive frontend displays the catalogue, provides a touch search keypad, and performs basic persistent Chromium playback. It does not yet persist or reorder a queue, save playback position, or draw the visualiser.
+The backend provides an incremental SQLite catalogue, background scanning, search, album and track queries, cached embedded artwork, range-capable audio responses, and an authoritative persistent queue. The responsive frontend provides touch browsing, search, queue editing, and persistent Chromium playback through one audio element. Playback position is not saved. The visualiser, kiosk deployment, and Raspberry Pi hardware integration remain pending.
 
-See [the architecture](docs/architecture.md) and [the product specification](docs/product-specification.md) for the approved design and v0.1 boundaries.
+Milestone 4B is the final pre-hardware software milestone. The next project stage is Raspberry Pi hardware bring-up and validation, not another software feature milestone.
+
+See [the architecture](docs/architecture.md), [database schema notes](docs/database-schema.md), and [the product specification](docs/product-specification.md) for the approved design and v0.1 boundaries.

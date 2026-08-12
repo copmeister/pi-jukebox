@@ -68,7 +68,7 @@ def _file_chunks(path: Path, start: int, length: int) -> Iterator[bytes]:
             yield chunk
 
 
-def _safe_track_path(settings: Settings, relative_path: str) -> Path:
+def resolve_track_path(settings: Settings, relative_path: str) -> Path:
     """Resolve a catalogue path beneath the configured library without leaking it."""
 
     try:
@@ -104,7 +104,7 @@ def get_track_media(track_id: int, request: Request) -> Response:
     if track is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Track not found.")
 
-    path = _safe_track_path(request.app.state.settings, str(track["relative_path"]))
+    path = resolve_track_path(request.app.state.settings, str(track["relative_path"]))
     try:
         file_size = path.stat().st_size
     except OSError as exc:

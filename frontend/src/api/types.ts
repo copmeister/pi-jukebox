@@ -60,3 +60,36 @@ export interface ScanStart {
   scan_id: number
   status: string
 }
+
+export interface QueueItem {
+  id: number
+  track_id: number
+  album_id: number
+  title: string
+  artist: string
+  album: string
+  duration_seconds: number | null
+  artwork_id: number | null
+  position: number
+  status: 'current' | 'upcoming'
+  available: boolean
+}
+
+export interface QueueSnapshot {
+  revision: number
+  current: QueueItem | null
+  upcoming: QueueItem[]
+  upcoming_count: number
+  upcoming_duration_seconds: number
+  warning: string | null
+}
+
+export interface PlayerTrack {
+  id: number
+  album_id: number
+  title: string
+  artist: string
+  album: string
+  duration_seconds: number | null
+  artwork_id: number | null
+}

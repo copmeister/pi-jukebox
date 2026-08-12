@@ -3,12 +3,14 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
-import { getAlbum, mediaUrl } from '../api/client'
-import type { Track } from '../api/types'
+import { mediaUrl } from '../api/client'
+import type { PlayerTrack, QueueItem, Track } from '../api/types'
+import { useQueue } from '../queue/QueueContext'
 
 /* Context and provider intentionally share this module so consumers have one audio API. */
 /* eslint-disable react-refresh/only-export-components */
@@ -16,7 +18,7 @@ import type { Track } from '../api/types'
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error'
 
 interface AudioPlayerValue {
-  currentTrack: Track | null
+  currentTrack: PlayerTrack | null
   status: PlaybackStatus
   error: string | null
   currentTime: number
@@ -25,7 +27,8 @@ interface AudioPlayerValue {
   muted: boolean
   canGoPrevious: boolean
   canGoNext: boolean
-  playTrack: (track: Track, albumTracks?: Track[]) => void
+  playNow: (track: Track) => Promise<void>
+  playAlbum: (albumId: number) => Promise<void>
   togglePlayback: () => void
   previous: () => void
   next: () => void
@@ -44,32 +47,69 @@ function playbackError(error: unknown): string {
   if (error instanceof DOMException && error.name === 'NotAllowedError') {
     return 'Playback needs a tap. Choose Play to let the browser start audio.'
   }
-  return 'This track could not be played. The file may be missing or unsupported.'
+  return 'This track could not be played. It will be skipped if another item is queued.'
+}
+
+function queueItemTrack(item: QueueItem): PlayerTrack {
+  return {
+    id: item.track_id,
+    album_id: item.album_id,
+    title: item.title,
+    artist: item.artist,
+    album: item.album,
+    duration_seconds: item.duration_seconds,
+    artwork_id: item.artwork_id,
+  }
 }
 
 export function AudioPlayerProvider({ children }: { children: ReactNode }) {
+  const queue = useQueue()
   const audioRef = useRef<HTMLAudioElement>(null)
-  const contextTracksRef = useRef<Track[]>([])
-  const currentTrackRef = useRef<Track | null>(null)
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
-  const [contextTracks, setContextTracks] = useState<Track[]>([])
+  const currentItemRef = useRef<QueueItem | null>(null)
+  const historyRef = useRef<number[]>([])
+  const advancingRef = useRef(false)
+  const pendingAdvanceRef = useRef<boolean | null>(null)
+  const restoringRef = useRef(false)
+  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null)
   const [status, setStatus] = useState<PlaybackStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [volume, setVolumeState] = useState(1)
   const [muted, setMuted] = useState(false)
+  const [historyCount, setHistoryCount] = useState(0)
 
-  const startAudio = useCallback((track: Track) => {
+  const stopAudio = useCallback(() => {
+    const audio = audioRef.current
+    currentItemRef.current = null
+    restoringRef.current = false
+    if (audio) {
+      audio.pause()
+      audio.removeAttribute('src')
+      audio.load()
+    }
+    setCurrentTrack(null)
+    setCurrentTime(0)
+    setDuration(0)
+    setStatus('idle')
+  }, [])
+
+  const startItem = useCallback((item: QueueItem, rememberCurrent = true) => {
     const audio = audioRef.current
     if (!audio) return
-    currentTrackRef.current = track
-    setCurrentTrack(track)
+    const previous = currentItemRef.current
+    if (rememberCurrent && previous && previous.id !== item.id) {
+      historyRef.current.push(previous.track_id)
+      setHistoryCount(historyRef.current.length)
+    }
+    currentItemRef.current = item
+    restoringRef.current = false
+    setCurrentTrack(queueItemTrack(item))
     setCurrentTime(0)
-    setDuration(track.duration_seconds ?? 0)
+    setDuration(item.duration_seconds ?? 0)
     setStatus('loading')
     setError(null)
-    audio.src = mediaUrl(track.id)
+    audio.src = mediaUrl(item.track_id)
     audio.currentTime = 0
     audio.load()
     void audio.play().catch((playError: unknown) => {
@@ -78,59 +118,106 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const playTrack = useCallback(
-    (track: Track, albumTracks?: Track[]) => {
-      const nextContext = albumTracks?.length ? albumTracks : [track]
-      contextTracksRef.current = nextContext
-      setContextTracks(nextContext)
-      startAudio(track)
-      if (!albumTracks) {
-        void getAlbum(track.album_id)
-          .then((album) => {
-            if (currentTrackRef.current?.id === track.id) {
-              contextTracksRef.current = album.tracks
-              setContextTracks(album.tracks)
-            }
-          })
-          .catch(() => undefined)
+  const restoreItem = useCallback((item: QueueItem) => {
+    const audio = audioRef.current
+    if (!audio) return
+    currentItemRef.current = item
+    restoringRef.current = true
+    audio.pause()
+    audio.src = mediaUrl(item.track_id)
+    audio.currentTime = 0
+    audio.load()
+    setCurrentTrack(queueItemTrack(item))
+    setCurrentTime(0)
+    setDuration(item.duration_seconds ?? 0)
+    setStatus('paused')
+    setError(null)
+  }, [])
+
+  const finishAdvance = useCallback(
+    (snapshot: Awaited<ReturnType<typeof queue.advance>>, failed: boolean) => {
+      if (snapshot?.current) {
+        startItem(snapshot.current)
+        if (failed)
+          queue.notify(
+            'Skipped an unavailable track and continued with the queue.',
+          )
+      } else if (snapshot) {
+        stopAudio()
+        queue.notify(
+          failed
+            ? 'The unavailable track was skipped. Nothing else is queued.'
+            : 'Queue finished.',
+        )
       }
     },
-    [startAudio],
+    [queue, startItem, stopAudio],
   )
 
-  const currentIndex = currentTrack
-    ? contextTracks.findIndex((track) => track.id === currentTrack.id)
-    : -1
+  const advanceCurrent = useCallback(
+    async (failed = false) => {
+      const current = currentItemRef.current
+      if (!current || advancingRef.current) return
+      advancingRef.current = true
+      if (failed) queue.notify('Skipping a track that could not be played.')
+      const snapshot = await queue.advance(current.id)
+      advancingRef.current = false
+      if (!snapshot && queue.mutating) pendingAdvanceRef.current = failed
+      finishAdvance(snapshot, failed)
+    },
+    [finishAdvance, queue],
+  )
 
-  const next = useCallback(() => {
-    const active = currentTrackRef.current
-    const index = active
-      ? contextTracksRef.current.findIndex((track) => track.id === active.id)
-      : -1
-    const nextTrack = contextTracksRef.current[index + 1]
-    if (nextTrack) startAudio(nextTrack)
-  }, [startAudio])
-
-  const previous = useCallback(() => {
-    const audio = audioRef.current
-    if (audio && audio.currentTime > 3) {
-      audio.currentTime = 0
-      setCurrentTime(0)
+  useEffect(() => {
+    if (queue.loading) return
+    const restored = queue.snapshot?.current ?? null
+    if (!restored) {
+      if (currentItemRef.current) stopAudio()
       return
     }
-    const active = currentTrackRef.current
-    const index = active
-      ? contextTracksRef.current.findIndex((track) => track.id === active.id)
-      : -1
-    const previousTrack = contextTracksRef.current[index - 1]
-    if (previousTrack) startAudio(previousTrack)
-  }, [startAudio])
+    if (currentItemRef.current?.id === restored.id) return
+    if (!restored.available) {
+      currentItemRef.current = restored
+      void advanceCurrent(true)
+      return
+    }
+    restoreItem(restored)
+  }, [advanceCurrent, queue.loading, queue.snapshot, restoreItem, stopAudio])
+
+  useEffect(() => {
+    if (queue.mutating || pendingAdvanceRef.current === null) return
+    const failed = pendingAdvanceRef.current
+    pendingAdvanceRef.current = null
+    void advanceCurrent(failed)
+  }, [advanceCurrent, queue.mutating])
+
+  const playNow = useCallback(
+    async (track: Track) => {
+      const snapshot = await queue.playNow(track.id)
+      if (snapshot?.current) startItem(snapshot.current)
+    },
+    [queue, startItem],
+  )
+
+  const playAlbum = useCallback(
+    async (albumId: number) => {
+      const snapshot = await queue.playAlbum(albumId)
+      historyRef.current = []
+      setHistoryCount(0)
+      if (snapshot?.current) startItem(snapshot.current, false)
+    },
+    [queue, startItem],
+  )
 
   const togglePlayback = useCallback(() => {
     const audio = audioRef.current
-    if (!audio || !currentTrackRef.current) return
+    if (!audio || !currentItemRef.current) return
     setError(null)
+    const restartingRestoredTrack = restoringRef.current
+    restoringRef.current = false
     if (audio.paused) {
+      if (restartingRestoredTrack) audio.currentTime = 0
+      setCurrentTime(audio.currentTime)
       setStatus('loading')
       void audio.play().catch((playError: unknown) => {
         setStatus('error')
@@ -140,6 +227,25 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       audio.pause()
     }
   }, [])
+
+  const previous = useCallback(() => {
+    const audio = audioRef.current
+    if (audio && audio.currentTime > 3) {
+      audio.currentTime = 0
+      setCurrentTime(0)
+      return
+    }
+    const previousTrackId = historyRef.current.pop()
+    setHistoryCount(historyRef.current.length)
+    if (!previousTrackId) return
+    void queue.playNow(previousTrackId).then((snapshot) => {
+      if (snapshot?.current) startItem(snapshot.current, false)
+    })
+  }, [queue, startItem])
+
+  const next = useCallback(() => {
+    void advanceCurrent(false)
+  }, [advanceCurrent])
 
   const seek = useCallback((time: number) => {
     const audio = audioRef.current
@@ -175,9 +281,10 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       duration,
       volume,
       muted,
-      canGoPrevious: currentIndex > 0 || currentTime > 3,
-      canGoNext: currentIndex >= 0 && currentIndex < contextTracks.length - 1,
-      playTrack,
+      canGoPrevious: historyCount > 0 || currentTime > 3,
+      canGoNext: Boolean(queue.snapshot?.upcoming.length),
+      playNow,
+      playAlbum,
       togglePlayback,
       previous,
       next,
@@ -186,16 +293,17 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       toggleMute,
     }),
     [
-      currentIndex,
-      contextTracks.length,
       currentTime,
       currentTrack,
       duration,
       error,
+      historyCount,
       muted,
       next,
-      playTrack,
+      playAlbum,
+      playNow,
       previous,
+      queue.snapshot?.upcoming.length,
       seek,
       setVolume,
       status,
@@ -212,19 +320,24 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         ref={audioRef}
         preload="metadata"
         crossOrigin="anonymous"
-        onLoadStart={() => setStatus('loading')}
+        onLoadStart={() =>
+          setStatus(restoringRef.current ? 'paused' : 'loading')
+        }
         onPlaying={() => {
+          restoringRef.current = false
           setStatus('playing')
           setError(null)
         }}
         onPause={() => {
-          if (currentTrackRef.current) {
+          if (currentItemRef.current && !restoringRef.current) {
             setStatus((currentStatus) =>
               currentStatus === 'error' ? currentStatus : 'paused',
             )
           }
         }}
-        onWaiting={() => setStatus('loading')}
+        onWaiting={() => {
+          if (!restoringRef.current) setStatus('loading')
+        }}
         onTimeUpdate={(event) =>
           setCurrentTime(event.currentTarget.currentTime)
         }
@@ -238,12 +351,14 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
           setVolumeState(event.currentTarget.volume)
           setMuted(event.currentTarget.muted)
         }}
-        onEnded={next}
+        onEnded={() => void advanceCurrent(false)}
         onError={() => {
+          if (!currentItemRef.current) return
           setStatus('error')
           setError(
-            'This track could not be played. The file may be missing or unsupported.',
+            'This track could not be played. It will be skipped if another item is queued.',
           )
+          void advanceCurrent(true)
         }}
       />
     </AudioPlayerContext.Provider>

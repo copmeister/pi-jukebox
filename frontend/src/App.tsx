@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AudioPlayerProvider, useAudioPlayer } from './audio/AudioPlayerContext'
+import { AudioPlayerProvider } from './audio/AudioPlayerContext'
 import { MiniPlayer } from './components/MiniPlayer'
 import { Navigation } from './components/Navigation'
 import { useCatalogue } from './hooks/useCatalogue'
@@ -7,16 +7,17 @@ import type { Destination } from './navigation'
 import { AlbumScreen } from './screens/AlbumScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { LibraryScreen } from './screens/LibraryScreen'
-import { PlaceholderScreen } from './screens/PlaceholderScreen'
+import { QueueScreen } from './screens/QueueScreen'
 import { SearchScreen } from './screens/SearchScreen'
 import { NowPlayingScreen } from './screens/NowPlayingScreen'
+import { QueueProvider, useQueue } from './queue/QueueContext'
 
 function AppContent() {
   const [activeDestination, setActiveDestination] =
     useState<Destination>('Home')
   const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null)
   const catalogue = useCatalogue()
-  const player = useAudioPlayer()
+  const queue = useQueue()
 
   const navigate = (destination: Destination) => {
     setSelectedAlbumId(null)
@@ -63,20 +64,9 @@ function AppContent() {
       />
     )
   } else if (activeDestination === 'Search') {
-    content = (
-      <SearchScreen
-        onOpenAlbum={openAlbum}
-        onPlayTrack={(track) => player.playTrack(track)}
-      />
-    )
+    content = <SearchScreen onOpenAlbum={openAlbum} />
   } else if (activeDestination === 'Queue') {
-    content = (
-      <PlaceholderScreen
-        kicker="Up next"
-        title="Queue"
-        message="A persistent, touch-reorderable queue will arrive with playback. Nothing can be queued yet."
-      />
-    )
+    content = <QueueScreen onBrowse={() => navigate('Library')} />
   } else {
     content = <NowPlayingScreen />
   }
@@ -106,6 +96,15 @@ function AppContent() {
       </header>
 
       <main id="main-content" className="main-content" tabIndex={-1}>
+        {queue.notice || queue.error ? (
+          <div
+            className={`queue-feedback${queue.error ? ' is-error' : ''}`}
+            role={queue.error ? 'alert' : 'status'}
+            aria-live="polite"
+          >
+            {queue.error ?? queue.notice}
+          </div>
+        ) : null}
         {content}
       </main>
 
@@ -117,8 +116,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AudioPlayerProvider>
-      <AppContent />
-    </AudioPlayerProvider>
+    <QueueProvider>
+      <AudioPlayerProvider>
+        <AppContent />
+      </AudioPlayerProvider>
+    </QueueProvider>
   )
 }

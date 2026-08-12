@@ -1,6 +1,6 @@
 """Versioned SQLite schema for the local music catalogue."""
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS artists (
@@ -67,4 +67,28 @@ CREATE TABLE IF NOT EXISTS scan_runs (
     files_with_errors INTEGER NOT NULL DEFAULT 0,
     error_message TEXT
 );
+
+CREATE TABLE IF NOT EXISTS queue_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS queue_items (
+    id INTEGER PRIMARY KEY,
+    track_id INTEGER NOT NULL CHECK (track_id > 0),
+    album_id INTEGER NOT NULL CHECK (album_id > 0),
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    album TEXT NOT NULL,
+    duration_seconds REAL CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
+    artwork_id INTEGER,
+    position INTEGER NOT NULL UNIQUE CHECK (position >= 0),
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_queue_items_track_id ON queue_items(track_id);
+
+INSERT OR IGNORE INTO queue_state (id, revision, updated_at)
+VALUES (1, 0, '1970-01-01T00:00:00+00:00');
 """

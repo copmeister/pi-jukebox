@@ -77,6 +77,21 @@ Milestone 4A provides the first local listening path:
 
 This milestone does not add queue persistence, playback-state persistence, visualisation, kiosk deployment, system-wide volume, or hardware integration.
 
+## Milestone 4B scope
+
+Milestone 4B completes the pre-hardware listening workflow:
+
+- One authoritative SQLite queue with stable queue-item IDs and duplicate tracks
+- Play Now, Play Next, Add to Queue, Play Album, and Add Album to Queue
+- Separate current/upcoming presentation, removal, confirmed clearing, and touch Up/Down reordering
+- Transactional deterministic positions and migration-safe upgrade from existing catalogues
+- Queue-aware manual Next and exactly-once automatic advancement
+- Safe skipping of catalogue entries or media files that have disappeared
+- Queue restoration after browser or backend restart without autoplay
+- Current metadata restoration paused at the beginning; playback position is not persisted
+
+This is the final software milestone before Raspberry Pi hardware bring-up. It does not add visualisation, kiosk deployment, hardware integration, shuffle, repeat, playlists, or listening history.
+
 ## Agreed product behaviour
 
 - Design primarily for the official Touch Display 2 at 1280×720 landscape. Retain 1024×600 as a secondary size and 800×480 as a compact fallback.
@@ -84,8 +99,8 @@ This milestone does not add queue persistence, playback-state persistence, visua
 - Require MP3 and FLAC. WAV may be supported. M4A/AAC remains provisional until tested on the Pi.
 - Group albums by Album Artist and Album title.
 - Order album tracks by disc number and then track number.
-- If the currently playing queue item is removed, allow it to finish before continuing with the revised queue.
-- After a restart, restore the queue, current item, and approximate position, but remain paused.
+- The current queue item cannot be removed; Next skips it. Clearing affects upcoming items only.
+- After a restart, restore the queue and current item, remain paused, and restart that track from the beginning after one touch. Playback position is not stored.
 - Defer shuffle and repeat.
 - Begin with a clean, modern visual direction.
 - Use configuration files for initial kiosk administration.

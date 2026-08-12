@@ -3,7 +3,10 @@ import { ApiError, getAlbum } from '../api/client'
 import type { AlbumDetail } from '../api/types'
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
 import { Artwork } from '../components/Artwork'
+import { ConfirmationPanel } from '../components/ConfirmationPanel'
 import { ScreenState } from '../components/ScreenState'
+import { TrackActions } from '../components/TrackActions'
+import { useQueue } from '../queue/QueueContext'
 import { formatAlbumDuration, formatTrackDuration } from '../utils/format'
 
 interface AlbumScreenProps {
@@ -13,8 +16,10 @@ interface AlbumScreenProps {
 
 export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
   const player = useAudioPlayer()
+  const queue = useQueue()
   const [album, setAlbum] = useState<AlbumDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [confirmReplace, setConfirmReplace] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -63,6 +68,17 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
 
   const hasMultipleDiscs =
     new Set(album.tracks.map((track) => track.disc_number)).size > 1
+  const queueIsNonEmpty = Boolean(
+    queue.snapshot?.current || queue.snapshot?.upcoming.length,
+  )
+
+  const playAlbum = () => {
+    if (queueIsNonEmpty) {
+      setConfirmReplace(true)
+      return
+    }
+    void player.playAlbum(album.id)
+  }
 
   return (
     <div className="screen album-detail-screen">
@@ -83,19 +99,39 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
             {album.track_count} tracks ·{' '}
             {formatAlbumDuration(album.duration_seconds)}
           </p>
-          <button
-            className="primary-button album-play-button"
-            type="button"
-            onClick={() => {
-              if (album.tracks[0])
-                player.playTrack(album.tracks[0], album.tracks)
-            }}
-            disabled={!album.tracks.length}
-          >
-            Play Album
-          </button>
+          <div className="album-actions">
+            <button
+              className="primary-button album-play-button"
+              type="button"
+              onClick={playAlbum}
+              disabled={!album.tracks.length || queue.mutating !== null}
+            >
+              Play Album
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => void queue.addAlbum(album.id)}
+              disabled={!album.tracks.length || queue.mutating !== null}
+            >
+              Add Album to Queue
+            </button>
+          </div>
         </div>
       </section>
+      {confirmReplace ? (
+        <ConfirmationPanel
+          title="Replace the current queue?"
+          message={`Play Album will replace the current item and all upcoming tracks with ${album.title}.`}
+          confirmLabel="Replace and Play"
+          disabled={queue.mutating !== null}
+          onCancel={() => setConfirmReplace(false)}
+          onConfirm={() => {
+            setConfirmReplace(false)
+            void player.playAlbum(album.id)
+          }}
+        />
+      ) : null}
       <ol className="track-list" aria-label={`Tracks on ${album.title}`}>
         {album.tracks.map((track, index) => {
           const previousDisc = album.tracks[index - 1]?.disc_number
@@ -104,11 +140,8 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
           return (
             <li key={track.id}>
               {showDisc ? <h2>Disc {track.disc_number ?? '—'}</h2> : null}
-              <button
-                type="button"
+              <div
                 className={`track-row${player.currentTrack?.id === track.id ? ' is-current' : ''}`}
-                onClick={() => player.playTrack(track, album.tracks)}
-                aria-label={`Play ${track.title} by ${track.artist}`}
               >
                 <span
                   className="track-number"
@@ -125,9 +158,10 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
                   {player.currentTrack?.id === track.id &&
                   player.status === 'playing'
                     ? 'Ⅱ'
-                    : '▶'}
+                    : ''}
                 </span>
-              </button>
+                <TrackActions track={track} />
+              </div>
             </li>
           )
         })}

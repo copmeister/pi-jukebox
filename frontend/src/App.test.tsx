@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -56,6 +56,33 @@ const albumDetail = {
   ],
 }
 
+const emptyQueue = {
+  revision: 0,
+  current: null,
+  upcoming: [],
+  upcoming_count: 0,
+  upcoming_duration_seconds: 0,
+  warning: null,
+}
+
+const playingQueue = {
+  ...emptyQueue,
+  revision: 1,
+  current: {
+    id: 51,
+    track_id: 11,
+    album_id: 7,
+    title: 'Northern Lights',
+    artist: 'Guest Vocalist',
+    album: 'Night Drive',
+    duration_seconds: 180,
+    artwork_id: null,
+    position: 0,
+    status: 'current',
+    available: true,
+  },
+}
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -70,15 +97,37 @@ describe('App catalogue interface', () => {
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input)
         if (url.endsWith('/api/albums?limit=500')) return jsonResponse(albums)
+        if (url.endsWith('/api/queue')) return jsonResponse(emptyQueue)
         if (url.endsWith('/api/library/scan/status'))
           return jsonResponse(scanStatus)
         if (url.endsWith('/api/albums/7')) return jsonResponse(albumDetail)
+        if (url.endsWith('/api/queue/tracks/11/play-now'))
+          return jsonResponse(playingQueue)
+        if (url.endsWith('/api/queue/albums/7/play'))
+          return jsonResponse(playingQueue)
+        if (url.endsWith('/api/queue/albums/7'))
+          return jsonResponse({
+            ...playingQueue,
+            upcoming: [
+              {
+                ...playingQueue.current,
+                id: 52,
+                position: 1,
+                status: 'upcoming',
+              },
+            ],
+            upcoming_count: 1,
+            upcoming_duration_seconds: 180,
+          })
         throw new Error(`Unexpected request: ${url}`)
       }),
     )
   })
 
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+  })
 
   it('shows catalogue totals and opens an album from the Library screen', async () => {
     const user = userEvent.setup()
@@ -110,10 +159,9 @@ describe('App catalogue interface', () => {
     expect(screen.getByText('Northern Lights')).toBeInTheDocument()
     expect(screen.getByText('Guest Vocalist')).toBeInTheDocument()
     await user.click(
-      screen.getByRole('button', {
-        name: 'Play Northern Lights by Guest Vocalist',
-      }),
+      screen.getByRole('button', { name: 'Queue actions for Northern Lights' }),
     )
+    await user.click(screen.getByRole('button', { name: 'Play Now' }))
     expect(screen.getAllByText('Northern Lights')).toHaveLength(2)
 
     await user.click(screen.getByRole('button', { name: 'Home' }))
@@ -129,6 +177,13 @@ describe('App catalogue interface', () => {
         name: 'Open Night Drive by The House Band',
       }),
     )
+
+    await user.click(screen.getByRole('button', { name: 'Play Album' }))
+    expect(
+      screen.getByRole('alertdialog', { name: 'Replace the current queue?' }),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Replace and Play' }))
+    await user.click(screen.getByRole('button', { name: 'Add Album to Queue' }))
 
     await user.click(screen.getByRole('button', { name: '‹ Back to Library' }))
     await waitFor(() =>
@@ -151,7 +206,7 @@ describe('App catalogue interface', () => {
         name: 'The library is out of reach',
       }),
     ).toBeInTheDocument()
-    expect(screen.getByText(/backend is running/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/backend is running/i)).not.toHaveLength(0)
     expect(screen.getByText('Backend unavailable')).toBeInTheDocument()
   })
 
@@ -160,6 +215,7 @@ describe('App catalogue interface', () => {
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input)
+        if (url.endsWith('/api/queue')) return jsonResponse(emptyQueue)
         if (url.endsWith('/api/albums?limit=500'))
           return jsonResponse({ albums: 'invalid' })
         if (url.endsWith('/api/library/scan/status'))

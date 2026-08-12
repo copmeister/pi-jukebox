@@ -11,6 +11,7 @@ from pi_jukebox.catalogue.database import Catalogue
 from pi_jukebox.config import Settings as AppSettings
 from pi_jukebox.config import get_settings
 from pi_jukebox.library.scanner import LibraryScanner, ScanService
+from pi_jukebox.queue.database import QueueStore
 
 
 def create_app(settings: AppSettings | None = None) -> FastAPI:
@@ -24,6 +25,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         catalogue.initialize()
         scanner = LibraryScanner(settings=settings, catalogue=catalogue)
         application.state.catalogue = catalogue
+        application.state.queue_store = QueueStore(catalogue)
         application.state.scan_service = ScanService(scanner=scanner, catalogue=catalogue)
         try:
             yield

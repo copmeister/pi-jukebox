@@ -1,6 +1,8 @@
 import type {
   AlbumDetail,
   AlbumSummary,
+  QueueItem,
+  QueueSnapshot,
   ScanStart,
   ScanStatus,
   SearchResults,
@@ -49,9 +51,15 @@ async function requestJson<T>(
 
   if (!response.ok) {
     throw new ApiError(
-      response.status === 409
-        ? 'A library scan is already running.'
-        : 'The jukebox service could not complete that request.',
+      path.startsWith('/queue')
+        ? response.status === 404
+          ? 'That track or queue item is no longer available.'
+          : response.status === 409
+            ? 'The queue changed before that action completed. Its current state has been kept.'
+            : 'The queue action could not be completed.'
+        : response.status === 409
+          ? 'A library scan is already running.'
+          : 'The jukebox service could not complete that request.',
       response.status,
     )
   }
@@ -168,6 +176,36 @@ function isScanStart(value: unknown): value is ScanStart {
   )
 }
 
+function isQueueItem(value: unknown): value is QueueItem {
+  return (
+    isRecord(value) &&
+    isNumber(value.id) &&
+    isNumber(value.track_id) &&
+    isNumber(value.album_id) &&
+    typeof value.title === 'string' &&
+    typeof value.artist === 'string' &&
+    typeof value.album === 'string' &&
+    isNullableNumber(value.duration_seconds) &&
+    isNullableNumber(value.artwork_id) &&
+    isNumber(value.position) &&
+    ['current', 'upcoming'].includes(String(value.status)) &&
+    typeof value.available === 'boolean'
+  )
+}
+
+function isQueueSnapshot(value: unknown): value is QueueSnapshot {
+  return (
+    isRecord(value) &&
+    isNumber(value.revision) &&
+    (value.current === null || isQueueItem(value.current)) &&
+    Array.isArray(value.upcoming) &&
+    value.upcoming.every(isQueueItem) &&
+    isNumber(value.upcoming_count) &&
+    isNumber(value.upcoming_duration_seconds) &&
+    isNullableString(value.warning)
+  )
+}
+
 export function getAlbums(signal?: AbortSignal): Promise<AlbumSummary[]> {
   return requestJson(
     '/albums?limit=500',
@@ -216,4 +254,67 @@ export function artworkUrl(artworkId: number): string {
 
 export function mediaUrl(trackId: number): string {
   return apiUrl(`/tracks/${trackId}/media`)
+}
+
+export function getQueue(): Promise<QueueSnapshot> {
+  return requestJson('/queue', isQueueSnapshot)
+}
+
+export function addTrackToQueue(trackId: number): Promise<QueueSnapshot> {
+  return requestJson(`/queue/tracks/${trackId}`, isQueueSnapshot, {
+    method: 'POST',
+  })
+}
+
+export function playTrackNext(trackId: number): Promise<QueueSnapshot> {
+  return requestJson(`/queue/tracks/${trackId}/next`, isQueueSnapshot, {
+    method: 'POST',
+  })
+}
+
+export function playTrackNow(trackId: number): Promise<QueueSnapshot> {
+  return requestJson(`/queue/tracks/${trackId}/play-now`, isQueueSnapshot, {
+    method: 'POST',
+  })
+}
+
+export function addAlbumToQueue(albumId: number): Promise<QueueSnapshot> {
+  return requestJson(`/queue/albums/${albumId}`, isQueueSnapshot, {
+    method: 'POST',
+  })
+}
+
+export function replaceQueueWithAlbum(albumId: number): Promise<QueueSnapshot> {
+  return requestJson(`/queue/albums/${albumId}/play`, isQueueSnapshot, {
+    method: 'POST',
+  })
+}
+
+export function removeQueueItem(itemId: number): Promise<QueueSnapshot> {
+  return requestJson(`/queue/items/${itemId}`, isQueueSnapshot, {
+    method: 'DELETE',
+  })
+}
+
+export function clearUpcomingQueue(): Promise<QueueSnapshot> {
+  return requestJson('/queue/upcoming', isQueueSnapshot, { method: 'DELETE' })
+}
+
+export function moveQueueItem(
+  itemId: number,
+  direction: 'up' | 'down',
+): Promise<QueueSnapshot> {
+  return requestJson(`/queue/items/${itemId}/move`, isQueueSnapshot, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ direction }),
+  })
+}
+
+export function advanceQueue(currentItemId: number): Promise<QueueSnapshot> {
+  return requestJson('/queue/advance', isQueueSnapshot, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_item_id: currentItemId }),
+  })
 }

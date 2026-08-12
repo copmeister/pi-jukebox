@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react'
 import { ApiError, searchCatalogue } from '../api/client'
 import type { SearchResults } from '../api/types'
-import type { Track } from '../api/types'
 import { AlbumCard } from '../components/AlbumCard'
 import { ScreenState } from '../components/ScreenState'
+import { TrackActions } from '../components/TrackActions'
 import { TouchSearchKeypad } from '../components/TouchSearchKeypad'
 import { formatTrackDuration } from '../utils/format'
 
 interface SearchScreenProps {
   onOpenAlbum: (albumId: number) => void
-  onPlayTrack: (track: Track) => void
 }
 
-export function SearchScreen({ onOpenAlbum, onPlayTrack }: SearchScreenProps) {
+export function SearchScreen({ onOpenAlbum }: SearchScreenProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResults | null>(null)
   const [loading, setLoading] = useState(false)
@@ -164,14 +163,9 @@ export function SearchScreen({ onOpenAlbum, onPlayTrack }: SearchScreenProps) {
               <div className="search-tracks">
                 {results.tracks.map((track) => (
                   <div key={track.id} className="search-track">
-                    <button
-                      type="button"
-                      className="search-track__play"
-                      onClick={() => onPlayTrack(track)}
-                      aria-label={`Play ${track.title} by ${track.artist}`}
-                    >
+                    <div className="search-track__summary">
                       <span className="search-track__mark" aria-hidden="true">
-                        ▶
+                        ♪
                       </span>
                       <span>
                         <strong>{track.title}</strong>
@@ -180,7 +174,8 @@ export function SearchScreen({ onOpenAlbum, onPlayTrack }: SearchScreenProps) {
                         </small>
                       </span>
                       <time>{formatTrackDuration(track.duration_seconds)}</time>
-                    </button>
+                    </div>
+                    <TrackActions track={track} />
                     <button
                       type="button"
                       className="search-track__album"
