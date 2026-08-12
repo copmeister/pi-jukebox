@@ -10,7 +10,7 @@ Pi Jukebox is a single-device, local-first application. During development, the 
 Configured music folder
          │
          ▼
-Python library services ──► SQLite catalogue and durable queue
+Python library scanner ───► SQLite catalogue
          │                           │
          ├── JSON API ───────────────┤
          ├── artwork responses       │
@@ -22,7 +22,7 @@ Python library services ──► SQLite catalogue and durable queue
                               Web Audio API
 ```
 
-Milestone 1 implements only the FastAPI application shell, health endpoint, configuration, and React interface shell. The other boxes describe approved future boundaries, not current functionality.
+Milestone 2 implements the local scanner and read-only catalogue APIs. Queue persistence, audio responses, playback, and the visualiser remain future work.
 
 ## Backend
 
@@ -31,10 +31,12 @@ The backend is an installable Python package under `backend/src/pi_jukebox`.
 - **FastAPI** provides the local HTTP API.
 - **Uvicorn** runs FastAPI during development and eventually on the Pi.
 - **Pydantic Settings** reads configuration from environment variables and an ignored local `.env` file.
-- **SQLite** will store the catalogue, queue, settings, and recoverable player state in a later milestone.
-- Library scanning and metadata extraction will be isolated from HTTP routing so they can be tested without running a server.
+- **SQLite** stores artists, albums, tracks, artwork references, and scan history. Later migrations will add queue and player state.
+- **Mutagen** reads tags, duration, and embedded artwork without modifying source files.
+- Library scanning and metadata extraction are isolated from HTTP routing so they can be tested without running a server.
+- A guarded background thread performs manual scans. Only one scan can run at a time, and FastAPI remains available while it runs.
 
-The API uses `/api` as its prefix. The initial route is `GET /api/health`.
+The API uses `/api` as its prefix. Health, scan status, albums, tracks, and cached artwork are currently exposed.
 
 ## Frontend
 
@@ -52,21 +54,33 @@ The shell is designed first for 1024×600 landscape and remains usable at 800×4
 
 All settings use the `PI_JUKEBOX_` environment prefix. `.env.example` documents safe values, while the developer's `.env` stays untracked.
 
-Important planned settings include:
+Important settings include:
 
 - The one music-library folder
 - Runtime data directory
 - Backend host and port
 - Frontend development origin
 
-Machine-specific paths, music, databases, caches, logs, and secrets must not be committed. Runtime data will live in the configured data directory rather than in the Python package.
+Machine-specific paths, music, databases, caches, logs, and secrets must not be committed. Runtime data lives in the configured data directory rather than in the Python package. The default database is `data/catalogue.sqlite3`; content-addressed artwork is stored under `data/artwork`.
+
+The scanner resolves the configured library root before walking it. Catalogue paths are relative to that root. Directory symlinks are not followed, and resolved audio files outside the root are rejected.
+
+## Catalogue and scan behaviour
+
+- Album identity is normalized Album Artist plus normalized album title.
+- Track artists remain separate from the Album Artist used for grouping.
+- Album tracks sort by disc number, track number, title, and stable database ID. Missing numbers sort after numbered tracks.
+- Relative path is the unique track identity.
+- File size and nanosecond modification time decide whether metadata needs rereading.
+- A successful scan removes catalogue tracks no longer present. A failed or unavailable scan does not clear the existing catalogue.
+- Artwork is deduplicated by SHA-256 hash and cached outside source control.
+- Each scan records start/finish timestamps, result status, counters, and a safe error message.
+- SQLite uses foreign keys, WAL journaling, short-lived connections, and a busy timeout for the API/scanner boundary.
 
 ## Future component boundaries
 
 The following backend areas will be added incrementally:
 
-- `library`: discovery, metadata, artwork, and incremental scans
-- `database`: schema, migrations, and repository functions
 - `queue`: persistent ordering and queue rules
 - `media`: artwork and seekable audio responses
 - `player-state`: recoverable current item and approximate position

@@ -37,6 +37,19 @@ This milestone establishes the project foundation only:
 
 It does not scan music, read metadata, play audio, manage a queue, draw a visualiser, create a database, or configure Raspberry Pi deployment.
 
+## Milestone 2 scope
+
+Milestone 2 adds the backend catalogue and scanner foundation:
+
+- One environment-configured library folder
+- Versioned SQLite catalogue for artists, albums, tracks, artwork, and scan runs
+- Incremental recursive scanning with safe metadata fallbacks
+- Embedded artwork extraction and runtime caching
+- Non-blocking manual scans with overlap protection
+- Read-only album, track, artwork, and scan-status APIs
+
+The frontend remains unchanged. Playback, queue state, search UI, visualisation, and Raspberry Pi deployment are still outside this milestone.
+
 ## Agreed product behaviour
 
 - Design primarily for 1024×600 landscape and remain responsive down to 800×480.

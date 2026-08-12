@@ -1,0 +1,70 @@
+"""Versioned SQLite schema for the local music catalogue."""
+
+SCHEMA_VERSION = 1
+
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS artists (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS artwork (
+    id INTEGER PRIMARY KEY,
+    content_hash TEXT NOT NULL UNIQUE,
+    mime_type TEXT NOT NULL,
+    cache_filename TEXT NOT NULL UNIQUE,
+    byte_size INTEGER NOT NULL CHECK (byte_size >= 0),
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS albums (
+    id INTEGER PRIMARY KEY,
+    album_artist_id INTEGER NOT NULL REFERENCES artists(id),
+    title TEXT NOT NULL,
+    normalized_title TEXT NOT NULL,
+    artwork_id INTEGER REFERENCES artwork(id),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (album_artist_id, normalized_title)
+);
+
+CREATE TABLE IF NOT EXISTS tracks (
+    id INTEGER PRIMARY KEY,
+    album_id INTEGER NOT NULL REFERENCES albums(id),
+    artist_id INTEGER NOT NULL REFERENCES artists(id),
+    relative_path TEXT NOT NULL UNIQUE,
+    filename TEXT NOT NULL,
+    title TEXT NOT NULL,
+    disc_number INTEGER CHECK (disc_number IS NULL OR disc_number >= 0),
+    track_number INTEGER CHECK (track_number IS NULL OR track_number >= 0),
+    duration_seconds REAL CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
+    file_format TEXT NOT NULL,
+    playback_support TEXT NOT NULL,
+    file_size INTEGER NOT NULL CHECK (file_size >= 0),
+    modified_time_ns INTEGER NOT NULL CHECK (modified_time_ns >= 0),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_albums_title ON albums(normalized_title);
+CREATE INDEX IF NOT EXISTS idx_tracks_album_order
+    ON tracks(album_id, disc_number, track_number, title);
+CREATE INDEX IF NOT EXISTS idx_tracks_title ON tracks(title);
+
+CREATE TABLE IF NOT EXISTS scan_runs (
+    id INTEGER PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('running', 'completed', 'failed')),
+    library_root TEXT,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    files_discovered INTEGER NOT NULL DEFAULT 0,
+    files_added INTEGER NOT NULL DEFAULT 0,
+    files_updated INTEGER NOT NULL DEFAULT 0,
+    files_unchanged INTEGER NOT NULL DEFAULT 0,
+    files_removed INTEGER NOT NULL DEFAULT 0,
+    files_with_errors INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT
+);
+"""
