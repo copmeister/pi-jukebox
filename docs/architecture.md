@@ -22,7 +22,7 @@ Python library scanner ───► SQLite catalogue
                               Web Audio API
 ```
 
-Milestones 2 through 4B implement the local scanner, catalogue/search APIs, browser catalogue interface, secure range-capable media responses, basic browser playback, and the persistent touchscreen queue. The visualiser and hardware deployment remain future work.
+Milestones 2 through 4C implement the local scanner, catalogue/search APIs, browser catalogue interface, secure range-capable media responses, basic browser playback, the persistent touchscreen queue, and the classic selector. The visualiser and hardware deployment remain future work.
 
 ## Backend
 
@@ -38,7 +38,7 @@ The backend is an installable Python package under `backend/src/pi_jukebox`.
 
 The API uses `/api` as its prefix. Health, scan status, albums, tracks, search, cached artwork, track media, and queue mutations are exposed. Media requests accept only a catalogue track ID. The server resolves its stored relative path beneath the configured library root, rejects escapes (including resolving symbolic links), and supports one HTTP byte range for browser seeking.
 
-The backend queue is authoritative. Every mutation runs in an immediate SQLite transaction, returns a complete confirmed snapshot, increments a revision, and normalizes upcoming positions. Advance requests include the expected current queue-item ID; stale or repeated requests return a conflict instead of skipping another item. Queue rows retain safe metadata snapshots and catalogue IDs but never paths. They deliberately do not use a restrictive track foreign key, so a later scan may remove catalogue rows without blocking; missing tracks are marked unavailable and skipped on advancement.
+The backend queue is authoritative. Every mutation runs in an immediate SQLite transaction, returns a complete confirmed snapshot, increments a revision, and normalizes upcoming positions. Advance requests include the expected current queue-item ID; stale or repeated requests return a conflict instead of skipping another item. The complete Stop & Clear operation deletes current and upcoming rows in one transaction without touching catalogue tables. Queue rows retain safe metadata snapshots and catalogue IDs but never paths. They deliberately do not use a restrictive track foreign key, so a later scan may remove catalogue rows without blocking; missing tracks are marked unavailable and skipped on advancement.
 
 ## Frontend
 
@@ -51,12 +51,17 @@ The frontend is a React single-page application written in TypeScript and built 
 - A future Web Audio `AnalyserNode` will provide frequency data to a lightweight Canvas visualiser.
 - During development, Vite proxies `/api` requests to FastAPI on port 8000.
 - A small typed client validates important response fields at runtime and converts network or invalid-response failures into safe user-facing messages.
-- Catalogue state is shared across Home and Library. Scan status is polled only while a scan is active, then albums are refreshed.
+- Catalogue summary state is shared with Library. The Jukebox selector independently requests complete track metadata when mounted. Scan status is polled only while a scan is active, then albums are refreshed.
 - Search requests wait briefly after input changes and cancel stale requests.
 - The search screen includes a compact in-flow QWERTY and number keypad. It changes the same editable input used by physical keyboards and can be hidden to recover result space.
 - Track action menus expose Play Now, Play Next, and Add to Queue without relying on hover. Album actions support confirmed replacement and append. The Queue screen provides touch-sized deterministic Up/Down movement rather than requiring drag-and-drop.
+- The default Jukebox screen requests the complete catalogue and uses a pure Fisher–Yates panel utility. It shows four eight-song panels whose state explicitly owns one persistent identity from A through D. Random panel state and discarded history remain browser-only and are never persisted.
+- Each identity owns a permanent accessible accent: A amber (`#f3b53f`), B blue (`#54b6e8`), C violet (`#b08cff`), and D green (`#5fd39a`). Shared CSS custom properties tint only panel edges, selection codes, fixed letter controls, and confirmation feedback; the dark panel surface and neutral metadata text remain unchanged.
+- NEXT and a valid left swipe rotate the state from A–B–C–D to B–C–D–A. The outgoing identity is recycled into a newly randomized incoming panel, retaining its letter and colour. Selection resolves the visible panel by its owned letter rather than its current array position.
+- A panel never repeats a track when at least eight tracks exist. Thirty-two or more tracks fill the visible display uniquely. Smaller catalogues are distributed through fresh shuffled cycles; fewer than eight tracks therefore repeat only as needed, with immediate adjacent duplicates avoided where possible.
+- Letter-then-number selection uses Play Now only when the authoritative queue has no current item; otherwise it appends. A guarded Pointer Events gesture and NEXT button share the same forward-only CSS transition. Stop & Clear updates the queue first, then resets the same root-owned audio element.
 
-The shell is designed first for the official Touch Display 2 at 1280×720 landscape. It retains secondary compatibility at 1024×600 and a compact 800×480 fallback. It uses large touch targets, no hover-only controls, visible keyboard focus, fixed player/navigation rows, and an independently scrolling content region.
+The shell targets the official Touch Display 2 at 1280×720 landscape. Milestone 4C accepts the complete selector only at that native size. Existing smaller-screen rules remain for older modern screens but are not a detailed acceptance target for this feature. The interface uses large touch targets, no hover-only controls, visible keyboard focus, and fixed player/navigation rows.
 
 ## Configuration and data
 
@@ -101,4 +106,4 @@ The following frontend feature area remains for later work:
 - There are no accounts, cloud services, or remote control.
 - Deployment files wait until the kiosk milestone.
 - Raspberry Pi codec and performance support must be proven on real target hardware.
-- Milestone 4B is the final pre-hardware milestone; the next stage is Raspberry Pi, display, Chromium, and audio-device bring-up.
+- Milestone 4C is the final pre-hardware feature milestone; the next stage is Raspberry Pi, display, Chromium, and audio-device bring-up.

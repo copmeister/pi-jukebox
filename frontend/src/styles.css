@@ -143,6 +143,10 @@ button {
   padding: clamp(12px, 2vw, 22px) clamp(16px, 3vw, 30px);
   scroll-behavior: smooth;
 }
+.main-content.is-jukebox {
+  overflow: hidden;
+  padding-block: 10px;
+}
 /* 1280×720 landscape is the primary Touch Display 2 canvas. */
 .screen {
   width: 100%;
@@ -1093,6 +1097,267 @@ h2 {
     ),
     repeating-radial-gradient(circle, #202a33 0 2px, #121920 3px 7px);
   box-shadow: -18px 22px 50px rgba(0, 0, 0, 0.28);
+}
+
+.jukebox-screen {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr) 48px 18px;
+  gap: 7px;
+  overflow: hidden;
+}
+.jukebox-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.jukebox-heading .eyebrow {
+  margin-bottom: 1px;
+  font-size: 0.57rem;
+}
+.jukebox-heading h1 {
+  font-size: 1.75rem;
+}
+.jukebox-count {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+.jukebox-count strong {
+  color: var(--accent);
+  font-size: 1.05rem;
+}
+.jukebox-panel-viewport {
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  touch-action: pan-y;
+  user-select: none;
+}
+.jukebox-panel-track {
+  --panel-gap: 8px;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-auto-columns: calc((100% - (var(--panel-gap) * 3)) / 4);
+  grid-auto-flow: column;
+  gap: var(--panel-gap);
+  transform: translateX(0);
+  transition: transform var(--jukebox-transition, 320ms) ease-in-out;
+  will-change: transform;
+}
+.jukebox-panel-track.is-sliding {
+  transform: translateX(calc((-100% - var(--panel-gap)) / 4));
+}
+.jukebox-accent--a {
+  --panel-accent: #f3b53f;
+  --panel-accent-soft: rgba(243, 181, 63, 0.24);
+  --panel-accent-glow: rgba(243, 181, 63, 0.27);
+}
+.jukebox-accent--b {
+  --panel-accent: #54b6e8;
+  --panel-accent-soft: rgba(84, 182, 232, 0.24);
+  --panel-accent-glow: rgba(84, 182, 232, 0.27);
+}
+.jukebox-accent--c {
+  --panel-accent: #b08cff;
+  --panel-accent-soft: rgba(176, 140, 255, 0.24);
+  --panel-accent-glow: rgba(176, 140, 255, 0.27);
+}
+.jukebox-accent--d {
+  --panel-accent: #5fd39a;
+  --panel-accent-soft: rgba(95, 211, 154, 0.24);
+  --panel-accent-glow: rgba(95, 211, 154, 0.27);
+}
+.jukebox-panel {
+  min-width: 0;
+  min-height: 0;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid var(--panel-accent-soft);
+  border-top: 3px solid var(--panel-accent);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #192129, #11181f);
+  opacity: 1;
+  transition: opacity var(--jukebox-transition, 320ms) ease-in-out;
+}
+.jukebox-panel.is-incoming {
+  opacity: 0;
+}
+.jukebox-panel-track.is-sliding .jukebox-panel:first-child {
+  opacity: 0;
+}
+.jukebox-panel-track.is-sliding .jukebox-panel.is-incoming {
+  opacity: 1;
+}
+.jukebox-panel ol {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-rows: repeat(8, minmax(0, 1fr));
+  list-style: none;
+}
+.jukebox-panel li {
+  min-width: 0;
+  padding: 3px 5px;
+  display: grid;
+  grid-template-columns: 29px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+.jukebox-panel li:last-child {
+  border-bottom: 0;
+}
+.jukebox-panel li.is-confirmed {
+  color: #fff;
+  background: var(--panel-accent-soft);
+  box-shadow: inset 0 0 20px var(--panel-accent-glow);
+  animation: jukebox-selection-pulse 420ms ease-in-out 2;
+}
+.jukebox-song-code {
+  color: var(--panel-accent);
+  font-size: 0.72rem;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+}
+.jukebox-song-copy {
+  min-width: 0;
+  display: block;
+}
+.jukebox-song-copy strong,
+.jukebox-song-copy small {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.jukebox-song-copy strong {
+  color: #f4f6f8;
+  font-size: 0.82rem;
+  line-height: 1.12;
+}
+.jukebox-song-copy small {
+  margin-top: 2px;
+  color: #94a0aa;
+  font-size: 0.7rem;
+  line-height: 1.08;
+}
+.jukebox-controls {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 82px auto minmax(0, 1fr) 88px 112px;
+  align-items: stretch;
+  gap: 7px;
+}
+.jukebox-selection-display {
+  padding: 4px 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--muted);
+  background: #111920;
+  font-size: 0.56rem;
+  text-transform: uppercase;
+}
+.jukebox-selection-display strong {
+  color: var(--accent-strong);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.jukebox-key-group {
+  min-width: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(44px, 1fr);
+  gap: 4px;
+}
+.jukebox-controls button {
+  min-width: 44px;
+  min-height: 46px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: #f5f7fa;
+  background: var(--panel-raised);
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.jukebox-controls .jukebox-letter-button {
+  border-color: var(--panel-accent-soft);
+  color: var(--panel-accent);
+}
+.jukebox-controls .jukebox-letter-button.is-selected {
+  border-color: var(--panel-accent);
+  color: #17120a;
+  background: var(--panel-accent);
+  box-shadow: 0 0 18px var(--panel-accent-glow);
+}
+.jukebox-number-keys button.is-selected {
+  border-color: var(--accent-strong);
+  color: #17120a;
+  background: var(--accent);
+  box-shadow: 0 0 18px rgba(243, 181, 63, 0.32);
+}
+.jukebox-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.jukebox-controls .jukebox-next {
+  border-color: rgba(243, 181, 63, 0.38);
+  color: var(--accent-strong);
+}
+.jukebox-controls .jukebox-stop {
+  border-color: rgba(255, 151, 140, 0.28);
+  color: var(--danger);
+}
+.jukebox-status {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.65rem;
+  line-height: 18px;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.jukebox-confirmation {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  border-radius: 15px;
+  box-shadow: 0 -16px 44px rgba(0, 0, 0, 0.5);
+}
+.jukebox-confirmation .confirmation-panel {
+  margin: 0;
+}
+
+@keyframes jukebox-selection-pulse {
+  50% {
+    color: var(--panel-accent);
+    box-shadow:
+      inset 0 0 24px var(--panel-accent-glow),
+      0 0 10px var(--panel-accent-glow);
+    filter: brightness(1.2);
+  }
 }
 
 .mini-player {

@@ -20,6 +20,7 @@ import {
   playTrackNow,
   removeQueueItem,
   replaceQueueWithAlbum,
+  stopAndClearQueue,
 } from '../api/client'
 import type { QueueSnapshot } from '../api/types'
 
@@ -34,6 +35,7 @@ export type QueueMutation =
   | 'play-album'
   | 'remove'
   | 'clear'
+  | 'stop-clear'
   | 'move'
   | 'advance'
 
@@ -51,6 +53,7 @@ interface QueueValue {
   playAlbum: (albumId: number) => Promise<QueueSnapshot | null>
   remove: (itemId: number) => Promise<QueueSnapshot | null>
   clear: () => Promise<QueueSnapshot | null>
+  stopAndClear: () => Promise<QueueSnapshot | null>
   move: (
     itemId: number,
     direction: 'up' | 'down',
@@ -152,6 +155,12 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         mutate('remove', () => removeQueueItem(itemId), 'Removed from queue.'),
       clear: () =>
         mutate('clear', clearUpcomingQueue, 'Upcoming queue cleared.'),
+      stopAndClear: () =>
+        mutate(
+          'stop-clear',
+          stopAndClearQueue,
+          'Playback stopped and queue cleared.',
+        ),
       move: (itemId, direction) =>
         mutate('move', () => moveQueueItem(itemId, direction)),
       advance: (currentItemId) =>

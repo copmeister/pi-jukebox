@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -97,6 +103,7 @@ describe('App catalogue interface', () => {
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input)
         if (url.endsWith('/api/albums?limit=500')) return jsonResponse(albums)
+        if (url.endsWith('/api/tracks')) return jsonResponse(albumDetail.tracks)
         if (url.endsWith('/api/queue')) return jsonResponse(emptyQueue)
         if (url.endsWith('/api/library/scan/status'))
           return jsonResponse(scanStatus)
@@ -129,18 +136,22 @@ describe('App catalogue interface', () => {
     vi.unstubAllGlobals()
   })
 
-  it('shows catalogue totals and opens an album from the Library screen', async () => {
+  it('opens on Jukebox and preserves the modern Library and playback screens', async () => {
     const user = userEvent.setup()
     render(<App />)
 
     expect(
-      await screen.findByText('1 album and 2 tracks ready to browse.'),
+      await screen.findByRole('heading', { name: 'Jukebox' }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Jukebox' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
     expect(
       screen.getByRole('region', { name: 'Mini player' }),
     ).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Browse Library' }))
+    await user.click(screen.getByRole('button', { name: 'Library' }))
     expect(screen.getByRole('heading', { name: 'Library' })).toBeInTheDocument()
     expect(
       screen.getByRole('button', {
@@ -164,8 +175,12 @@ describe('App catalogue interface', () => {
     await user.click(screen.getByRole('button', { name: 'Play Now' }))
     expect(screen.getAllByText('Northern Lights')).toHaveLength(2)
 
-    await user.click(screen.getByRole('button', { name: 'Home' }))
-    expect(screen.getByText('Northern Lights')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Jukebox' }))
+    expect(
+      within(screen.getByRole('region', { name: 'Mini player' })).getByText(
+        'Northern Lights',
+      ),
+    ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Now Playing' }))
     expect(
       screen.getByRole('heading', { name: 'Northern Lights' }),
@@ -203,7 +218,7 @@ describe('App catalogue interface', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'The library is out of reach',
+        name: 'Jukebox unavailable',
       }),
     ).toBeInTheDocument()
     expect(screen.getAllByText(/backend is running/i)).not.toHaveLength(0)
@@ -216,6 +231,7 @@ describe('App catalogue interface', () => {
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input)
         if (url.endsWith('/api/queue')) return jsonResponse(emptyQueue)
+        if (url.endsWith('/api/tracks')) return jsonResponse(albumDetail.tracks)
         if (url.endsWith('/api/albums?limit=500'))
           return jsonResponse({ albums: 'invalid' })
         if (url.endsWith('/api/library/scan/status'))
@@ -228,7 +244,7 @@ describe('App catalogue interface', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: 'The library is out of reach',
+        name: 'Jukebox unavailable',
       }),
     ).toBeInTheDocument()
     expect(screen.getByText(/unexpected information/i)).toBeInTheDocument()

@@ -18,6 +18,7 @@ Each item includes its stable queue-item `id`, catalogue `track_id`, `album_id`,
 
 | Method and path | Meaning |
 | --- | --- |
+| `DELETE /queue` | Atomically remove current and upcoming items for Stop & Clear. |
 | `POST /queue/tracks/{track_id}` | Append one upcoming item. |
 | `POST /queue/tracks/{track_id}/next` | Insert first among upcoming items; do not autoplay when there is no current item. |
 | `POST /queue/tracks/{track_id}/play-now` | Replace current, preserve upcoming, and return the new current item. |
@@ -28,13 +29,15 @@ Each item includes its stable queue-item `id`, catalogue `track_id`, `album_id`,
 | `POST /queue/items/{queue_item_id}/move` | Move one upcoming item using `{"direction":"up"}` or `{"direction":"down"}`. |
 | `POST /queue/advance` | Complete the expected current using `{"current_item_id":123}` and promote the next playable item. |
 
-Every successful mutation returns the complete queue snapshot. Missing catalogue or queue IDs return `404`; invalid request values return `422`; protected current-item operations, impossible movements, and stale advancement return `409`.
+Every successful mutation returns the complete queue snapshot. `DELETE /queue` increments the revision even when the queue is already empty and never changes catalogue rows or music files. Missing catalogue or queue IDs return `404`; invalid request values return `422`; protected current-item operations, impossible movements, and stale advancement return `409`.
+
+`GET /api/tracks` returns the complete local track catalogue used for random selector generation. Panel ordering is deliberately decided in the browser after this response; the endpoint order is not a presentation order.
 
 ## Other endpoint groups
 
 - `/health` — application health
 - `/library/scan` and `/library/scan/status` — non-blocking library scanning
-- `/albums`, `/albums/{id}`, `/tracks/{id}`, and `/search` — catalogue browsing
+- `/albums`, `/albums/{id}`, `/tracks`, `/tracks/{id}`, and `/search` — catalogue browsing
 - `/artwork/{id}` — cached embedded artwork
 - `/tracks/{id}/media` — root-confined audio with complete and single-range responses
 

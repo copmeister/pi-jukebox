@@ -1,5 +1,5 @@
 export const destinations = [
-  'Home',
+  'Jukebox',
   'Library',
   'Search',
   'Queue',

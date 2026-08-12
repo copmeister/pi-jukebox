@@ -230,6 +230,14 @@ export function getTrack(
   return requestJson(`/tracks/${trackId}`, isTrack, { signal })
 }
 
+export function getTracks(signal?: AbortSignal): Promise<Track[]> {
+  return requestJson(
+    '/tracks',
+    (value): value is Track[] => Array.isArray(value) && value.every(isTrack),
+    { signal },
+  )
+}
+
 export function getScanStatus(signal?: AbortSignal): Promise<ScanStatus> {
   return requestJson('/library/scan/status', isScanStatus, { signal })
 }
@@ -298,6 +306,10 @@ export function removeQueueItem(itemId: number): Promise<QueueSnapshot> {
 
 export function clearUpcomingQueue(): Promise<QueueSnapshot> {
   return requestJson('/queue/upcoming', isQueueSnapshot, { method: 'DELETE' })
+}
+
+export function stopAndClearQueue(): Promise<QueueSnapshot> {
+  return requestJson('/queue', isQueueSnapshot, { method: 'DELETE' })
 }
 
 export function moveQueueItem(

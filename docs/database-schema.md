@@ -20,6 +20,6 @@ Queue records contain no source filename or absolute/relative media path. The tr
 
 ## Transaction rules
 
-Multi-row writes start with `BEGIN IMMEDIATE`. Add, replace, move, remove, clear, and advance operations update positions and revision in the same transaction. Temporary high positions avoid unique-position collisions during reordering. A stale advance must present the old current queue-item ID and is rejected, which protects against duplicate browser completion events.
+Multi-row writes start with `BEGIN IMMEDIATE`. Add, replace, move, remove, upcoming-only clear, complete Stop & Clear, and advance operations update positions and revision in the same transaction. Stop & Clear deletes every `queue_items` row without altering catalogue tables. Temporary high positions avoid unique-position collisions during reordering. A stale advance must present the old current queue-item ID and is rejected, which protects against duplicate browser completion events.
 
 Playback time, volume, mute state, and listening history are not persisted. A restored current item is presented paused at time zero and does not autoplay.

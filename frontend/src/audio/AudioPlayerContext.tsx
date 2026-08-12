@@ -27,8 +27,9 @@ interface AudioPlayerValue {
   muted: boolean
   canGoPrevious: boolean
   canGoNext: boolean
-  playNow: (track: Track) => Promise<void>
-  playAlbum: (albumId: number) => Promise<void>
+  playNow: (track: Track) => Promise<boolean>
+  playAlbum: (albumId: number) => Promise<boolean>
+  stopAndClear: () => Promise<boolean>
   togglePlayback: () => void
   previous: () => void
   next: () => void
@@ -194,7 +195,9 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   const playNow = useCallback(
     async (track: Track) => {
       const snapshot = await queue.playNow(track.id)
-      if (snapshot?.current) startItem(snapshot.current)
+      if (!snapshot?.current) return false
+      startItem(snapshot.current)
+      return true
     },
     [queue, startItem],
   )
@@ -204,10 +207,21 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       const snapshot = await queue.playAlbum(albumId)
       historyRef.current = []
       setHistoryCount(0)
-      if (snapshot?.current) startItem(snapshot.current, false)
+      if (!snapshot?.current) return false
+      startItem(snapshot.current, false)
+      return true
     },
     [queue, startItem],
   )
+
+  const stopAndClear = useCallback(async () => {
+    const snapshot = await queue.stopAndClear()
+    if (!snapshot || snapshot.current || snapshot.upcoming.length) return false
+    historyRef.current = []
+    setHistoryCount(0)
+    stopAudio()
+    return true
+  }, [queue, stopAudio])
 
   const togglePlayback = useCallback(() => {
     const audio = audioRef.current
@@ -285,6 +299,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       canGoNext: Boolean(queue.snapshot?.upcoming.length),
       playNow,
       playAlbum,
+      stopAndClear,
       togglePlayback,
       previous,
       next,
@@ -307,6 +322,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       seek,
       setVolume,
       status,
+      stopAndClear,
       toggleMute,
       togglePlayback,
       volume,

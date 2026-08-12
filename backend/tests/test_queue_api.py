@@ -144,6 +144,34 @@ def test_remove_move_clear_and_position_consistency(tmp_path: Path) -> None:
     asyncio.run(exercise())
 
 
+def test_stop_and_clear_removes_complete_queue_and_increments_revision(tmp_path: Path) -> None:
+    async def exercise() -> None:
+        async with seeded_api(tmp_path) as (client, app, _library, tracks, albums):
+            snapshot = (await client.post(f"/api/queue/albums/{albums[0]['id']}/play")).json()
+            snapshot = (await client.post(f"/api/queue/tracks/{tracks[2]['id']}")).json()
+            revision = snapshot["revision"]
+            catalogue_counts = {
+                "albums": count_rows(app.state.catalogue, "albums"),
+                "tracks": count_rows(app.state.catalogue, "tracks"),
+            }
+
+            cleared = (await client.delete("/api/queue")).json()
+
+            assert cleared["revision"] == revision + 1
+            assert cleared["current"] is None
+            assert cleared["upcoming"] == []
+            assert count_rows(app.state.catalogue, "queue_items") == 0
+            assert count_rows(app.state.catalogue, "albums") == catalogue_counts["albums"]
+            assert count_rows(app.state.catalogue, "tracks") == catalogue_counts["tracks"]
+
+            recreated = create_app(app.state.settings)
+            async with recreated.router.lifespan_context(recreated):
+                assert recreated.state.queue_store.snapshot()["current"] is None
+                assert recreated.state.queue_store.snapshot()["upcoming"] == []
+
+    asyncio.run(exercise())
+
+
 def test_advance_end_of_queue_and_duplicate_event_protection(tmp_path: Path) -> None:
     async def exercise() -> None:
         async with seeded_api(tmp_path) as (client, _app, _library, _tracks, albums):

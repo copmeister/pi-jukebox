@@ -5,7 +5,7 @@ import { Navigation } from './components/Navigation'
 import { useCatalogue } from './hooks/useCatalogue'
 import type { Destination } from './navigation'
 import { AlbumScreen } from './screens/AlbumScreen'
-import { HomeScreen } from './screens/HomeScreen'
+import { JukeboxScreen } from './screens/JukeboxScreen'
 import { LibraryScreen } from './screens/LibraryScreen'
 import { QueueScreen } from './screens/QueueScreen'
 import { SearchScreen } from './screens/SearchScreen'
@@ -14,7 +14,7 @@ import { QueueProvider, useQueue } from './queue/QueueContext'
 
 function AppContent() {
   const [activeDestination, setActiveDestination] =
-    useState<Destination>('Home')
+    useState<Destination>('Jukebox')
   const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null)
   const catalogue = useCatalogue()
   const queue = useQueue()
@@ -38,16 +38,12 @@ function AppContent() {
         onBack={() => setSelectedAlbumId(null)}
       />
     )
-  } else if (activeDestination === 'Home') {
+  } else if (activeDestination === 'Jukebox') {
     content = (
-      <HomeScreen
-        albums={catalogue.albums}
+      <JukeboxScreen
         scanStatus={catalogue.scanStatus}
-        loading={catalogue.loading}
-        error={catalogue.error}
-        onBrowse={() => navigate('Library')}
-        onOpenAlbum={openAlbum}
-        onRetry={() => void catalogue.refresh()}
+        catalogueError={catalogue.error}
+        onOpenLibrary={() => navigate('Library')}
       />
     )
   } else if (activeDestination === 'Library') {
@@ -78,8 +74,8 @@ function AppContent() {
         <button
           className="brand"
           type="button"
-          onClick={() => navigate('Home')}
-          aria-label="Go to Pi Jukebox home"
+          onClick={() => navigate('Jukebox')}
+          aria-label="Go to classic Jukebox"
         >
           <span className="brand__mark" aria-hidden="true">
             PJ
@@ -95,8 +91,12 @@ function AppContent() {
         </div>
       </header>
 
-      <main id="main-content" className="main-content" tabIndex={-1}>
-        {queue.notice || queue.error ? (
+      <main
+        id="main-content"
+        className={`main-content${activeDestination === 'Jukebox' ? ' is-jukebox' : ''}`}
+        tabIndex={-1}
+      >
+        {activeDestination !== 'Jukebox' && (queue.notice || queue.error) ? (
           <div
             className={`queue-feedback${queue.error ? ' is-error' : ''}`}
             role={queue.error ? 'alert' : 'status'}

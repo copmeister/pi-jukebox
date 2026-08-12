@@ -90,11 +90,26 @@ Milestone 4B completes the pre-hardware listening workflow:
 - Queue restoration after browser or backend restart without autoplay
 - Current metadata restoration paused at the beginning; playback position is not persisted
 
-This is the final software milestone before Raspberry Pi hardware bring-up. It does not add visualisation, kiosk deployment, hardware integration, shuffle, repeat, playlists, or listening history.
+This milestone established the complete persistent listening workflow before the classic selector was added. It does not add visualisation, kiosk deployment, hardware integration, shuffle, repeat, playlists, or listening history.
+
+## Milestone 4C scope
+
+Milestone 4C adds the final pre-hardware defining experience:
+
+- Jukebox becomes the default navigation destination while Library, Search, Queue, and Now Playing remain available.
+- Four simultaneously visible eight-song panels provide A1–A8 through D1–D8 at the native 1280×720 display target.
+- A, B, C, and D are persistent panel identities with permanent amber, blue, violet, and green accents. The colour follows the owned letter as panels change screen position.
+- Every newly mounted screen and incoming panel uses a fresh Fisher–Yates random selection from the complete catalogue.
+- Letter-then-number controls add the chosen code without making song labels into touch targets.
+- The first selection uses Play Now when no current item exists; later selections append without interruption.
+- Leftward swipe and NEXT share one forward-only panel transition. The outgoing identity is recycled on the right with newly randomized tracks, producing A–B–C–D, B–C–D–A, C–D–A–B, and D–A–B–C in sequence. Discarded song groups have no history or persistence.
+- Confirmed Stop & Clear atomically removes current and upcoming queue items and resets browser audio without touching the catalogue.
+
+Milestone 4C is the final software feature before Raspberry Pi hardware bring-up. Visualisation, kiosk deployment, Raspberry Pi configuration, and hardware integration remain future work.
 
 ## Agreed product behaviour
 
-- Design primarily for the official Touch Display 2 at 1280×720 landscape. Retain 1024×600 as a secondary size and 800×480 as a compact fallback.
+- Use the official Touch Display 2 at 1280×720 landscape as Milestone 4C's only detailed visual acceptance target. Existing smaller responsive rules may remain but are not separately accepted for this feature.
 - Develop with Windows audio until the Raspberry Pi audio hardware is selected.
 - Require MP3 and FLAC. WAV may be supported. M4A/AAC remains provisional until tested on the Pi.
 - Group albums by Album Artist and Album title.
@@ -143,7 +158,7 @@ This is the final software milestone before Raspberry Pi hardware bring-up. It d
 - `GET /api/health` returns a successful response.
 - The browser displays all five placeholder destinations.
 - Selecting a destination updates the main content without removing the mini-player.
-- The layout is intended for 1280×720 and has secondary rules for 1024×600 and 800×480.
+- The classic selector must fit completely at 1280×720 without page scrolling, overlap, or controls hidden by the persistent player/navigation.
 - Backend tests and lint/format checks pass.
 - Frontend tests, lint, type checking, formatting, and production build pass.
 - No music, machine-specific path, database, secret, or deployment script is committed.

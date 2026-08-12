@@ -87,6 +87,13 @@ def get_queue(request: Request) -> dict[str, Any]:
     return _queue(request).snapshot()
 
 
+@router.delete("", response_model=QueueSnapshotResponse)
+def stop_and_clear_queue(request: Request) -> dict[str, Any]:
+    """Atomically remove the current and every upcoming queue item."""
+
+    return _queue(request).stop_and_clear()
+
+
 @router.post("/tracks/{track_id}", response_model=QueueSnapshotResponse)
 def add_track(track_id: PositiveId, request: Request) -> dict[str, Any]:
     """Append one catalogue track to the upcoming queue."""

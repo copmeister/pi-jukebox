@@ -83,6 +83,14 @@ class QueueStore:
             self._touch(connection)
             return self._snapshot(connection)
 
+    def stop_and_clear(self) -> dict[str, Any]:
+        """Atomically remove the current item and every upcoming item."""
+
+        with self._write_connection() as connection:
+            connection.execute("DELETE FROM queue_items")
+            self._touch(connection)
+            return self._snapshot(connection)
+
     def move_upcoming(self, item_id: int, direction: Literal["up", "down"]) -> dict[str, Any]:
         with self._write_connection() as connection:
             row = connection.execute(

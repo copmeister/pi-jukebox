@@ -36,6 +36,9 @@ async def _request_catalogue(app) -> tuple[dict, dict, bytes]:
             album_response = await client.get(f"/api/albums/{album_id}")
             track_id = album_response.json()["tracks"][0]["id"]
             track_response = await client.get(f"/api/tracks/{track_id}")
+            tracks_response = await client.get("/api/tracks")
+            assert tracks_response.status_code == 200
+            assert [track["id"] for track in tracks_response.json()] == [track_id]
             artwork_id = album_response.json()["artwork_id"]
             artwork_response = await client.get(f"/api/artwork/{artwork_id}")
             assert artwork_response.headers["content-type"] == "image/png"

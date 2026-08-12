@@ -161,6 +161,13 @@ def get_track(track_id: int, request: Request) -> dict[str, Any]:
     return track
 
 
+@router.get("/tracks", response_model=list[TrackResponse])
+def list_tracks(request: Request) -> list[dict[str, Any]]:
+    """Return every catalogue track for the randomized jukebox selector."""
+
+    return _catalogue(request).list_tracks()
+
+
 @router.get("/search", response_model=SearchResponse)
 def search_catalogue(
     request: Request,

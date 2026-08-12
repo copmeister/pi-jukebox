@@ -2,7 +2,7 @@
 
 A touchscreen-first local music jukebox for Raspberry Pi. The backend catalogues one local music folder, securely serves catalogue tracks, and owns a persistent SQLite playback queue used by the React interface. The visualiser and Raspberry Pi deployment are intentionally not implemented yet.
 
-The primary display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface also retains secondary layouts for 1024×600 and 800×480 landscape screens.
+The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. Milestone 4C uses this as its only detailed visual acceptance target; older responsive rules remain in place but are not separately accepted for this feature.
 
 ## What you need on Windows
 
@@ -69,7 +69,11 @@ npm.cmd --prefix frontend run dev -- --host 127.0.0.1
 
 Open <http://127.0.0.1:5173> in your browser.
 
-Use a track's **Actions** menu for Play Now, Play Next, or Add to Queue. Album details also provide Play Album and Add Album to Queue. The Queue screen shows the current track separately, lets you move upcoming items with large Up/Down buttons, and supports removal and confirmed clearing. The persistent mini-player and Now Playing screen provide play/pause, queue-aware previous/next, seeking, volume, and mute. Search includes its own collapsible touch keypad; a physical keyboard continues to work during Windows development.
+The application opens in **Jukebox** mode. Four panels show 32 randomly mixed codes from A1 through D8. A, B, C, and D are persistent panel identities with permanent amber, blue, violet, and green accents. Choose a letter and then a number: the first selection starts immediately when nothing is current, while later selections append to the persistent queue. Swipe left or use **NEXT ›** to move every panel left and recycle the outgoing identity with newly randomized songs on the right. Panels have no back history, and moving them never changes queued music. **Stop & Clear** requires confirmation and stops audio while clearing the complete queue.
+
+With at least eight catalogued tracks, each panel contains eight different songs. A catalogue of at least 32 tracks fills all visible positions uniquely. Smaller libraries are distributed through fresh shuffled cycles, so repeats occur across panels only as necessary; libraries with fewer than eight tracks repeat within a panel while avoiding immediately adjacent repeats where possible.
+
+The modern Library, Search, Queue, and Now Playing screens remain available. A Library or Search track's **Actions** menu provides Play Now, Play Next, or Add to Queue. Album details provide Play Album and Add Album to Queue. The Queue screen retains touch Up/Down reordering, removal, and its existing upcoming-only clear. The mini-player and Now Playing screen provide play/pause, queue-aware previous/next, seeking, volume, and mute.
 
 Queue order and the current queue item persist in SQLite across browser refreshes and backend restarts. Restored audio remains paused and restarts from the beginning after one Play tap. Playback position is deliberately not saved, and restored audio never autoplays.
 
@@ -81,6 +85,7 @@ Useful backend addresses:
 Queue endpoints include:
 
 - `GET /api/queue` — complete current/upcoming snapshot
+- `DELETE /api/queue` — stop and atomically clear current and upcoming items
 - `POST /api/queue/tracks/{track_id}` — Add to Queue
 - `POST /api/queue/tracks/{track_id}/next` — Play Next
 - `POST /api/queue/tracks/{track_id}/play-now` — Play Now
@@ -150,8 +155,8 @@ npm.cmd --prefix frontend run build
 
 ## Current scope
 
-The backend provides an incremental SQLite catalogue, background scanning, search, album and track queries, cached embedded artwork, range-capable audio responses, and an authoritative persistent queue. The responsive frontend provides touch browsing, search, queue editing, and persistent Chromium playback through one audio element. Playback position is not saved. The visualiser, kiosk deployment, and Raspberry Pi hardware integration remain pending.
+The backend provides an incremental SQLite catalogue, background scanning, search, album and track queries, cached embedded artwork, range-capable audio responses, and an authoritative persistent queue. The frontend opens with the four-panel classic selector while retaining modern touch browsing, search, queue editing, and persistent Chromium playback through one audio element. Playback position and discarded selector panels are not saved. The visualiser, kiosk deployment, and Raspberry Pi hardware integration remain pending.
 
-Milestone 4B is the final pre-hardware software milestone. The next project stage is Raspberry Pi hardware bring-up and validation, not another software feature milestone.
+Milestone 4C is the final pre-hardware feature milestone. The next project stage is Raspberry Pi hardware bring-up and validation, not another software feature milestone.
 
 See [the architecture](docs/architecture.md), [database schema notes](docs/database-schema.md), and [the product specification](docs/product-specification.md) for the approved design and v0.1 boundaries.

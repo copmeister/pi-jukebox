@@ -302,6 +302,13 @@ class Catalogue:
             ).fetchone()
             return dict(row) if row else None
 
+    def list_tracks(self) -> list[dict[str, Any]]:
+        """Return the complete local catalogue for randomized selector panels."""
+
+        with self.connect() as connection:
+            rows = connection.execute(self._track_select() + " ORDER BY tracks.id").fetchall()
+            return [dict(row) for row in rows]
+
     def get_artwork(self, artwork_id: int) -> dict[str, Any] | None:
         with self.connect() as connection:
             row = connection.execute(
