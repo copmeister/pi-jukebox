@@ -22,7 +22,7 @@ Python library scanner ───► SQLite catalogue
                               Web Audio API
 ```
 
-Milestone 2 implements the local scanner and read-only catalogue APIs. Queue persistence, audio responses, playback, and the visualiser remain future work.
+Milestones 2 and 3 implement the local scanner, read-only catalogue/search APIs, and the browser catalogue interface. Queue persistence, audio responses, playback, and the visualiser remain future work.
 
 ## Backend
 
@@ -36,7 +36,7 @@ The backend is an installable Python package under `backend/src/pi_jukebox`.
 - Library scanning and metadata extraction are isolated from HTTP routing so they can be tested without running a server.
 - A guarded background thread performs manual scans. Only one scan can run at a time, and FastAPI remains available while it runs.
 
-The API uses `/api` as its prefix. Health, scan status, albums, tracks, and cached artwork are currently exposed.
+The API uses `/api` as its prefix. Health, scan status, albums, tracks, search, and cached artwork are currently exposed.
 
 ## Frontend
 
@@ -47,6 +47,9 @@ The frontend is a React single-page application written in TypeScript and built 
 - Chromium will perform audio decoding and playback.
 - A future Web Audio `AnalyserNode` will provide frequency data to a lightweight Canvas visualiser.
 - During development, Vite proxies `/api` requests to FastAPI on port 8000.
+- A small typed client validates important response fields at runtime and converts network or invalid-response failures into safe user-facing messages.
+- Catalogue state is shared across Home and Library. Scan status is polled only while a scan is active, then albums are refreshed.
+- Search requests wait briefly after input changes and cancel stale requests.
 
 The shell is designed first for 1024×600 landscape and remains usable at 800×480. It uses large touch targets, no hover-only controls, visible keyboard focus, and compact layouts for short screens.
 
@@ -87,8 +90,6 @@ The following backend areas will be added incrementally:
 
 The following frontend feature areas will be added incrementally:
 
-- Library and album browsing
-- Search
 - Queue editing
 - Player controls
 - Now Playing

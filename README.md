@@ -45,6 +45,8 @@ Forward slashes are recommended on Windows. The folder must already exist and mu
 
 The catalogue database and extracted artwork are written under `./data` by default. That directory is also ignored by Git. The scanner reads source audio files but never changes, renames, copies, or deletes them.
 
+The frontend normally uses Vite's local `/api` proxy. If the backend is hosted at a different address during development, copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_BASE_URL`. Keep that local file untracked.
+
 ## Start the application
 
 The backend and frontend each need their own PowerShell window.
@@ -94,6 +96,13 @@ View catalogued albums:
 Invoke-RestMethod http://127.0.0.1:8000/api/albums | ConvertTo-Json -Depth 5
 ```
 
+Search the catalogue:
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/api/search?q=artist-or-title" |
+    ConvertTo-Json -Depth 5
+```
+
 Use the interactive API documentation to open a particular album or track. See [supported formats](docs/supported-formats.md) before interpreting format support as playback support.
 
 Stop either development server by pressing `Ctrl+C` in its PowerShell window.
@@ -120,6 +129,6 @@ npm.cmd --prefix frontend run build
 
 ## Current scope
 
-The backend now provides an incremental SQLite catalogue, background scanning, album and track queries, and cached embedded artwork. The responsive frontend shell remains unchanged and does not display the catalogue or play music yet.
+The backend provides an incremental SQLite catalogue, background scanning, search, album and track queries, and cached embedded artwork. The responsive frontend displays Home summaries, album browsing, album details, search, and scan state. It does not play or queue music yet.
 
 See [the architecture](docs/architecture.md) and [the product specification](docs/product-specification.md) for the approved design and v0.1 boundaries.

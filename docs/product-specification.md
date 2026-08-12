@@ -50,6 +50,19 @@ Milestone 2 adds the backend catalogue and scanner foundation:
 
 The frontend remains unchanged. Playback, queue state, search UI, visualisation, and Raspberry Pi deployment are still outside this milestone.
 
+## Milestone 3 scope
+
+Milestone 3 connects the touchscreen interface to the local catalogue:
+
+- Typed, runtime-validated frontend API requests
+- Home library totals and album selection
+- Touch-friendly album grid and detailed ordered track lists
+- Debounced search across albums, Album Artists, track artists, and titles
+- Scan configuration, availability, activity, summary, and rescan controls
+- Loading, empty, unavailable, missing-artwork, and error states
+
+Playback, media streaming, functional queue actions, the visualiser, and kiosk deployment remain outside this milestone.
+
 ## Agreed product behaviour
 
 - Design primarily for 1024×600 landscape and remain responsive down to 800×480.

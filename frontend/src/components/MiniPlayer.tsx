@@ -5,8 +5,10 @@ export function MiniPlayer() {
         ♪
       </div>
       <div className="mini-player__details">
-        <p className="eyebrow">Nothing playing</p>
-        <p className="mini-player__title">Choose music from your library</p>
+        <p className="eyebrow">Playback coming later</p>
+        <p className="mini-player__title">
+          Browsing only — audio controls are disabled
+        </p>
       </div>
       <div className="mini-player__progress" aria-hidden="true">
         <span />
