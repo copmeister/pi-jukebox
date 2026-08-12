@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AudioPlayerProvider, useAudioPlayer } from './audio/AudioPlayerContext'
 import { MiniPlayer } from './components/MiniPlayer'
 import { Navigation } from './components/Navigation'
 import { useCatalogue } from './hooks/useCatalogue'
@@ -8,12 +9,14 @@ import { HomeScreen } from './screens/HomeScreen'
 import { LibraryScreen } from './screens/LibraryScreen'
 import { PlaceholderScreen } from './screens/PlaceholderScreen'
 import { SearchScreen } from './screens/SearchScreen'
+import { NowPlayingScreen } from './screens/NowPlayingScreen'
 
-function App() {
+function AppContent() {
   const [activeDestination, setActiveDestination] =
     useState<Destination>('Home')
   const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null)
   const catalogue = useCatalogue()
+  const player = useAudioPlayer()
 
   const navigate = (destination: Destination) => {
     setSelectedAlbumId(null)
@@ -60,7 +63,12 @@ function App() {
       />
     )
   } else if (activeDestination === 'Search') {
-    content = <SearchScreen onOpenAlbum={openAlbum} />
+    content = (
+      <SearchScreen
+        onOpenAlbum={openAlbum}
+        onPlayTrack={(track) => player.playTrack(track)}
+      />
+    )
   } else if (activeDestination === 'Queue') {
     content = (
       <PlaceholderScreen
@@ -70,13 +78,7 @@ function App() {
       />
     )
   } else {
-    content = (
-      <PlaceholderScreen
-        kicker="Current session"
-        title="Now Playing"
-        message="Playback controls and the live visualiser will appear here after the audio engine is implemented."
-      />
-    )
+    content = <NowPlayingScreen />
   }
 
   const serviceReady = !catalogue.error
@@ -113,4 +115,10 @@ function App() {
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <AudioPlayerProvider>
+      <AppContent />
+    </AudioPlayerProvider>
+  )
+}

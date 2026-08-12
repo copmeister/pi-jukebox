@@ -2,7 +2,7 @@
 
 ## Important distinction
 
-The scanner's ability to read metadata does not guarantee that Chromium on Raspberry Pi OS can decode and play the same file. Milestone 2 catalogues metadata only. Actual playback compatibility will be established with real Raspberry Pi hardware before v0.1 formats are finalized.
+The scanner's ability to read metadata and successful playback in Chromium on Windows do not guarantee that Chromium on Raspberry Pi OS can decode and play the same file. Milestone 4A provides preliminary Windows browser playback only. Actual Raspberry Pi compatibility will be established on the real Pi, Touch Display 2, and selected audio hardware before v0.1 formats are finalized.
 
 ## Current scanner policy
 

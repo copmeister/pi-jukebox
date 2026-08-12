@@ -43,6 +43,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["Accept-Ranges", "Content-Length", "Content-Range"],
     )
     application.include_router(api_router, prefix="/api")
     return application

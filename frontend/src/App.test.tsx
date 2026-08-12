@@ -109,9 +109,26 @@ describe('App catalogue interface', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Northern Lights')).toBeInTheDocument()
     expect(screen.getByText('Guest Vocalist')).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Play Northern Lights by Guest Vocalist',
+      }),
+    )
+    expect(screen.getAllByText('Northern Lights')).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: 'Home' }))
+    expect(screen.getByText('Northern Lights')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Now Playing' }))
     expect(
-      screen.getByRole('button', { name: 'Play Album · Coming later' }),
-    ).toBeDisabled()
+      screen.getByRole('heading', { name: 'Northern Lights' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Library' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Open Night Drive by The House Band',
+      }),
+    )
 
     await user.click(screen.getByRole('button', { name: '‹ Back to Library' }))
     await waitFor(() =>

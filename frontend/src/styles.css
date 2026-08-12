@@ -143,6 +143,7 @@ button {
   padding: clamp(12px, 2vw, 22px) clamp(16px, 3vw, 30px);
   scroll-behavior: smooth;
 }
+/* 1280×720 landscape is the primary Touch Display 2 canvas. */
 .screen {
   width: 100%;
   max-width: 1160px;
@@ -437,14 +438,8 @@ h2 {
   color: var(--muted);
   font-size: 0.78rem;
 }
-.disabled-action {
+.album-play-button {
   min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid var(--border);
-  border-radius: 13px;
-  color: #727e89;
-  background: var(--panel);
-  cursor: not-allowed;
 }
 .track-list {
   margin: 16px 0 0;
@@ -460,13 +455,23 @@ h2 {
   text-transform: uppercase;
 }
 .track-row {
+  width: 100%;
   min-height: 54px;
   padding: 6px 10px;
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
+  grid-template-columns: 32px minmax(0, 1fr) auto 36px;
   align-items: center;
   gap: 8px;
+  border: 0;
   border-bottom: 1px solid var(--border);
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.track-row:hover,
+.track-row.is-current {
+  background: var(--accent-soft);
 }
 .track-number {
   color: #73808b;
@@ -496,6 +501,10 @@ h2 {
   font-size: 0.7rem;
   font-variant-numeric: tabular-nums;
 }
+.track-play-state {
+  color: var(--accent);
+  text-align: center;
+}
 
 .search-heading {
   margin-bottom: 9px;
@@ -504,7 +513,7 @@ h2 {
   min-height: 50px;
   padding: 0 8px 0 15px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   border: 1px solid rgba(243, 181, 63, 0.35);
@@ -543,6 +552,43 @@ h2 {
   color: var(--muted);
   font-size: 0.68rem;
 }
+.touch-keypad {
+  margin: 0 0 14px;
+  padding: 9px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #10171e;
+}
+.touch-keypad__row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.touch-keypad button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  flex: 1 1 44px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: #fff;
+  background: var(--panel-raised);
+  font-weight: 750;
+  cursor: pointer;
+}
+.touch-keypad button:hover {
+  border-color: rgba(243, 181, 63, 0.45);
+  background: #24303a;
+}
+.touch-keypad button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.touch-keypad__actions button:first-child {
+  flex-grow: 2;
+}
 .search-results {
   display: grid;
   grid-template-columns: minmax(220px, 0.78fr) minmax(300px, 1.22fr);
@@ -570,16 +616,38 @@ h2 {
 }
 .search-track {
   min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: #fff;
+  background: var(--panel);
+  overflow: hidden;
+}
+.search-track__play {
+  min-width: 0;
+  min-height: 58px;
   padding: 6px 10px;
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  color: #fff;
-  background: var(--panel);
+  border: 0;
+  color: inherit;
+  background: transparent;
   text-align: left;
+  cursor: pointer;
+}
+.search-track__album {
+  min-width: 58px;
+  min-height: 58px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  color: var(--accent);
+  background: transparent;
+  font-size: 0.66rem;
+  font-weight: 750;
   cursor: pointer;
 }
 .search-track__mark {
@@ -591,24 +659,120 @@ h2 {
   color: var(--accent);
   background: #232e37;
 }
-.search-track > span:nth-child(2) {
+.search-track__play > span:nth-child(2) {
   min-width: 0;
   display: grid;
   gap: 2px;
 }
-.search-track strong,
-.search-track small {
+.search-track__play strong,
+.search-track__play small {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.search-track strong {
+.search-track__play strong {
   font-size: 0.78rem;
 }
-.search-track small,
-.search-track time {
+.search-track__play small,
+.search-track__play time {
   color: var(--muted);
   font-size: 0.64rem;
+}
+
+.now-playing-card {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(220px, 360px) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(24px, 5vw, 64px);
+}
+.now-playing-artwork {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 24px;
+}
+.now-playing-copy {
+  min-width: 0;
+}
+.now-playing-copy h1 {
+  max-width: 720px;
+  font-size: clamp(2rem, 5vw, 4.3rem);
+}
+.now-playing-artist {
+  margin: 12px 0 3px;
+  font-size: clamp(1rem, 2.2vw, 1.45rem);
+  font-weight: 750;
+}
+.now-playing-album {
+  margin: 0 0 22px;
+  color: var(--muted);
+}
+.playback-controls.is-detailed {
+  display: grid;
+  gap: 14px;
+}
+.seek-control {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+.seek-control span:last-child {
+  text-align: right;
+}
+.seek-control input,
+.volume-control input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--accent);
+}
+.transport-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.transport-controls button,
+.volume-control button {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: #fff;
+  background: var(--panel-raised);
+  cursor: pointer;
+}
+.transport-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.transport-controls .play-button {
+  min-width: 58px;
+  min-height: 58px;
+  color: #17120a;
+  background: var(--accent);
+}
+.volume-control {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.volume-control button {
+  border-radius: 12px;
+  font-size: 0.7rem;
+}
+.player-error {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--danger);
+  background: rgba(255, 151, 140, 0.08);
+  font-size: 0.75rem;
 }
 
 .screen-state {
@@ -707,6 +871,11 @@ h2 {
   border-top: 1px solid var(--border);
   background: rgba(20, 27, 34, 0.98);
 }
+.mini-player__artwork {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
 .album-placeholder {
   width: 48px;
   height: 48px;
@@ -731,40 +900,53 @@ h2 {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.mini-player__progress {
-  height: 4px;
+.mini-player__details small {
+  display: block;
   overflow: hidden;
-  border-radius: 99px;
-  background: #2c3741;
+  color: #788590;
+  font-size: 0.6rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mini-player__progress {
+  position: relative;
+  height: 24px;
+  display: flex;
+  align-items: start;
+  border-top: 4px solid #2c3741;
 }
 .mini-player__progress span {
+  position: absolute;
+  top: -4px;
+  left: 0;
   display: block;
   width: 0;
-  height: 100%;
+  height: 4px;
   background: var(--accent);
 }
-.mini-player__controls {
-  display: flex;
-  align-items: center;
+.mini-player__progress time {
+  padding-top: 5px;
+  color: #788590;
+  font-size: 0.58rem;
+  font-variant-numeric: tabular-nums;
+}
+.mini-player .transport-controls {
   gap: 4px;
 }
-.mini-player__controls button {
+.mini-player .transport-controls button {
   min-width: 46px;
   min-height: 46px;
   padding: 0 8px;
   border: 0;
-  border-radius: 50%;
-  color: #75818b;
+  color: #87939d;
   background: transparent;
   font-size: 0.75rem;
 }
-.mini-player__controls button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-.mini-player__controls .play-button {
-  color: #54421c;
-  background: #8a713d;
+.mini-player .transport-controls .play-button {
+  min-width: 48px;
+  min-height: 48px;
+  color: #17120a;
+  background: var(--accent);
 }
 
 .navigation {
@@ -888,9 +1070,27 @@ h2 {
     width: 44px;
     height: 44px;
   }
-  .mini-player__controls button {
+  .mini-player__artwork {
+    width: 44px;
+    height: 44px;
+  }
+  .mini-player .transport-controls button {
     min-width: 44px;
     min-height: 44px;
+  }
+  .now-playing-card {
+    grid-template-columns: minmax(170px, 220px) minmax(0, 1fr);
+    align-items: start;
+    gap: 22px;
+  }
+  .now-playing-copy h1 {
+    font-size: 2rem;
+  }
+  .now-playing-album {
+    margin-bottom: 10px;
+  }
+  .playback-controls.is-detailed {
+    gap: 6px;
   }
   .navigation,
   .navigation__item {
@@ -946,8 +1146,8 @@ h2 {
     grid-template-columns: 115px minmax(0, 1fr);
     align-items: start;
   }
-  .disabled-action {
-    display: none;
+  .now-playing-card {
+    grid-template-columns: 150px minmax(0, 1fr);
   }
   .placeholder-panel {
     grid-template-columns: 1fr;

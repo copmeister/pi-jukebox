@@ -63,9 +63,23 @@ Milestone 3 connects the touchscreen interface to the local catalogue:
 
 Playback, media streaming, functional queue actions, the visualiser, and kiosk deployment remain outside this milestone.
 
+## Milestone 4A scope
+
+Milestone 4A provides the first local listening path:
+
+- Native Touch Display 2 target of 1280×720 landscape, with 1024×600 and 800×480 compatibility
+- Application-owned QWERTY/number search keypad that preserves physical-keyboard input
+- Catalogue-ID media endpoint with safe root confinement and single byte-range support
+- One persistent application-root HTML audio element
+- Track playback from albums and search, with album-context previous/next and automatic advancement
+- Persistent mini-player and functional Now Playing controls for play/pause, seek, volume, and mute
+- Clear loading, paused, playing, browser-interaction, and media-failure states
+
+This milestone does not add queue persistence, playback-state persistence, visualisation, kiosk deployment, system-wide volume, or hardware integration.
+
 ## Agreed product behaviour
 
-- Design primarily for 1024×600 landscape and remain responsive down to 800×480.
+- Design primarily for the official Touch Display 2 at 1280×720 landscape. Retain 1024×600 as a secondary size and 800×480 as a compact fallback.
 - Develop with Windows audio until the Raspberry Pi audio hardware is selected.
 - Require MP3 and FLAC. WAV may be supported. M4A/AAC remains provisional until tested on the Pi.
 - Group albums by Album Artist and Album title.
@@ -83,6 +97,7 @@ Playback, media streaming, functional queue actions, the visualiser, and kiosk d
 - Active, disabled, and keyboard-focused controls must be visually distinct.
 - Text must remain readable at both supported target resolutions.
 - Main screens must tolerate short height without hiding essential navigation or the mini-player.
+- Search must remain usable by touch without relying on an operating-system keyboard.
 - Motion-heavy features, including the future visualiser, must respect reduced-motion preferences or offer a disable option.
 
 ## Data and privacy
@@ -113,7 +128,7 @@ Playback, media streaming, functional queue actions, the visualiser, and kiosk d
 - `GET /api/health` returns a successful response.
 - The browser displays all five placeholder destinations.
 - Selecting a destination updates the main content without removing the mini-player.
-- The layout is intended for 1024×600 and has a compact rule set for 800×480.
+- The layout is intended for 1280×720 and has secondary rules for 1024×600 and 800×480.
 - Backend tests and lint/format checks pass.
 - Frontend tests, lint, type checking, formatting, and production build pass.
 - No music, machine-specific path, database, secret, or deployment script is committed.

@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
 import { ApiError, searchCatalogue } from '../api/client'
 import type { SearchResults } from '../api/types'
+import type { Track } from '../api/types'
 import { AlbumCard } from '../components/AlbumCard'
 import { ScreenState } from '../components/ScreenState'
+import { TouchSearchKeypad } from '../components/TouchSearchKeypad'
 import { formatTrackDuration } from '../utils/format'
 
 interface SearchScreenProps {
   onOpenAlbum: (albumId: number) => void
+  onPlayTrack: (track: Track) => void
 }
 
-export function SearchScreen({ onOpenAlbum }: SearchScreenProps) {
+export function SearchScreen({ onOpenAlbum, onPlayTrack }: SearchScreenProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResults | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [keypadVisible, setKeypadVisible] = useState(true)
   const normalizedQuery = query.trim()
 
   useEffect(() => {
@@ -48,6 +52,12 @@ export function SearchScreen({ onOpenAlbum }: SearchScreenProps) {
     results && (results.albums.length || results.tracks.length),
   )
 
+  const updateQuery = (nextQuery: string) => {
+    setQuery(nextQuery)
+    setResults(null)
+    setError(null)
+  }
+
   return (
     <div className="screen search-screen">
       <header className="screen-header search-heading">
@@ -63,27 +73,32 @@ export function SearchScreen({ onOpenAlbum }: SearchScreenProps) {
         <input
           type="search"
           value={query}
-          onChange={(event) => {
-            setQuery(event.target.value)
-            setResults(null)
-            setError(null)
-          }}
+          onChange={(event) => updateQuery(event.target.value)}
+          onFocus={() => setKeypadVisible(true)}
           placeholder="Search your library"
           autoComplete="off"
           autoFocus
+          inputMode="none"
         />
         {query ? (
           <button
             type="button"
             onClick={() => {
-              setQuery('')
-              setResults(null)
-              setError(null)
+              updateQuery('')
               setLoading(false)
             }}
             aria-label="Clear search"
           >
             ×
+          </button>
+        ) : null}
+        {!keypadVisible ? (
+          <button
+            type="button"
+            onClick={() => setKeypadVisible(true)}
+            aria-label="Show keypad"
+          >
+            Keys
           </button>
         ) : null}
       </label>
@@ -95,6 +110,14 @@ export function SearchScreen({ onOpenAlbum }: SearchScreenProps) {
             ? `${results.albums.length + results.tracks.length} results`
             : ''}
       </div>
+
+      {keypadVisible ? (
+        <TouchSearchKeypad
+          value={query}
+          onChange={updateQuery}
+          onHide={() => setKeypadVisible(false)}
+        />
+      ) : null}
 
       {error ? (
         <ScreenState
@@ -140,24 +163,33 @@ export function SearchScreen({ onOpenAlbum }: SearchScreenProps) {
               <h2 id="track-results-heading">Tracks</h2>
               <div className="search-tracks">
                 {results.tracks.map((track) => (
-                  <button
-                    type="button"
-                    key={track.id}
-                    className="search-track"
-                    onClick={() => onOpenAlbum(track.album_id)}
-                    aria-label={`Open album ${track.album} for track ${track.title}`}
-                  >
-                    <span className="search-track__mark" aria-hidden="true">
-                      ♪
-                    </span>
-                    <span>
-                      <strong>{track.title}</strong>
-                      <small>
-                        {track.artist} · {track.album}
-                      </small>
-                    </span>
-                    <time>{formatTrackDuration(track.duration_seconds)}</time>
-                  </button>
+                  <div key={track.id} className="search-track">
+                    <button
+                      type="button"
+                      className="search-track__play"
+                      onClick={() => onPlayTrack(track)}
+                      aria-label={`Play ${track.title} by ${track.artist}`}
+                    >
+                      <span className="search-track__mark" aria-hidden="true">
+                        ▶
+                      </span>
+                      <span>
+                        <strong>{track.title}</strong>
+                        <small>
+                          {track.artist} · {track.album}
+                        </small>
+                      </span>
+                      <time>{formatTrackDuration(track.duration_seconds)}</time>
+                    </button>
+                    <button
+                      type="button"
+                      className="search-track__album"
+                      onClick={() => onOpenAlbum(track.album_id)}
+                      aria-label={`Open album ${track.album} for track ${track.title}`}
+                    >
+                      Album
+                    </button>
+                  </div>
                 ))}
               </div>
             </section>

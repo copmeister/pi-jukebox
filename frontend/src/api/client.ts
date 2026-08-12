@@ -213,3 +213,7 @@ export function searchCatalogue(
 export function artworkUrl(artworkId: number): string {
   return apiUrl(`/artwork/${artworkId}`)
 }
+
+export function mediaUrl(trackId: number): string {
+  return apiUrl(`/tracks/${trackId}/media`)
+}

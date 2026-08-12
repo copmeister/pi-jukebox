@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ApiError, getAlbum } from '../api/client'
 import type { AlbumDetail } from '../api/types'
+import { useAudioPlayer } from '../audio/AudioPlayerContext'
 import { Artwork } from '../components/Artwork'
 import { ScreenState } from '../components/ScreenState'
 import { formatAlbumDuration, formatTrackDuration } from '../utils/format'
@@ -11,6 +12,7 @@ interface AlbumScreenProps {
 }
 
 export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
+  const player = useAudioPlayer()
   const [album, setAlbum] = useState<AlbumDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,8 +83,16 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
             {album.track_count} tracks ·{' '}
             {formatAlbumDuration(album.duration_seconds)}
           </p>
-          <button className="disabled-action" type="button" disabled>
-            Play Album · Coming later
+          <button
+            className="primary-button album-play-button"
+            type="button"
+            onClick={() => {
+              if (album.tracks[0])
+                player.playTrack(album.tracks[0], album.tracks)
+            }}
+            disabled={!album.tracks.length}
+          >
+            Play Album
           </button>
         </div>
       </section>
@@ -94,7 +104,12 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
           return (
             <li key={track.id}>
               {showDisc ? <h2>Disc {track.disc_number ?? '—'}</h2> : null}
-              <div className="track-row">
+              <button
+                type="button"
+                className={`track-row${player.currentTrack?.id === track.id ? ' is-current' : ''}`}
+                onClick={() => player.playTrack(track, album.tracks)}
+                aria-label={`Play ${track.title} by ${track.artist}`}
+              >
                 <span
                   className="track-number"
                   aria-label={`Track ${track.track_number ?? 'unknown'}`}
@@ -106,7 +121,13 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
                   <small>{track.artist}</small>
                 </span>
                 <time>{formatTrackDuration(track.duration_seconds)}</time>
-              </div>
+                <span className="track-play-state" aria-hidden="true">
+                  {player.currentTrack?.id === track.id &&
+                  player.status === 'playing'
+                    ? 'Ⅱ'
+                    : '▶'}
+                </span>
+              </button>
             </li>
           )
         })}

@@ -1,6 +1,8 @@
 # pi-jukebox
 
-A touchscreen-first local music jukebox for Raspberry Pi. The backend can catalogue one local music folder, while the React interface remains a placeholder shell. Playback, queues, and the visualiser are intentionally not implemented yet.
+A touchscreen-first local music jukebox for Raspberry Pi. The backend catalogues one local music folder and securely serves catalogue tracks to the React interface for basic browser playback. Persistent queues and the visualiser are intentionally not implemented yet.
+
+The primary display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface also retains secondary layouts for 1024×600 and 800×480 landscape screens.
 
 ## What you need on Windows
 
@@ -67,6 +69,8 @@ npm.cmd --prefix frontend run dev -- --host 127.0.0.1
 
 Open <http://127.0.0.1:5173> in your browser.
 
+Choose an album track or a track search result to begin playback. The persistent mini-player and Now Playing screen provide play/pause, previous/next within the selected album, seeking, volume, and mute. The Search screen includes its own collapsible touch keypad; a physical keyboard continues to work during Windows development.
+
 Useful backend addresses:
 
 - Health check: <http://127.0.0.1:8000/api/health>
@@ -129,6 +133,6 @@ npm.cmd --prefix frontend run build
 
 ## Current scope
 
-The backend provides an incremental SQLite catalogue, background scanning, search, album and track queries, and cached embedded artwork. The responsive frontend displays Home summaries, album browsing, album details, search, and scan state. It does not play or queue music yet.
+The backend provides an incremental SQLite catalogue, background scanning, search, album and track queries, cached embedded artwork, and range-capable audio responses addressed only by catalogue track ID. The responsive frontend displays the catalogue, provides a touch search keypad, and performs basic persistent Chromium playback. It does not yet persist or reorder a queue, save playback position, or draw the visualiser.
 
 See [the architecture](docs/architecture.md) and [the product specification](docs/product-specification.md) for the approved design and v0.1 boundaries.
