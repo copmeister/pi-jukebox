@@ -23,7 +23,9 @@ export function MiniPlayer() {
       )}
       <div className="mini-player__details">
         <p className="eyebrow">
-          {player.currentTrack ? player.status : 'Nothing playing'}
+          {player.currentTrack
+            ? (player.presentationMessage ?? player.status)
+            : 'Nothing playing'}
         </p>
         <p className="mini-player__title">
           {player.error ??

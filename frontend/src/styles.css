@@ -1104,7 +1104,7 @@ h2 {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-rows: 42px minmax(0, 1fr) 48px 18px;
+  grid-template-rows: 44px minmax(0, 1fr) 48px 18px;
   gap: 7px;
   overflow: hidden;
 }
@@ -1121,6 +1121,11 @@ h2 {
 .jukebox-heading h1 {
   font-size: 1.75rem;
 }
+.jukebox-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .jukebox-count {
   display: flex;
   align-items: baseline;
@@ -1131,6 +1136,18 @@ h2 {
 .jukebox-count strong {
   color: var(--accent);
   font-size: 1.05rem;
+}
+.jukebox-sounds-button {
+  min-width: 72px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid rgba(243, 181, 63, 0.3);
+  border-radius: 11px;
+  color: var(--accent-strong);
+  background: var(--panel-raised);
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
 }
 .jukebox-panel-viewport {
   min-height: 0;
@@ -1153,6 +1170,13 @@ h2 {
 }
 .jukebox-panel-track.is-sliding {
   transform: translateX(calc((-100% - var(--panel-gap)) / 4));
+}
+.jukebox-panel-track.is-resetting,
+.jukebox-panel-track.is-resetting .jukebox-panel {
+  transition: none !important;
+}
+.jukebox-panel-track.is-resetting {
+  transform: translateX(0);
 }
 .jukebox-accent--a {
   --panel-accent: #f3b53f;
@@ -1348,6 +1372,128 @@ h2 {
 }
 .jukebox-confirmation .confirmation-panel {
   margin: 0;
+}
+.jukebox-sounds-backdrop {
+  position: absolute;
+  inset: -10px clamp(-30px, -3vw, -16px);
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(7, 11, 15, 0.8);
+  backdrop-filter: blur(5px);
+}
+.jukebox-sounds-dialog {
+  width: min(620px, 100%);
+  max-height: 100%;
+  padding: 16px;
+  overflow-y: auto;
+  border: 1px solid rgba(243, 181, 63, 0.35);
+  border-radius: 18px;
+  background: #151d24;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.62);
+}
+.jukebox-sounds-dialog > header,
+.jukebox-sounds-dialog > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.jukebox-sounds-dialog h2 {
+  font-size: 1.35rem;
+}
+.jukebox-sounds-dialog button,
+.jukebox-sound-toggle {
+  min-height: 44px;
+}
+.jukebox-sounds-dialog button {
+  min-width: 76px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: #f5f7fa;
+  background: var(--panel-raised);
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.jukebox-sounds-dialog button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.jukebox-sounds-dialog .primary-button {
+  color: #17120a;
+  background: var(--accent);
+}
+.jukebox-sound-toggles {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.jukebox-sound-toggle {
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #11181f;
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+.jukebox-sound-toggle input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+.jukebox-sound-sliders {
+  margin-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+.jukebox-sound-row {
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px;
+  align-items: center;
+  gap: 10px;
+}
+.jukebox-sound-row label {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.jukebox-sound-row label > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #dce2e7;
+  font-size: 0.68rem;
+}
+.jukebox-sound-row output {
+  color: var(--accent-strong);
+  font-variant-numeric: tabular-nums;
+}
+.jukebox-sound-row input[type='range'] {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--accent);
+}
+.jukebox-sound-preview-spacer {
+  width: 82px;
+}
+.jukebox-sound-note {
+  margin: 7px 0 10px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+.jukebox-sounds-dialog > footer {
+  justify-content: flex-end;
 }
 
 @keyframes jukebox-selection-pulse {

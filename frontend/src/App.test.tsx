@@ -211,6 +211,20 @@ describe('App catalogue interface', () => {
     ).toBeInTheDocument()
   })
 
+  it('does not create Jukebox effects while navigating other screens', async () => {
+    const audioContext = vi.fn()
+    vi.stubGlobal('AudioContext', audioContext)
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+
+    for (const destination of ['Library', 'Search', 'Queue', 'Now Playing']) {
+      await user.click(screen.getByRole('button', { name: destination }))
+    }
+
+    expect(audioContext).not.toHaveBeenCalled()
+  })
+
   it('shows a clear backend-unavailable state for network failures', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
 

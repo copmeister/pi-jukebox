@@ -10,6 +10,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { QueueSnapshot, Track } from '../api/types'
 import { AudioPlayerProvider } from '../audio/AudioPlayerContext'
+import { DEFAULT_JUKEBOX_SOUND_SETTINGS } from '../jukebox/soundSettings'
+import type { JukeboxSoundController } from '../jukebox/sounds'
 import { QueueProvider } from '../queue/QueueContext'
 import { JukeboxScreen } from './JukeboxScreen'
 
@@ -64,20 +66,47 @@ function queueItem(track: Track, id: number, position: number) {
   }
 }
 
-function renderJukebox() {
-  return render(
-    <QueueProvider>
-      <AudioPlayerProvider>
-        <JukeboxScreen
-          scanStatus={null}
-          onOpenLibrary={vi.fn()}
-          random={() => 0.42}
-          transitionDurationMs={20}
-          selectionResetMs={100}
-        />
-      </AudioPlayerProvider>
-    </QueueProvider>,
-  )
+function createSoundController(): JukeboxSoundController {
+  return {
+    settings: { ...DEFAULT_JUKEBOX_SOUND_SETTINGS },
+    updateSettings: vi.fn(),
+    resetSettings: vi.fn(),
+    playButton: vi.fn(),
+    playMovement: vi.fn(),
+    playConfirmation: vi.fn(),
+    playLoading: vi.fn(() => vi.fn()),
+    preview: vi.fn(),
+  }
+}
+
+function renderJukebox(
+  options: {
+    sounds?: JukeboxSoundController
+    transitionDurationMs?: number
+    jukeboxLoadingDelayMs?: number
+  } = {},
+) {
+  const sounds = options.sounds ?? createSoundController()
+  return {
+    sounds,
+    ...render(
+      <QueueProvider>
+        <AudioPlayerProvider
+          soundController={sounds}
+          jukeboxLoadingDelayMs={options.jukeboxLoadingDelayMs ?? 20}
+        >
+          <JukeboxScreen
+            scanStatus={null}
+            onOpenLibrary={vi.fn()}
+            random={() => 0.42}
+            transitionDurationMs={options.transitionDurationMs ?? 20}
+            selectionResetMs={100}
+            soundController={sounds}
+          />
+        </AudioPlayerProvider>
+      </QueueProvider>,
+    ),
+  }
 }
 
 function settledPanelOrder(): string[] {
@@ -202,6 +231,7 @@ describe('classic Jukebox screen', () => {
     ]) {
       await user.click(next)
       await waitFor(() => expect(settledPanelOrder()).toEqual(expectedOrder))
+      await waitFor(() => expect(next).toBeEnabled())
       for (const letter of ['A', 'B', 'C', 'D']) {
         expect(
           screen.getByRole('region', { name: `Panel ${letter}` }),
@@ -215,6 +245,86 @@ describe('classic Jukebox screen', () => {
     const recycledA = screen.getByRole('region', { name: 'Panel A' })
     expect(recycledA).not.toHaveAttribute('data-panel-id', initialAId)
     expect(new Set(panelTitles('A'))).not.toEqual(new Set(initialATitles))
+  })
+
+  it('prepares five panels, slides once, and resets without a reverse transition', async () => {
+    const user = userEvent.setup()
+    const { sounds } = renderJukebox({ transitionDurationMs: 200 })
+    await screen.findByRole('region', { name: 'Panel A' })
+    const track = screen
+      .getByLabelText('Song selection panels')
+      .querySelector('.jukebox-panel-track')!
+
+    await user.click(screen.getByRole('button', { name: /NEXT/ }))
+    expect(track).toHaveAttribute('data-transition-phase', 'preparing')
+    expect(track.querySelectorAll('.jukebox-panel')).toHaveLength(5)
+    expect(track.querySelector('.jukebox-panel:last-child')).toHaveClass(
+      'is-incoming',
+    )
+
+    await waitFor(() =>
+      expect(track).toHaveAttribute('data-transition-phase', 'sliding'),
+    )
+    expect(track).toHaveClass('is-sliding')
+    expect(sounds.playMovement).toHaveBeenCalledTimes(1)
+
+    fireEvent.transitionEnd(track, { propertyName: 'opacity' })
+    expect(track).toHaveAttribute('data-transition-phase', 'sliding')
+    fireEvent.transitionEnd(track.firstElementChild!, {
+      propertyName: 'transform',
+    })
+    expect(track).toHaveAttribute('data-transition-phase', 'sliding')
+
+    fireEvent.transitionEnd(track, { propertyName: 'transform' })
+    expect(track).toHaveAttribute('data-transition-phase', 'resetting')
+    expect(track).toHaveClass('is-resetting')
+    expect(track.querySelectorAll('.jukebox-panel')).toHaveLength(4)
+    expect(settledPanelOrder()).toEqual(['B', 'C', 'D', 'A'])
+
+    await waitFor(() =>
+      expect(track).toHaveAttribute('data-transition-phase', 'idle'),
+    )
+    expect(track).not.toHaveClass('is-sliding', 'is-resetting')
+  })
+
+  it('uses the timeout fallback and keeps repeated advances locked', async () => {
+    const user = userEvent.setup()
+    const { sounds } = renderJukebox()
+    await screen.findByRole('region', { name: 'Panel A' })
+    const track = screen
+      .getByLabelText('Song selection panels')
+      .querySelector('.jukebox-panel-track')!
+    const next = screen.getByRole('button', { name: /NEXT/ })
+
+    await user.dblClick(next)
+    await waitFor(() =>
+      expect(track).toHaveAttribute('data-transition-phase', 'idle'),
+    )
+    expect(settledPanelOrder()).toEqual(['B', 'C', 'D', 'A'])
+    expect(sounds.playMovement).toHaveBeenCalledTimes(1)
+  })
+
+  it('replaces panels immediately and stays silent for reduced motion', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    )
+    const user = userEvent.setup()
+    const { sounds } = renderJukebox({ transitionDurationMs: 200 })
+    await screen.findByRole('region', { name: 'Panel A' })
+
+    await user.click(screen.getByRole('button', { name: /NEXT/ }))
+
+    const track = screen
+      .getByLabelText('Song selection panels')
+      .querySelector('.jukebox-panel-track')!
+    expect(track).toHaveAttribute('data-transition-phase', 'idle')
+    expect(settledPanelOrder()).toEqual(['B', 'C', 'D', 'A'])
+    expect(sounds.playMovement).not.toHaveBeenCalled()
   })
 
   it('maps A1 and B8 by owned panel identity after their screen positions move', async () => {
@@ -275,7 +385,7 @@ describe('classic Jukebox screen', () => {
 
   it('requires letter then number, replaces letters, starts first, and appends deliberate duplicates', async () => {
     const user = userEvent.setup()
-    const { container } = renderJukebox()
+    const { container, sounds } = renderJukebox()
     await screen.findByRole('region', { name: 'Panel A' })
 
     await user.click(
@@ -288,6 +398,7 @@ describe('classic Jukebox screen', () => {
     const buttonA = screen.getByRole('button', { name: 'Select panel A' })
     const buttonB = screen.getByRole('button', { name: 'Select panel B' })
     await user.click(buttonA)
+    expect(sounds.playButton).toHaveBeenCalledTimes(2)
     expect(buttonA).toHaveAttribute('aria-pressed', 'true')
     await user.click(buttonB)
     expect(buttonA).toHaveAttribute('aria-pressed', 'false')
@@ -303,6 +414,7 @@ describe('classic Jukebox screen', () => {
     await user.dblClick(numberSeven)
 
     expect(await screen.findByText('B7 added')).toBeInTheDocument()
+    expect(sounds.playConfirmation).toHaveBeenCalledTimes(1)
     expect(selection).toHaveClass('is-confirmed')
     expect(selection.closest('.jukebox-panel')).toHaveClass('jukebox-accent--b')
     expect(confirmedQueue.current?.track_id).toBe(selectedTrack.id)
@@ -328,11 +440,29 @@ describe('classic Jukebox screen', () => {
     expect(confirmedQueue.upcoming[0].id).not.toBe(
       confirmedQueue.upcoming[1].id,
     )
+    expect(sounds.playLoading).toHaveBeenCalledTimes(1)
+    expect(sounds.playConfirmation).toHaveBeenCalledTimes(3)
+  })
+
+  it('plays exactly two heavy clicks and one accepted latch for B1', async () => {
+    const user = userEvent.setup()
+    const { sounds } = renderJukebox({ jukeboxLoadingDelayMs: 500 })
+    await screen.findByRole('region', { name: 'Panel B' })
+
+    await user.click(screen.getByRole('button', { name: 'Select panel B' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Select song number 1' }),
+    )
+
+    expect(await screen.findByText('Loading B1…')).toBeInTheDocument()
+    expect(sounds.playButton).toHaveBeenCalledTimes(2)
+    expect(sounds.playConfirmation).toHaveBeenCalledTimes(1)
+    expect(sounds.playLoading).toHaveBeenCalledTimes(1)
   })
 
   it('advances once by NEXT or a left swipe, ignores right swipes, and resets incomplete input', async () => {
     const user = userEvent.setup()
-    renderJukebox()
+    const { sounds } = renderJukebox()
     const firstPanel = await screen.findByRole('region', { name: 'Panel A' })
     const initialFirstId = firstPanel.getAttribute('data-panel-id')
     const viewport = screen.getByLabelText('Song selection panels')
@@ -344,6 +474,7 @@ describe('classic Jukebox screen', () => {
       'data-panel-id',
       initialFirstId,
     )
+    expect(sounds.playMovement).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'Select panel A' }))
     await user.click(
@@ -362,6 +493,13 @@ describe('classic Jukebox screen', () => {
     await waitFor(() =>
       expect(settledPanelOrder()).toEqual(['B', 'C', 'D', 'A']),
     )
+    await waitFor(() =>
+      expect(viewport.querySelector('.jukebox-panel-track')).toHaveAttribute(
+        'data-transition-phase',
+        'idle',
+      ),
+    )
+    expect(sounds.playMovement).toHaveBeenCalledTimes(1)
     expect(
       screen.getByRole('button', { name: 'Select panel C' }),
     ).toHaveAttribute('aria-pressed', 'false')
@@ -374,6 +512,7 @@ describe('classic Jukebox screen', () => {
     await waitFor(() =>
       expect(settledPanelOrder()).toEqual(['C', 'D', 'A', 'B']),
     )
+    expect(sounds.playMovement).toHaveBeenCalledTimes(2)
     expect(afterNextOrder).toEqual(['B', 'C', 'D', 'A'])
     expect(confirmedQueue.current?.id).toBe(selectedQueueItemId)
 
@@ -387,7 +526,7 @@ describe('classic Jukebox screen', () => {
 
   it('shows no false confirmation after a queue API failure', async () => {
     const user = userEvent.setup()
-    const { container } = renderJukebox()
+    const { container, sounds } = renderJukebox()
     await screen.findByRole('region', { name: 'Panel A' })
     failSelection = true
 
@@ -402,6 +541,87 @@ describe('classic Jukebox screen', () => {
       ),
     ).toBeInTheDocument()
     expect(container.querySelector('.jukebox-panel li.is-confirmed')).toBeNull()
+    expect(sounds.playButton).toHaveBeenCalledTimes(2)
+    expect(sounds.playConfirmation).not.toHaveBeenCalled()
+  })
+
+  it('opens accessible sound settings, previews categories, resets, and restores focus', async () => {
+    const user = userEvent.setup()
+    const { sounds } = renderJukebox()
+    await screen.findByRole('region', { name: 'Panel A' })
+    const settingsButton = screen.getByRole('button', { name: 'Sounds' })
+
+    await user.click(settingsButton)
+    const dialog = screen.getByRole('dialog', { name: 'Jukebox Sounds' })
+    expect(dialog).toBeInTheDocument()
+    expect(
+      within(dialog).getByText(/do not change music playback/i),
+    ).toBeInTheDocument()
+
+    await user.click(
+      within(dialog).getByRole('checkbox', {
+        name: 'Sound effects enabled',
+      }),
+    )
+    expect(sounds.updateSettings).toHaveBeenCalledWith({ enabled: false })
+
+    await user.click(
+      within(dialog).getByRole('checkbox', {
+        name: 'Mechanical loading pause',
+      }),
+    )
+    expect(sounds.updateSettings).toHaveBeenCalledWith({ loadingPause: false })
+
+    fireEvent.change(
+      within(dialog).getByRole('slider', { name: 'Master effects volume' }),
+      { target: { value: '48' } },
+    )
+    expect(sounds.updateSettings).toHaveBeenCalledWith({ masterVolume: 0.48 })
+    fireEvent.change(
+      within(dialog).getByRole('slider', {
+        name: 'Loading mechanism volume',
+      }),
+      { target: { value: '31' } },
+    )
+    expect(sounds.updateSettings).toHaveBeenCalledWith({ loadingVolume: 0.31 })
+
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Preview button click volume',
+      }),
+    )
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Preview panel movement volume',
+      }),
+    )
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Preview selection confirmation volume',
+      }),
+    )
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: 'Preview loading mechanism volume',
+      }),
+    )
+    expect(sounds.preview).toHaveBeenNthCalledWith(1, 'button')
+    expect(sounds.preview).toHaveBeenNthCalledWith(2, 'movement')
+    expect(sounds.preview).toHaveBeenNthCalledWith(3, 'confirmation')
+    expect(sounds.preview).toHaveBeenNthCalledWith(4, 'loading')
+
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Reset to defaults' }),
+    )
+    expect(sounds.resetSettings).toHaveBeenCalledTimes(1)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Jukebox Sounds' })).toBeNull()
+    await waitFor(() => expect(settingsButton).toHaveFocus())
+
+    await user.click(settingsButton)
+    expect(
+      screen.getByRole('dialog', { name: 'Jukebox Sounds' }),
+    ).toBeInTheDocument()
   })
 
   it('cancels or confirms Stop & Clear and resets the single audio element', async () => {

@@ -27,7 +27,8 @@ export function NowPlayingScreen() {
         />
         <div className="now-playing-copy">
           <p className="eyebrow">
-            {player.status === 'loading' ? 'Loading audio' : player.status}
+            {player.presentationMessage ??
+              (player.status === 'loading' ? 'Loading audio' : player.status)}
           </p>
           <h1 id="page-title">{player.currentTrack.title}</h1>
           <p className="now-playing-artist">{player.currentTrack.artist}</p>

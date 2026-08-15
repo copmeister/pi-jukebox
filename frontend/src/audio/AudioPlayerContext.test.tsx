@@ -1,7 +1,9 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { QueueItem, QueueSnapshot, Track } from '../api/types'
+import { DEFAULT_JUKEBOX_SOUND_SETTINGS } from '../jukebox/soundSettings'
+import type { JukeboxSoundController } from '../jukebox/sounds'
 import { QueueProvider, useQueue } from '../queue/QueueContext'
 import { AudioPlayerProvider, useAudioPlayer } from './AudioPlayerContext'
 
@@ -127,6 +129,10 @@ function queueFetch(initial = snapshot()) {
         )
         return jsonResponse(state)
       }
+      if (url.endsWith('/api/queue') && init?.method === 'DELETE') {
+        state = snapshot()
+        return jsonResponse(state)
+      }
       throw new Error(`Unexpected request: ${url}`)
     },
   )
@@ -143,6 +149,15 @@ function Harness() {
       {player.error ? <p role="alert">{player.error}</p> : null}
       <button type="button" onClick={() => void player.playNow(tracks[0])}>
         Start
+      </button>
+      <button
+        type="button"
+        onClick={() => void player.playJukebox(tracks[0], 'B1')}
+      >
+        Start Jukebox
+      </button>
+      <button type="button" onClick={() => void player.playNow(tracks[1])}>
+        Start modern second
       </button>
       <button type="button" onClick={() => void queue.addTrack(tracks[1].id)}>
         Add second
@@ -165,23 +180,53 @@ function Harness() {
       <button type="button" onClick={player.toggleMute}>
         Mute
       </button>
+      <button type="button" onClick={() => void player.stopAndClear()}>
+        Stop
+      </button>
+      <p>{player.presentation}</p>
+      <p>{player.presentationMessage ?? 'No presentation message'}</p>
     </div>
   )
 }
 
-function renderPlayer() {
+function soundController(
+  settings: Partial<JukeboxSoundController['settings']> = {},
+): JukeboxSoundController {
+  return {
+    settings: { ...DEFAULT_JUKEBOX_SOUND_SETTINGS, ...settings },
+    updateSettings: vi.fn(),
+    resetSettings: vi.fn(),
+    playButton: vi.fn(),
+    playMovement: vi.fn(),
+    playConfirmation: vi.fn(),
+    playLoading: vi.fn(() => vi.fn()),
+    preview: vi.fn(),
+  }
+}
+
+function renderPlayer(sounds = soundController(), jukeboxLoadingDelayMs = 900) {
   return render(
     <QueueProvider>
-      <AudioPlayerProvider>
+      <AudioPlayerProvider
+        soundController={sounds}
+        jukeboxLoadingDelayMs={jukeboxLoadingDelayMs}
+      >
         <Harness />
       </AudioPlayerProvider>
     </QueueProvider>,
   )
 }
 
+async function flushAsyncWork() {
+  await act(async () => {
+    for (let index = 0; index < 8; index += 1) await Promise.resolve()
+  })
+}
+
 describe('AudioPlayerProvider queue integration', () => {
   afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
@@ -219,6 +264,179 @@ describe('AudioPlayerProvider queue integration', () => {
     expect(audio.volume).toBe(0.4)
     await user.click(screen.getByRole('button', { name: 'Mute' }))
     expect(audio.muted).toBe(true)
+  })
+
+  it('holds an idle Jukebox selection for the mechanical loading sequence', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', queueFetch().fetchMock)
+    const sounds = soundController()
+    const playMock = vi.mocked(HTMLMediaElement.prototype.play)
+    playMock.mockClear()
+    const { container } = renderPlayer(sounds)
+    const audio = container.querySelector('audio') as HTMLAudioElement
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Jukebox' }))
+    await flushAsyncWork()
+
+    expect(screen.getByText('First Song')).toBeInTheDocument()
+    expect(screen.getByText('Loading B1…')).toBeInTheDocument()
+    expect(screen.getByText('jukebox')).toBeInTheDocument()
+    expect(audio.currentTime).toBe(0)
+    expect(playMock).not.toHaveBeenCalled()
+    expect(sounds.playConfirmation).toHaveBeenCalledTimes(1)
+    expect(sounds.playLoading).toHaveBeenCalledWith(900)
+
+    await act(async () => vi.advanceTimersByTime(899))
+    expect(playMock).not.toHaveBeenCalled()
+    await act(async () => vi.advanceTimersByTime(1))
+    expect(playMock).toHaveBeenCalledTimes(1)
+    expect(audio.src).toContain('/api/tracks/1/media')
+    expect(audio.currentTime).toBe(0)
+    expect(screen.getByText('playing')).toBeInTheDocument()
+  })
+
+  it('loads between queued Jukebox tracks without another latch or double advance', async () => {
+    vi.useFakeTimers()
+    const queueApi = queueFetch()
+    vi.stubGlobal('fetch', queueApi.fetchMock)
+    const sounds = soundController()
+    const playMock = vi.mocked(HTMLMediaElement.prototype.play)
+    playMock.mockClear()
+    const { container } = renderPlayer(sounds)
+    const audio = container.querySelector('audio') as HTMLAudioElement
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Jukebox' }))
+    await flushAsyncWork()
+    await act(async () => vi.advanceTimersByTime(900))
+    fireEvent.click(screen.getByRole('button', { name: 'Add second' }))
+    await flushAsyncWork()
+
+    await act(async () => {
+      audio.dispatchEvent(new Event('ended'))
+      audio.dispatchEvent(new Event('ended'))
+      await Promise.resolve()
+    })
+    expect(screen.getByText('Second Song')).toBeInTheDocument()
+    expect(screen.getByText('Changing record…')).toBeInTheDocument()
+    expect(playMock).toHaveBeenCalledTimes(1)
+    expect(sounds.playLoading).toHaveBeenCalledTimes(2)
+    expect(sounds.playConfirmation).toHaveBeenCalledTimes(1)
+    expect(
+      queueApi.fetchMock.mock.calls.filter(([url]) =>
+        String(url).endsWith('/api/queue/advance'),
+      ),
+    ).toHaveLength(1)
+
+    await act(async () => vi.advanceTimersByTime(900))
+    expect(playMock).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      audio.dispatchEvent(new Event('ended'))
+      await Promise.resolve()
+    })
+    await flushAsyncWork()
+    expect(sounds.playLoading).toHaveBeenCalledTimes(2)
+    expect(screen.getByText('No track')).toBeInTheDocument()
+  })
+
+  it('cancels a pending Jukebox start when Stop & Clear is chosen', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', queueFetch().fetchMock)
+    const cancelLoading = vi.fn()
+    const sounds = soundController()
+    vi.mocked(sounds.playLoading).mockReturnValue(cancelLoading)
+    const playMock = vi.mocked(HTMLMediaElement.prototype.play)
+    playMock.mockClear()
+    renderPlayer(sounds)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Jukebox' }))
+    await flushAsyncWork()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    await flushAsyncWork()
+    await act(async () => vi.advanceTimersByTime(900))
+
+    expect(cancelLoading).toHaveBeenCalledTimes(1)
+    expect(playMock).not.toHaveBeenCalled()
+    expect(screen.getByText('No track')).toBeInTheDocument()
+    expect(screen.getByText('modern')).toBeInTheDocument()
+  })
+
+  it('cancels a pending Jukebox start when the provider unmounts', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', queueFetch().fetchMock)
+    const cancelLoading = vi.fn()
+    const sounds = soundController()
+    vi.mocked(sounds.playLoading).mockReturnValue(cancelLoading)
+    const playMock = vi.mocked(HTMLMediaElement.prototype.play)
+    playMock.mockClear()
+    const { unmount } = renderPlayer(sounds)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Jukebox' }))
+    await flushAsyncWork()
+    unmount()
+    await act(async () => vi.advanceTimersByTime(900))
+
+    expect(cancelLoading).toHaveBeenCalledTimes(1)
+    expect(playMock).not.toHaveBeenCalled()
+  })
+
+  it('cancels a pending Jukebox start when modern Play Now supersedes it', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', queueFetch().fetchMock)
+    const cancelLoading = vi.fn()
+    const sounds = soundController()
+    vi.mocked(sounds.playLoading).mockReturnValue(cancelLoading)
+    const playMock = vi.mocked(HTMLMediaElement.prototype.play)
+    playMock.mockClear()
+    const { container } = renderPlayer(sounds)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Jukebox' }))
+    await flushAsyncWork()
+    fireEvent.click(screen.getByRole('button', { name: 'Start modern second' }))
+    await flushAsyncWork()
+
+    const audio = container.querySelector('audio') as HTMLAudioElement
+    expect(cancelLoading).toHaveBeenCalledTimes(1)
+    expect(playMock).toHaveBeenCalledTimes(1)
+    expect(audio.src).toContain('/api/tracks/2/media')
+    expect(screen.getByText('modern')).toBeInTheDocument()
+    await act(async () => vi.advanceTimersByTime(900))
+    expect(playMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('honours disabled, silent-loading, and pause-off settings', async () => {
+    vi.useFakeTimers()
+    const playMock = vi.mocked(HTMLMediaElement.prototype.play)
+
+    vi.stubGlobal('fetch', queueFetch().fetchMock)
+    const disabledSounds = soundController({ enabled: false })
+    playMock.mockClear()
+    renderPlayer(disabledSounds)
+    fireEvent.click(screen.getByRole('button', { name: 'Start Jukebox' }))
+    await flushAsyncWork()
+    expect(playMock).toHaveBeenCalledTimes(1)
+    expect(disabledSounds.playConfirmation).not.toHaveBeenCalled()
+    expect(disabledSounds.playLoading).not.toHaveBeenCalled()
+
+    cleanup()
+    vi.stubGlobal('fetch', queueFetch().fetchMock)
+    const silentLoading = soundController({ loadingVolume: 0 })
+    playMock.mockClear()
+    renderPlayer(silentLoading)
+    fireEvent.click(screen.getByRole('button', { name: 'Start Jukebox' }))
+    await flushAsyncWork()
+    expect(playMock).not.toHaveBeenCalled()
+    await act(async () => vi.advanceTimersByTime(900))
+    expect(playMock).toHaveBeenCalledTimes(1)
+
+    cleanup()
+    vi.stubGlobal('fetch', queueFetch().fetchMock)
+    const pauseOff = soundController({ loadingPause: false })
+    playMock.mockClear()
+    renderPlayer(pauseOff)
+    fireEvent.click(screen.getByRole('button', { name: 'Start Jukebox' }))
+    await flushAsyncWork()
+    expect(playMock).toHaveBeenCalledTimes(1)
+    expect(pauseOff.playLoading).not.toHaveBeenCalled()
   })
 
   it('restores persisted current metadata paused without autoplay', async () => {

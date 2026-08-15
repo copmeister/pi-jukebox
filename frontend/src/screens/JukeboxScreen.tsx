@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
+  type TransitionEvent as ReactTransitionEvent,
   useCallback,
   useEffect,
   useRef,
@@ -16,6 +17,8 @@ import {
   generateReplacementPanel,
   type RandomSource,
 } from '../jukebox/randomPanels'
+import { JukeboxSoundsDialog } from '../jukebox/JukeboxSoundsDialog'
+import { type JukeboxSoundController } from '../jukebox/sounds'
 import { useQueue } from '../queue/QueueContext'
 
 const PANEL_LETTERS = ['A', 'B', 'C', 'D'] as const
@@ -23,6 +26,7 @@ const SONG_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8] as const
 const SWIPE_THRESHOLD = 64
 
 type PanelLetter = (typeof PANEL_LETTERS)[number]
+type TransitionPhase = 'idle' | 'preparing' | 'sliding' | 'resetting'
 
 interface DisplayPanel {
   id: number
@@ -44,6 +48,7 @@ interface JukeboxScreenProps {
   random?: RandomSource
   transitionDurationMs?: number
   selectionResetMs?: number
+  soundController?: JukeboxSoundController
 }
 
 function catalogueRequestError(error: unknown): string {
@@ -59,9 +64,12 @@ export function JukeboxScreen({
   random = Math.random,
   transitionDurationMs = 320,
   selectionResetMs = 650,
+  soundController,
 }: JukeboxScreenProps) {
   const queue = useQueue()
   const player = useAudioPlayer()
+  const sounds = soundController ?? player.jukeboxSounds
+  const soundsRef = useRef(sounds)
   const [tracks, setTracks] = useState<Track[]>([])
   const [panels, setPanels] = useState<DisplayPanel[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,15 +82,24 @@ export function JukeboxScreen({
     'Choose a letter, then a number.',
   )
   const [confirmStop, setConfirmStop] = useState(false)
-  const [transitioning, setTransitioning] = useState(false)
-  const [sliding, setSliding] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [transitionPhase, setTransitionPhase] =
+    useState<TransitionPhase>('idle')
   const nextPanelId = useRef(1)
+  const transitionPhaseRef = useRef<TransitionPhase>('idle')
   const selectionLocked = useRef(false)
   const transitionLocked = useRef(false)
   const pointerStart = useRef<PointerStart | null>(null)
+  const settingsButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    soundsRef.current = sounds
+  }, [sounds])
   const selectionTimer = useRef<number | null>(null)
-  const transitionTimer = useRef<number | null>(null)
-  const transitionStartTimer = useRef<number | null>(null)
+  const transitionFallbackTimer = useRef<number | null>(null)
+  const preparationFrame = useRef<number | null>(null)
+  const slidingFrame = useRef<number | null>(null)
+  const resetFrame = useRef<number | null>(null)
 
   const createPanel = useCallback(
     (letter: PanelLetter, panelTracks: Track[]): DisplayPanel => ({
@@ -127,10 +144,14 @@ export function JukeboxScreen({
     () => () => {
       if (selectionTimer.current !== null)
         window.clearTimeout(selectionTimer.current)
-      if (transitionTimer.current !== null)
-        window.clearTimeout(transitionTimer.current)
-      if (transitionStartTimer.current !== null)
-        window.clearTimeout(transitionStartTimer.current)
+      if (transitionFallbackTimer.current !== null)
+        window.clearTimeout(transitionFallbackTimer.current)
+      if (preparationFrame.current !== null)
+        window.cancelAnimationFrame(preparationFrame.current)
+      if (slidingFrame.current !== null)
+        window.cancelAnimationFrame(slidingFrame.current)
+      if (resetFrame.current !== null)
+        window.cancelAnimationFrame(resetFrame.current)
     },
     [],
   )
@@ -142,19 +163,74 @@ export function JukeboxScreen({
   }, [])
 
   const finishTransition = useCallback(() => {
+    if (transitionPhaseRef.current !== 'sliding') return
+    if (transitionFallbackTimer.current !== null) {
+      window.clearTimeout(transitionFallbackTimer.current)
+      transitionFallbackTimer.current = null
+    }
+
+    transitionPhaseRef.current = 'resetting'
+    setTransitionPhase('resetting')
     setPanels((current) => current.slice(1))
-    setSliding(false)
-    setTransitioning(false)
-    transitionLocked.current = false
-    transitionTimer.current = null
-    setStatusMessage('New selections ready.')
   }, [])
+
+  useEffect(() => {
+    if (transitionPhase !== 'resetting') return
+
+    // Effects run after React has committed and painted the transition-free
+    // coordinate reset. Re-enable motion on the following animation frame.
+    resetFrame.current = window.requestAnimationFrame(() => {
+      resetFrame.current = null
+      transitionPhaseRef.current = 'idle'
+      setTransitionPhase('idle')
+      transitionLocked.current = false
+      setStatusMessage('New selections ready.')
+    })
+
+    return () => {
+      if (resetFrame.current !== null) {
+        window.cancelAnimationFrame(resetFrame.current)
+        resetFrame.current = null
+      }
+    }
+  }, [transitionPhase])
+
+  useEffect(() => {
+    if (transitionPhase !== 'preparing') return
+
+    preparationFrame.current = window.requestAnimationFrame(() => {
+      preparationFrame.current = null
+      slidingFrame.current = window.requestAnimationFrame(() => {
+        slidingFrame.current = null
+        if (transitionPhaseRef.current !== 'preparing') return
+        soundsRef.current.playMovement(transitionDurationMs)
+        transitionPhaseRef.current = 'sliding'
+        setTransitionPhase('sliding')
+        transitionFallbackTimer.current = window.setTimeout(
+          finishTransition,
+          transitionDurationMs + 120,
+        )
+      })
+    })
+
+    return () => {
+      if (preparationFrame.current !== null) {
+        window.cancelAnimationFrame(preparationFrame.current)
+        preparationFrame.current = null
+      }
+      if (slidingFrame.current !== null) {
+        window.cancelAnimationFrame(slidingFrame.current)
+        slidingFrame.current = null
+      }
+    }
+  }, [finishTransition, transitionDurationMs, transitionPhase])
 
   const advancePanels = useCallback(() => {
     if (
       transitionLocked.current ||
       selectionLocked.current ||
       queue.mutating !== null ||
+      settingsOpen ||
       tracks.length === 0
     )
       return
@@ -188,25 +264,30 @@ export function JukeboxScreen({
     }
 
     setPanels((current) => [...current, incoming])
-    setTransitioning(true)
-    transitionStartTimer.current = window.setTimeout(() => {
-      setSliding(true)
-      transitionStartTimer.current = null
-      transitionTimer.current = window.setTimeout(
-        finishTransition,
-        transitionDurationMs,
-      )
-    }, 16)
+    transitionPhaseRef.current = 'preparing'
+    setTransitionPhase('preparing')
   }, [
     createPanel,
-    finishTransition,
     panels,
     queue.mutating,
     random,
     resetIncompleteSelection,
+    settingsOpen,
     tracks,
     transitionDurationMs,
   ])
+
+  const onTrackTransitionEnd = (
+    event: ReactTransitionEvent<HTMLDivElement>,
+  ) => {
+    if (
+      event.target === event.currentTarget &&
+      event.propertyName === 'transform' &&
+      transitionPhaseRef.current === 'sliding'
+    ) {
+      finishTransition()
+    }
+  }
 
   const selectNumber = async (number: number) => {
     if (!selectedLetter) {
@@ -230,9 +311,10 @@ export function JukeboxScreen({
     setSubmitting(true)
     setSelectedNumber(number)
     const code = `${selectedLetter}${number}`
-    const success = queue.snapshot?.current
+    const alreadyPlaying = Boolean(queue.snapshot?.current)
+    const success = alreadyPlaying
       ? Boolean(await queue.addTrack(track.id))
-      : await player.playNow(track)
+      : await player.playJukebox(track, code)
 
     if (!success) {
       selectionLocked.current = false
@@ -242,6 +324,7 @@ export function JukeboxScreen({
       return
     }
 
+    if (alreadyPlaying) player.acceptQueuedJukeboxSelection()
     setConfirmedCode(code)
     setStatusMessage(`${code} added`)
     selectionTimer.current = window.setTimeout(() => {
@@ -293,6 +376,11 @@ export function JukeboxScreen({
     setStatusMessage('Playback stopped and queue cleared.')
   }
 
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false)
+    window.requestAnimationFrame(() => settingsButtonRef.current?.focus())
+  }, [])
+
   if (loading) {
     return (
       <div className="screen jukebox-screen">
@@ -339,7 +427,11 @@ export function JukeboxScreen({
   }
 
   const controlsDisabled =
-    queue.loading || queue.mutating !== null || submitting || transitioning
+    queue.loading ||
+    queue.mutating !== null ||
+    submitting ||
+    transitionPhase !== 'idle' ||
+    settingsOpen
   const currentSelection = `${selectedLetter ?? '\u2014'}${selectedNumber ?? '\u2014'}`
 
   return (
@@ -349,9 +441,21 @@ export function JukeboxScreen({
           <p className="eyebrow">Classic selector</p>
           <h1 id="page-title">Jukebox</h1>
         </div>
-        <div className="jukebox-count" aria-label="Upcoming selections">
-          <strong>{queue.snapshot?.upcoming_count ?? 0}</strong>
-          <span>upcoming</span>
+        <div className="jukebox-heading-actions">
+          <div className="jukebox-count" aria-label="Upcoming selections">
+            <strong>{queue.snapshot?.upcoming_count ?? 0}</strong>
+            <span>upcoming</span>
+          </div>
+          <button
+            type="button"
+            className="jukebox-sounds-button"
+            aria-expanded={settingsOpen}
+            aria-haspopup="dialog"
+            onClick={() => setSettingsOpen(true)}
+            ref={settingsButtonRef}
+          >
+            Sounds
+          </button>
         </div>
       </header>
 
@@ -364,7 +468,9 @@ export function JukeboxScreen({
         onPointerCancel={endPointer}
       >
         <div
-          className={`jukebox-panel-track${sliding ? ' is-sliding' : ''}`}
+          className={`jukebox-panel-track is-${transitionPhase}`}
+          data-transition-phase={transitionPhase}
+          onTransitionEnd={onTrackTransitionEnd}
           style={
             {
               '--jukebox-transition': `${transitionDurationMs}ms`,
@@ -375,7 +481,7 @@ export function JukeboxScreen({
             const accentClass = `jukebox-accent--${panel.letter.toLowerCase()}`
             return (
               <section
-                className={`jukebox-panel ${accentClass}${panelIndex === panels.length - 1 && transitioning ? ' is-incoming' : ''}`}
+                className={`jukebox-panel ${accentClass}${panelIndex === panels.length - 1 && (transitionPhase === 'preparing' || transitionPhase === 'sliding') ? ' is-incoming' : ''}`}
                 aria-label={`Panel ${panel.letter}`}
                 data-panel-id={panel.id}
                 data-panel-letter={panel.letter}
@@ -423,6 +529,7 @@ export function JukeboxScreen({
               aria-label={`Select panel ${letter}`}
               disabled={controlsDisabled}
               onClick={() => {
+                soundsRef.current.playButton()
                 setSelectedLetter(letter)
                 setSelectedNumber(null)
                 setStatusMessage(`${letter} selected. Choose a number.`)
@@ -444,7 +551,10 @@ export function JukeboxScreen({
               aria-pressed={selectedNumber === number}
               aria-label={`Select song number ${number}`}
               disabled={controlsDisabled}
-              onClick={() => void selectNumber(number)}
+              onClick={() => {
+                soundsRef.current.playButton()
+                void selectNumber(number)
+              }}
               key={number}
             >
               {number}
@@ -463,14 +573,14 @@ export function JukeboxScreen({
           type="button"
           className="jukebox-stop"
           onClick={() => setConfirmStop(true)}
-          disabled={queue.mutating !== null}
+          disabled={queue.mutating !== null || settingsOpen}
         >
           Stop &amp; Clear
         </button>
       </div>
 
       <p className="jukebox-status" role="status" aria-live="polite">
-        {statusMessage}
+        {player.presentationMessage ?? statusMessage}
       </p>
 
       {confirmStop ? (
@@ -484,6 +594,10 @@ export function JukeboxScreen({
             onConfirm={() => void stopAndClear()}
           />
         </div>
+      ) : null}
+
+      {settingsOpen ? (
+        <JukeboxSoundsDialog sounds={sounds} onClose={closeSettings} />
       ) : null}
     </div>
   )
