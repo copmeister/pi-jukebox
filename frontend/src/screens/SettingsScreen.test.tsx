@@ -1,6 +1,10 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  DISPLAY_SIZE_STORAGE_KEY,
+  DisplaySizeProvider,
+} from '../display/DisplaySizeContext'
 import { SettingsScreen } from './SettingsScreen'
 
 function response(payload: unknown): Response {
@@ -25,6 +29,7 @@ describe('Settings software updates', () => {
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
+    window.localStorage.clear()
   })
 
   it('shows versions, checks asynchronously, and keeps unsafe install disabled', async () => {
@@ -36,7 +41,11 @@ describe('Settings software updates', () => {
     })
     vi.stubGlobal('fetch', fetch)
     const user = userEvent.setup()
-    render(<SettingsScreen />)
+    render(
+      <DisplaySizeProvider>
+        <SettingsScreen />
+      </DisplaySizeProvider>,
+    )
 
     expect(await screen.findByText('Pi Jukebox 0.5.0')).toBeInTheDocument()
     expect(
@@ -50,5 +59,41 @@ describe('Settings software updates', () => {
         expect.objectContaining({ method: 'POST' }),
       ),
     )
+  })
+
+  it('applies and restores the persistent Display Size immediately', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(status)),
+    )
+    const user = userEvent.setup()
+    const first = render(
+      <DisplaySizeProvider>
+        <SettingsScreen />
+      </DisplaySizeProvider>,
+    )
+
+    const extraLarge = await screen.findByRole('radio', {
+      name: /Extra Large/i,
+    })
+    await user.click(extraLarge)
+    expect(extraLarge).toHaveAttribute('aria-checked', 'true')
+    expect(document.documentElement).toHaveAttribute(
+      'data-display-size',
+      'extra-large',
+    )
+    expect(window.localStorage.getItem(DISPLAY_SIZE_STORAGE_KEY)).toBe(
+      'extra-large',
+    )
+
+    first.unmount()
+    render(
+      <DisplaySizeProvider>
+        <SettingsScreen />
+      </DisplaySizeProvider>,
+    )
+    expect(
+      await screen.findByRole('radio', { name: /Extra Large/i }),
+    ).toHaveAttribute('aria-checked', 'true')
   })
 })

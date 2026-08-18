@@ -112,6 +112,15 @@ Milestone 4C adds the final pre-hardware defining experience:
 
 Milestone 4C was the final feature before the initial Raspberry Pi hardware bring-up. Version 0.5.0 follows that successful deployment with integrated CD ripping and update foundations. Visualisation remains future work.
 
+## Touchscreen display-size refinement
+
+Physical Touch Display 2 testing adds a focused presentation layer without changing playback, queue or ripping semantics:
+
+- Settings provides persistent Standard, Large and Extra Large modes at 1280×720. Standard remains closest to the established density; Large targets approximately 1.5× typography with larger controls, and Extra Large maximizes practical readability while allowing content screens to scroll.
+- Native vertical panning replaces desktop-style scrollbar interaction. Kiosk scrollbars are hidden, ordinary content resists accidental text selection, mouse-wheel/trackpad input still works, and form/range controls retain their intended gestures.
+- Large and Extra Large use 18 selector slots mapped A1–A6, B1–B6 and C1–C6. Standard retains A1–A8 through D1–D8. Both layouts preserve letter-then-number selection, queue acceptance, forward panel recycling, sound boundaries and Stop & Clear.
+- Navigation, mini-player, Library, Search, Queue, Now Playing, CD and Settings consume the same deliberate typography, touch-target, row-height and shell-height tokens rather than browser zoom or a global transform.
+
 ## Agreed product behaviour
 
 - Use the official Touch Display 2 at 1280×720 landscape as Milestone 4C's only detailed visual acceptance target. Existing smaller responsive rules may remain but are not separately accepted for this feature.

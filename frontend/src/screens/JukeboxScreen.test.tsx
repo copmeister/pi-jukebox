@@ -10,6 +10,10 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { QueueSnapshot, Track } from '../api/types'
 import { AudioPlayerProvider } from '../audio/AudioPlayerContext'
+import {
+  DisplaySizeProvider,
+  type DisplaySize,
+} from '../display/DisplaySizeContext'
 import { DEFAULT_JUKEBOX_SOUND_SETTINGS } from '../jukebox/soundSettings'
 import type { JukeboxSoundController } from '../jukebox/sounds'
 import { QueueProvider } from '../queue/QueueContext'
@@ -85,27 +89,30 @@ function renderJukebox(
     transitionDurationMs?: number
     jukeboxLoadingDelayMs?: number
     selectionResetMs?: number
+    displaySize?: DisplaySize
   } = {},
 ) {
   const sounds = options.sounds ?? createSoundController()
   return {
     sounds,
     ...render(
-      <QueueProvider>
-        <AudioPlayerProvider
-          soundController={sounds}
-          jukeboxLoadingDelayMs={options.jukeboxLoadingDelayMs ?? 20}
-        >
-          <JukeboxScreen
-            scanStatus={null}
-            onOpenLibrary={vi.fn()}
-            random={() => 0.42}
-            transitionDurationMs={options.transitionDurationMs ?? 20}
-            selectionResetMs={options.selectionResetMs ?? 100}
+      <DisplaySizeProvider initialSize={options.displaySize ?? 'standard'}>
+        <QueueProvider>
+          <AudioPlayerProvider
             soundController={sounds}
-          />
-        </AudioPlayerProvider>
-      </QueueProvider>,
+            jukeboxLoadingDelayMs={options.jukeboxLoadingDelayMs ?? 20}
+          >
+            <JukeboxScreen
+              scanStatus={null}
+              onOpenLibrary={vi.fn()}
+              random={() => 0.42}
+              transitionDurationMs={options.transitionDurationMs ?? 20}
+              selectionResetMs={options.selectionResetMs ?? 100}
+              soundController={sounds}
+            />
+          </AudioPlayerProvider>
+        </QueueProvider>
+      </DisplaySizeProvider>,
     ),
   }
 }
@@ -215,6 +222,52 @@ describe('classic Jukebox screen', () => {
       ).toHaveClass(`jukebox-accent--${letter.toLowerCase()}`)
     }
   })
+
+  it.each(['large', 'extra-large'] as const)(
+    'uses the accessible 3×6 selector and preserves selection behaviour in %s mode',
+    async (displaySize) => {
+      const user = userEvent.setup()
+      const { container } = renderJukebox({ displaySize })
+
+      expect(
+        await screen.findByRole('heading', { name: 'Jukebox' }),
+      ).toBeInTheDocument()
+      expect(container.querySelector('.jukebox-screen')).toHaveAttribute(
+        'data-selector-layout',
+        '3x6',
+      )
+      expect(settledPanelOrder()).toEqual(['A', 'B', 'C'])
+      for (const letter of ['A', 'B', 'C']) {
+        const panel = screen.getByRole('region', { name: `Panel ${letter}` })
+        expect(
+          [...panel.querySelectorAll('[data-code]')].map((item) =>
+            item.getAttribute('data-code'),
+          ),
+        ).toEqual(
+          Array.from({ length: 6 }, (_, index) => `${letter}${index + 1}`),
+        )
+      }
+      expect(
+        screen.queryByRole('button', { name: 'Select panel D' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Select song number 7' }),
+      ).not.toBeInTheDocument()
+
+      const selection = container.querySelector('[data-code="C6"]')!
+      const selectedTitle = selection.querySelector('strong')!.textContent!
+      const selectedTrack = tracks.find(
+        (track) => track.title === selectedTitle,
+      )!
+      await user.click(screen.getByRole('button', { name: 'Select panel C' }))
+      await user.click(
+        screen.getByRole('button', { name: 'Select song number 6' }),
+      )
+      await waitFor(() =>
+        expect(confirmedQueue.current?.track_id).toBe(selectedTrack.id),
+      )
+    },
+  )
 
   it('rotates owned identities forward and gives each recycled panel new tracks', async () => {
     const user = userEvent.setup()

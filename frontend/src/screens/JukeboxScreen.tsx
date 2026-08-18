@@ -12,6 +12,7 @@ import type { ScanStatus, Track } from '../api/types'
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
 import { ConfirmationPanel } from '../components/ConfirmationPanel'
 import { ScreenState } from '../components/ScreenState'
+import { useDisplaySize } from '../display/DisplaySizeContext'
 import {
   generatePanels,
   generateReplacementPanel,
@@ -21,11 +22,13 @@ import { JukeboxSoundsDialog } from '../jukebox/JukeboxSoundsDialog'
 import { type JukeboxSoundController } from '../jukebox/sounds'
 import { useQueue } from '../queue/QueueContext'
 
-const PANEL_LETTERS = ['A', 'B', 'C', 'D'] as const
-const SONG_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8] as const
+const STANDARD_PANEL_LETTERS = ['A', 'B', 'C', 'D'] as const
+const LARGE_PANEL_LETTERS = ['A', 'B', 'C'] as const
+const STANDARD_SONG_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8] as const
+const LARGE_SONG_NUMBERS = [1, 2, 3, 4, 5, 6] as const
 const SWIPE_THRESHOLD = 64
 
-type PanelLetter = (typeof PANEL_LETTERS)[number]
+type PanelLetter = (typeof STANDARD_PANEL_LETTERS)[number]
 type TransitionPhase = 'idle' | 'preparing' | 'sliding' | 'resetting'
 
 interface DisplayPanel {
@@ -66,6 +69,15 @@ export function JukeboxScreen({
   selectionResetMs = 650,
   soundController,
 }: JukeboxScreenProps) {
+  const { displaySize } = useDisplaySize()
+  const usesLargeLayout = displaySize !== 'standard'
+  const panelLetters = usesLargeLayout
+    ? LARGE_PANEL_LETTERS
+    : STANDARD_PANEL_LETTERS
+  const songNumbers = usesLargeLayout
+    ? LARGE_SONG_NUMBERS
+    : STANDARD_SONG_NUMBERS
+  const selectorLayout = usesLargeLayout ? '3x6' : '4x8'
   const queue = useQueue()
   const player = useAudioPlayer()
   const sounds = soundController ?? player.jukeboxSounds
@@ -117,13 +129,13 @@ export function JukeboxScreen({
         setTracks(catalogueTracks)
         const generatedPanels = generatePanels(
           catalogueTracks,
-          PANEL_LETTERS.length,
-          SONG_NUMBERS.length,
+          panelLetters.length,
+          songNumbers.length,
           random,
         )
         setPanels(
           generatedPanels.map((panelTracks, index) =>
-            createPanel(PANEL_LETTERS[index], panelTracks),
+            createPanel(panelLetters[index], panelTracks),
           ),
         )
         setError(null)
@@ -138,7 +150,7 @@ export function JukeboxScreen({
       })
       .finally(() => setLoading(false))
     return () => controller.abort()
-  }, [createPanel, random])
+  }, [createPanel, panelLetters, random, songNumbers])
 
   useEffect(
     () => () => {
@@ -248,7 +260,7 @@ export function JukeboxScreen({
       generateReplacementPanel(
         tracks,
         outgoing.tracks,
-        SONG_NUMBERS.length,
+        songNumbers.length,
         random,
         previousTrackId,
       ),
@@ -273,6 +285,7 @@ export function JukeboxScreen({
     random,
     resetIncompleteSelection,
     settingsOpen,
+    songNumbers,
     tracks,
     transitionDurationMs,
   ])
@@ -435,7 +448,10 @@ export function JukeboxScreen({
   const currentSelection = `${selectedLetter ?? '\u2014'}${selectedNumber ?? '\u2014'}`
 
   return (
-    <div className="screen jukebox-screen">
+    <div
+      className="screen jukebox-screen"
+      data-selector-layout={selectorLayout}
+    >
       <header className="jukebox-heading">
         <div>
           <p className="eyebrow">Classic selector</p>
@@ -521,7 +537,7 @@ export function JukeboxScreen({
           <strong>{currentSelection}</strong>
         </div>
         <div className="jukebox-key-group" aria-label="Panel letters">
-          {PANEL_LETTERS.map((letter) => (
+          {panelLetters.map((letter) => (
             <button
               type="button"
               className={`jukebox-letter-button jukebox-accent--${letter.toLowerCase()}${selectedLetter === letter ? ' is-selected' : ''}`}
@@ -544,7 +560,7 @@ export function JukeboxScreen({
           className="jukebox-key-group jukebox-number-keys"
           aria-label="Song numbers"
         >
-          {SONG_NUMBERS.map((number) => (
+          {songNumbers.map((number) => (
             <button
               type="button"
               className={selectedNumber === number ? 'is-selected' : ''}

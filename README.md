@@ -2,7 +2,7 @@
 
 A touchscreen-first local music jukebox for Raspberry Pi. Version 0.5.0 adds hardware-integrated, track-at-a-time CD-to-FLAC ripping and safe stable-release update checking while preserving the existing catalogue, queue, playback and classic selector.
 
-The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. Milestone 4C uses this as its only detailed visual acceptance target; older responsive rules remain in place but are not separately accepted for this feature.
+The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows
 
@@ -69,9 +69,9 @@ npm.cmd --prefix frontend run dev -- --host 127.0.0.1
 
 Open <http://127.0.0.1:5173> in your browser.
 
-The **CD** screen is safe to open on Windows. With no optical drive configured it shows an honest unavailable state; automated tests use fake drives and processes and never rip a real disc. The **Settings** screen shows the authoritative installed version and non-blocking update status.
+The **CD** screen is safe to open on Windows. With no optical drive configured it shows an honest unavailable state; automated tests use fake drives and processes and never rip a real disc. The **Settings** screen includes Display Size and shows the authoritative installed version and non-blocking update status. Display Size applies immediately and is stored only in that browser profile, so it survives application and Pi restarts without changing Chromium zoom or the hardware resolution.
 
-The application opens in **Jukebox** mode. Four panels show 32 randomly mixed codes from A1 through D8. A, B, C, and D are persistent panel identities with permanent amber, blue, violet, and green accents. Choose a letter and then a number: the first selection starts immediately when nothing is current, while later selections append to the persistent queue. Swipe left or use **NEXT ›** to move every panel left and recycle the outgoing identity with newly randomized songs on the right. The transition resets invisibly after the panels finish moving, so it never travels backwards. Panels have no back history, and moving them never changes queued music. **Stop & Clear** requires confirmation and stops audio while clearing the complete queue.
+The application opens in **Jukebox** mode. Standard displays four panels with 32 randomly mixed codes from A1 through D8. Large and Extra Large use three panels with 18 larger codes from A1 through C6. Panel letters retain their established colours and identity while visible. Choose a letter and then a number: the first selection starts immediately when nothing is current, while later selections append to the persistent queue. Swipe left or use **NEXT ›** to move every panel left and recycle the outgoing identity with newly randomized songs on the right. The transition resets invisibly after the panels finish moving, so it never travels backwards. Panels have no back history, and moving them never changes queued music. **Stop & Clear** requires confirmation and stops audio while clearing the complete queue.
 
 Jukebox letter and number controls use one heavy mechanical click per press, and a successful queue acceptance adds one separate latch-and-relay clunk. When an idle Jukebox selection is ready to play, and between queued songs in the same Jukebox presentation, a quiet record-loading mechanism runs for approximately 900 ms before the single browser audio element starts the track at its beginning. Queuing another selection does not interrupt the current song or play the loading mechanism early. Library and Search Play Now actions remain modern and immediate.
 

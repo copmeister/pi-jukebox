@@ -7,6 +7,10 @@ import {
 } from '../api/client'
 import type { UpdateStatus } from '../api/types'
 import { ScreenState } from '../components/ScreenState'
+import {
+  DISPLAY_SIZE_OPTIONS,
+  useDisplaySize,
+} from '../display/DisplaySizeContext'
 
 function errorMessage(error: unknown): string {
   return error instanceof ApiError
@@ -15,6 +19,7 @@ function errorMessage(error: unknown): string {
 }
 
 export function SettingsScreen() {
+  const { displaySize, setDisplaySize } = useDisplaySize()
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -59,6 +64,50 @@ export function SettingsScreen() {
           <p>Software information and safe, release-based updates.</p>
         </div>
       </header>
+
+      <section
+        className="display-size-card"
+        aria-labelledby="display-size-title"
+      >
+        <header>
+          <div>
+            <p className="eyebrow">Touchscreen</p>
+            <h2 id="display-size-title">Display Size</h2>
+          </div>
+          <span className="display-size-current" role="status">
+            {DISPLAY_SIZE_OPTIONS.find((option) => option.value === displaySize)
+              ?.label ?? 'Standard'}
+          </span>
+        </header>
+        <p>
+          Adjust text, controls, cards and the classic selector. This affects
+          only the jukebox interface, not browser zoom or the display
+          resolution.
+        </p>
+        <div
+          className="display-size-options"
+          role="radiogroup"
+          aria-label="Display Size"
+        >
+          {DISPLAY_SIZE_OPTIONS.map((option) => (
+            <button
+              type="button"
+              role="radio"
+              aria-checked={displaySize === option.value}
+              className={displaySize === option.value ? 'is-selected' : ''}
+              onClick={() => setDisplaySize(option.value)}
+              key={option.value}
+            >
+              <strong>{option.label}</strong>
+              <small>{option.description}</small>
+            </button>
+          ))}
+        </div>
+        <p className="settings-note">
+          Large and Extra Large show three selector panels with six songs per
+          panel for easier touch selection.
+        </p>
+      </section>
 
       {!status && !error ? (
         <ScreenState

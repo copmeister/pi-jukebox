@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { AudioPlayerProvider } from './audio/AudioPlayerContext'
 import { MiniPlayer } from './components/MiniPlayer'
 import { Navigation } from './components/Navigation'
+import {
+  DisplaySizeProvider,
+  useDisplaySize,
+} from './display/DisplaySizeContext'
 import { useCatalogue } from './hooks/useCatalogue'
 import { useCdStatus } from './hooks/useCdStatus'
 import type { Destination } from './navigation'
@@ -16,6 +20,7 @@ import { NowPlayingScreen } from './screens/NowPlayingScreen'
 import { QueueProvider, useQueue } from './queue/QueueContext'
 
 function AppContent() {
+  const { displaySize } = useDisplaySize()
   const [activeDestination, setActiveDestination] =
     useState<Destination>('Jukebox')
   const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null)
@@ -77,7 +82,7 @@ function AppContent() {
 
   const serviceReady = !catalogue.error
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-display-size={displaySize}>
       <header className="top-bar">
         <button
           className="brand"
@@ -115,6 +120,7 @@ function AppContent() {
       <main
         id="main-content"
         className={`main-content${activeDestination === 'Jukebox' ? ' is-jukebox' : ''}`}
+        data-scroll-region="vertical"
         tabIndex={-1}
       >
         {activeDestination !== 'Jukebox' && (queue.notice || queue.error) ? (
@@ -137,10 +143,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <QueueProvider>
-      <AudioPlayerProvider>
-        <AppContent />
-      </AudioPlayerProvider>
-    </QueueProvider>
+    <DisplaySizeProvider>
+      <QueueProvider>
+        <AudioPlayerProvider>
+          <AppContent />
+        </AudioPlayerProvider>
+      </QueueProvider>
+    </DisplaySizeProvider>
   )
 }

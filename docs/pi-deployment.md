@@ -101,6 +101,12 @@ cd /home/admin/jukebox
 11. Stop the app, temporarily unmount the external drive using the normal desktop/administrator workflow, restart, and confirm ripping is refused. Do not create `/mnt/jukebox/Music` while unmounted.
 12. Disconnect networking and confirm generic track names remain available and artwork failure does not prevent ripping.
 
+### Touch Display 2 presentation test
+
+At the native 1280×720 landscape viewport, open Settings and test Standard, Large and Extra Large. In every mode, swipe vertically on Library, Search results, Queue, CD progress and Settings content; confirm content moves naturally without selecting ordinary text and without a visible right-hand scrollbar. Mouse-wheel scrolling may be checked separately during desktop development.
+
+Confirm the mini-player and all seven navigation destinations remain visible. Standard must show A–D with numbers 1–8. Large and Extra Large must show A–C with numbers 1–6, with no clipped panel rows or controls. Select C6, confirm it enters the authoritative queue normally, then test NEXT, left swipe, Sounds and Stop & Clear. Use long album, artist and track names when checking Library, Search, Queue, Now Playing, CD release cards and rip progress.
+
 ## Diagnostics and recovery
 
 Inspect the journal for the existing service configuration, for example:

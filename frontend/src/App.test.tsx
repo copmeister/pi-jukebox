@@ -139,6 +139,7 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 describe('App catalogue interface', () => {
   beforeEach(() => {
+    window.localStorage.clear()
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -178,6 +179,7 @@ describe('App catalogue interface', () => {
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
+    window.localStorage.clear()
   })
 
   it('opens on Jukebox and preserves the modern Library and playback screens', async () => {
@@ -194,6 +196,15 @@ describe('App catalogue interface', () => {
     expect(
       screen.getByRole('region', { name: 'Mini player' }),
     ).toBeInTheDocument()
+    const navigation = screen.getByRole('navigation', {
+      name: 'Primary navigation',
+    })
+    expect(navigation).toBeInTheDocument()
+    expect(within(navigation).getAllByRole('button')).toHaveLength(7)
+    expect(document.querySelector('.main-content')).toHaveAttribute(
+      'data-scroll-region',
+      'vertical',
+    )
 
     await user.click(screen.getByRole('button', { name: 'Library' }))
     expect(screen.getByRole('heading', { name: 'Library' })).toBeInTheDocument()

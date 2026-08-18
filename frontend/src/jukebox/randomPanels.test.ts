@@ -64,6 +64,16 @@ describe('random jukebox panels', () => {
     expect(new Set(visibleIds).size).toBe(32)
   })
 
+  it('creates eighteen unique visible slots for the large 3×6 layout', () => {
+    const panels = generatePanels(makeTracks(24), 3, 6, () => 0.51)
+    const visibleIds = panels.flat().map((track) => track.id)
+
+    expect(panels).toHaveLength(3)
+    expect(panels.every((panel) => panel.length === 6)).toBe(true)
+    expect(visibleIds).toHaveLength(18)
+    expect(new Set(visibleIds).size).toBe(18)
+  })
+
   it('fills an eight-song panel from newly shuffled small-library cycles', () => {
     const panel = generatePanel(makeTracks(3), 8, () => 0.25)
 
