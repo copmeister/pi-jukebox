@@ -93,3 +93,120 @@ export interface PlayerTrack {
   duration_seconds: number | null
   artwork_id: number | null
 }
+
+export type RipTrackState =
+  | 'waiting'
+  | 'reading'
+  | 'encoding'
+  | 'tagging'
+  | 'ready'
+  | 'error'
+  | 'cancelled'
+
+export interface CdDisc {
+  disc_id: string
+  track_count: number
+  track_durations: Array<number | null>
+}
+
+export interface CdDriveStatus {
+  configured: boolean
+  available: boolean
+  disc_present: boolean
+  message: string
+  disc: CdDisc | null
+}
+
+export interface CdStorageStatus {
+  configured: boolean
+  available: boolean
+  mounted: boolean
+  writable: boolean
+  free_bytes: number | null
+  message: string
+}
+
+export interface CdReleaseTrack {
+  number: number
+  title: string
+  artist: string
+  duration_seconds: number | null
+}
+
+export interface CdRelease {
+  release_id: string
+  title: string
+  artist: string
+  year: string | null
+  country: string | null
+  edition: string | null
+  track_count: number
+  tracks: CdReleaseTrack[]
+  artwork_available: boolean
+}
+
+export interface CdRipTrack {
+  track_number: number
+  title: string
+  artist: string
+  duration_seconds: number | null
+  state: RipTrackState
+  final_relative_path: string | null
+  error_message: string | null
+  updated_at: string
+}
+
+export interface CdRipJob {
+  id: number
+  status:
+    | 'queued'
+    | 'ripping'
+    | 'completed'
+    | 'partial'
+    | 'cancelled'
+    | 'failed'
+    | 'interrupted'
+  disc_id: string
+  release_id: string | null
+  album_title: string
+  album_artist: string
+  total_tracks: number
+  completed_tracks: number
+  failed_tracks: number
+  message: string | null
+  error_message: string | null
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+  cancel_requested: boolean
+  tracks: CdRipTrack[]
+}
+
+export interface CdStatus {
+  drive: CdDriveStatus
+  storage: CdStorageStatus
+  metadata_state: 'idle' | 'reading' | 'searching' | 'ready' | 'unavailable'
+  metadata_message: string | null
+  release_candidates: CdRelease[]
+  selected_release_id: string | null
+  active: boolean
+  latest_job: CdRipJob | null
+}
+
+export interface ApiAction {
+  accepted: boolean
+  message: string
+  job_id?: number | null
+}
+
+export interface UpdateStatus {
+  installed_version: string
+  latest_version: string | null
+  checking: boolean
+  installing: boolean
+  update_available: boolean
+  install_available: boolean
+  message: string | null
+  last_error: string | null
+  source: string
+}

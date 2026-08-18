@@ -89,6 +89,42 @@ const playingQueue = {
   },
 }
 
+const cdStatus = {
+  drive: {
+    configured: true,
+    available: true,
+    disc_present: false,
+    message: 'Insert an audio CD.',
+    disc: null,
+  },
+  storage: {
+    configured: true,
+    available: true,
+    mounted: true,
+    writable: true,
+    free_bytes: 20_000_000_000,
+    message: 'External storage is ready.',
+  },
+  metadata_state: 'idle',
+  metadata_message: null,
+  release_candidates: [],
+  selected_release_id: null,
+  active: false,
+  latest_job: null,
+}
+
+const updateStatus = {
+  installed_version: '0.5.0',
+  latest_version: '0.5.0',
+  checking: false,
+  installing: false,
+  update_available: false,
+  install_available: false,
+  message: 'This jukebox is up to date.',
+  last_error: null,
+  source: 'Authenticated GitHub Releases via the local GitHub CLI',
+}
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -107,6 +143,9 @@ describe('App catalogue interface', () => {
         if (url.endsWith('/api/queue')) return jsonResponse(emptyQueue)
         if (url.endsWith('/api/library/scan/status'))
           return jsonResponse(scanStatus)
+        if (url.endsWith('/api/cd/status')) return jsonResponse(cdStatus)
+        if (url.endsWith('/api/system/updates'))
+          return jsonResponse(updateStatus)
         if (url.endsWith('/api/albums/7')) return jsonResponse(albumDetail)
         if (url.endsWith('/api/queue/tracks/11/play-now'))
           return jsonResponse(playingQueue)
@@ -209,6 +248,14 @@ describe('App catalogue interface', () => {
     expect(
       screen.getByRole('region', { name: 'Mini player' }),
     ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'CD' }))
+    expect(screen.getByRole('heading', { name: 'CD' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Insert an audio CD' }),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(await screen.findByText('Pi Jukebox 0.5.0')).toBeInTheDocument()
   })
 
   it('does not create Jukebox effects while navigating other screens', async () => {
@@ -218,7 +265,14 @@ describe('App catalogue interface', () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'Jukebox' })
 
-    for (const destination of ['Library', 'Search', 'Queue', 'Now Playing']) {
+    for (const destination of [
+      'Library',
+      'Search',
+      'Queue',
+      'CD',
+      'Now Playing',
+      'Settings',
+    ]) {
       await user.click(screen.getByRole('button', { name: destination }))
     }
 
@@ -262,5 +316,28 @@ describe('App catalogue interface', () => {
       }),
     ).toBeInTheDocument()
     expect(screen.getByText(/unexpected information/i)).toBeInTheDocument()
+  })
+
+  it('handles invalid CD status without breaking existing playback screens', async () => {
+    const originalFetch = vi.mocked(fetch)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/api/cd/status'))
+          return jsonResponse({ drive: 'invalid' })
+        return originalFetch(input, init)
+      }),
+    )
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+    await user.click(screen.getByRole('button', { name: 'CD' }))
+    expect(
+      await screen.findByRole('heading', { name: 'CD service unavailable' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/unexpected information/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole('region', { name: 'Mini player' }),
+    ).toBeInTheDocument()
   })
 })

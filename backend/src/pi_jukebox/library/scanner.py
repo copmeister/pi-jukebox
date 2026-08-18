@@ -122,6 +122,32 @@ class LibraryScanner:
             raise RuntimeError("Scan result could not be loaded")
         return result
 
+    def index_finalized_file(self, path: Path) -> bool:
+        """Index one atomically finalised rip without reconciling unrelated files."""
+
+        root = self.settings.validated_library_root()
+        resolved = path.resolve(strict=True)
+        if not resolved.is_file() or not resolved.is_relative_to(root):
+            raise ValueError("The finalised track is outside the configured library.")
+        if resolved.suffix.casefold() not in FORMAT_SUPPORT:
+            raise ValueError("The finalised track format is unsupported.")
+        stat = resolved.stat()
+        metadata = self.metadata_reader.read(resolved)
+        artwork_id = self.artwork_cache.store(metadata.artwork) if metadata.artwork else None
+        file_format, playback_support = FORMAT_SUPPORT[resolved.suffix.casefold()]
+        return self.catalogue.upsert_track(
+            ScannedTrack(
+                relative_path=resolved.relative_to(root).as_posix(),
+                filename=resolved.name,
+                file_size=stat.st_size,
+                modified_time_ns=stat.st_mtime_ns,
+                file_format=file_format,
+                playback_support=playback_support,
+                metadata=metadata,
+                artwork_id=artwork_id,
+            )
+        )
+
     @staticmethod
     def _audio_files(
         root: Path, counters: dict[str, int], scan_integrity: dict[str, bool]
@@ -173,6 +199,7 @@ class ScanService:
         self._guard = threading.Lock()
         self._running = False
         self._thread: threading.Thread | None = None
+        self._operation_lock = threading.Lock()
 
     @property
     def is_running(self) -> bool:
@@ -203,7 +230,8 @@ class ScanService:
 
     def _run(self, scan_id: int) -> None:
         try:
-            self.scanner.scan(scan_id)
+            with self._operation_lock:
+                self.scanner.scan(scan_id)
         except Exception as exc:  # Keep the process healthy after an unexpected decoder failure.
             self.catalogue.fail_scan_run(
                 scan_id, f"Unexpected library scan failure: {exc}", empty_counters()
@@ -211,6 +239,18 @@ class ScanService:
         finally:
             with self._guard:
                 self._running = False
+
+    def index_finalized_file(self, path: Path) -> bool:
+        """Serialize one rip finalisation with full catalogue scans."""
+
+        with self._operation_lock:
+            return self.scanner.index_finalized_file(path)
+
+    def reconcile_after_rip(self) -> dict[str, object]:
+        """Run a final full reconciliation without blocking HTTP request threads."""
+
+        with self._operation_lock:
+            return self.scanner.scan()
 
     def wait(self, timeout: float = 5) -> bool:
         """Wait for the active scan in tests or controlled shutdown."""

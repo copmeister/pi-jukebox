@@ -22,7 +22,19 @@ Python library scanner ───► SQLite catalogue
                               Web Audio API
 ```
 
-Milestones 2 through 4C implement the local scanner, catalogue/search APIs, browser catalogue interface, secure range-capable media responses, basic browser playback, the persistent touchscreen queue, and the classic selector. The visualiser and hardware deployment remain future work.
+Milestones 2 through 4C implement the local catalogue, browser playback, persistent queue and classic selector. Version 0.5.0 adds isolated CD and release-update domains without replacing those stable paths.
+
+```text
+USB audio CD -> cd-discid -> MusicBrainz / Cover Art Archive
+      |                              |
+      +-> cdparanoia -> WAV staging  |
+              -> flac -> Mutagen tags/artwork
+              -> atomic FLAC rename -> single-file catalogue index
+
+GitHub Release check -> authenticated local gh CLI -> safe status API
+Release ZIP -> manifest/checksums -> immutable staging -> version pointer
+                                                -> health check -> rollback
+```
 
 ## Backend
 
@@ -35,6 +47,12 @@ The backend is an installable Python package under `backend/src/pi_jukebox`.
 - **Mutagen** reads tags, duration, and embedded artwork without modifying source files.
 - Library scanning and metadata extraction are isolated from HTTP routing so they can be tested without running a server.
 - A guarded background thread performs manual scans. Only one scan can run at a time, and FastAPI remains available while it runs.
+- The CD coordinator polls a configured drive in a daemon thread, suspends probing while secure extraction is active, and keeps hardware/network failures independent from playback.
+- `cdparanoia` reads one track into a hidden staging directory on the external filesystem, `flac` encodes it, and Mutagen applies FLAC tags and optional front artwork. Same-filesystem staging makes the final rename genuinely atomic. Subprocesses use explicit argument arrays with `shell=False`; metadata never becomes executable input. Configurable POSIX niceness reduces Pi contention.
+- SQLite schema version 3 adds jobs and per-track lifecycle history. Startup marks previously active work interrupted, retains finalized tracks, and cleans only the configured staging root.
+- Finalized tracks use sanitized Artist/Album names and `os.replace`, then enter the catalogue through a single-file scanner operation sharing a lock with full scans. A final reconciliation follows the job.
+- Storage validation resolves mount, library and output paths; requires output beneath both approved roots; checks a genuine mount, write access and free space; and rejects conflicts instead of overwriting.
+- MusicBrainz requests use a versioned identifying User-Agent, timeout and bounded retry. Cover Art Archive failure is advisory. Available art is written atomically as `Cover.jpg` and embedded in each FLAC.
 
 The API uses `/api` as its prefix. Health, scan status, albums, tracks, search, cached artwork, track media, and queue mutations are exposed. Media requests accept only a catalogue track ID. The server resolves its stored relative path beneath the configured library root, rejects escapes (including resolving symbolic links), and supports one HTTP byte range for browser seeking.
 
@@ -64,6 +82,8 @@ The frontend is a React single-page application written in TypeScript and built 
 - A Jukebox-only Web Audio engine lazily creates its context after an eligible interaction and synthesizes heavy button contact, panel movement, non-musical latch confirmation, and record-loading mechanism categories. It uses its own master/category gain structure, never connects to or modifies the persistent music audio element, and treats unsupported or suspended Web Audio as a non-fatal enhancement failure. Cancellable loading sources stop and disconnect if their expected track is superseded.
 - The root audio provider owns a transient `modern`/`jukebox` presentation mode beside the same authoritative queue and single HTML audio element. A confirmed idle Jukebox selection and each subsequent queue advance prepare the expected item, show a loading/changing state, synthesize the mechanism, and start from zero after 900 ms. Modern Play Now, Stop & Clear, queue replacement, item mismatch, and provider teardown invalidate the pending token and timer so stale audio cannot start later. Queue exhaustion never schedules a mechanism.
 - Sound-effect preferences use the versioned browser-local key `pi-jukebox:sound-settings:v1`. The compact modal settings surface exposes enabled, loading-pause, master, category, preview, reset, and close controls; corrupt, older, or unavailable storage safely restores defaults. Disabling all effects also disables the artificial pause, while a zero loading gain retains a silent pause.
+- A root CD-status hook uses bounded polling, so navigation cannot lose an active job. A persistent header control returns to progress. Catalogue data refreshes when another track reaches Ready; playback and queue state remain independent.
+- The CD screen covers missing hardware/storage, lookup, release selection, generic metadata fallback, progress, partial success, cancellation and completion without keyboard input. Settings displays update state without receiving credentials.
 
 The shell targets the official Touch Display 2 at 1280×720 landscape. Milestone 4C accepts the complete selector only at that native size. Existing smaller-screen rules remain for older modern screens but are not a detailed acceptance target for this feature. The interface uses large touch targets, no hover-only controls, visible keyboard focus, and fixed player/navigation rows.
 
@@ -93,9 +113,17 @@ The scanner resolves the configured library root before walking it. Catalogue pa
 - Artwork is deduplicated by SHA-256 hash and cached outside source control.
 - Each scan records start/finish timestamps, result status, counters, and a safe error message.
 - SQLite uses foreign keys, WAL journaling, short-lived connections, and a busy timeout for the API/scanner boundary.
-- Schema version 2 is additive: startup creates `queue_state` and `queue_items` when absent, preserving every existing catalogue table and row. Existing databases never need to be deleted or rebuilt.
+- Schema version 3 is additive: startup creates queue, CD history and update-history tables when absent, preserving existing catalogue, queue and rip rows. Existing databases never need to be deleted or rebuilt.
 - Queue position `0` identifies the current item; upcoming positions are contiguous positive integers. Each duplicate receives its own `queue_items.id`.
 - Playback time is browser-only transient state. After refresh or restart, current metadata is restored paused at zero and Chromium is never asked to autoplay.
+
+## Safe release update boundary
+
+`pi_jukebox.version.__version__` is authoritative and is mirrored in Python and frontend package metadata. A short startup task calls authenticated local `gh api` for one configured repository's stable latest release. It never accepts repository names, URLs, commands or credentials from the browser and does not poll continuously.
+
+The offline-testable installer accepts semantic versions and only ZIP entries listed in `manifest.json`, rejects traversal, verifies each SHA-256, prepares an immutable release directory, and atomically changes a `current-version` pointer. Restart and health callbacks must succeed or the old pointer is restored and restarted. Configuration, data and music live outside release directories.
+
+Production installation is intentionally disabled until the owner chooses authenticated private release assets or a public binary channel and installs a separate fixed helper. FastAPI may request only the known latest version from that helper; there is no general command endpoint. The launcher/helper must provide the concrete download, dependency preparation, frontend build, restart and health operations.
 
 ## Future component boundaries
 
@@ -108,6 +136,6 @@ The following frontend feature area remains for later work:
 - The system is local-only in v0.1.
 - Chromium owns playback in v0.1; Python does not wrap VLC, MPV, or GStreamer.
 - There are no accounts, cloud services, or remote control.
-- Deployment files wait until the kiosk milestone.
+- Existing Pi service/kiosk files remain locally managed until the reviewed release-helper layout is chosen.
 - Raspberry Pi codec and performance support must be proven on real target hardware.
-- Milestone 4C is the final pre-hardware feature milestone; the next stage is Raspberry Pi, display, Chromium, and audio-device bring-up.
+- The Raspberry Pi 5, Touch Display 2 and DAC Pro playback path is operational; CD extraction and update installation still require v0.5.0 physical acceptance.

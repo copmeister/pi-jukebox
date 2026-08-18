@@ -110,7 +110,7 @@ Milestone 4C adds the final pre-hardware defining experience:
 - A compact accessible Jukebox Sounds dialog provides effects and loading-pause switches, independent master/category levels, previews, reset, close and Escape handling. Settings persist in versioned browser-local storage and never change music playback volume or Raspberry Pi system volume. Effects Off removes both sounds and the delay; loading volume zero produces a silent pause when the pause remains enabled.
 - Confirmed Stop & Clear atomically removes current and upcoming queue items and resets browser audio without touching the catalogue.
 
-Milestone 4C is the final software feature before Raspberry Pi hardware bring-up. Visualisation, kiosk deployment, Raspberry Pi configuration, and hardware integration remain future work.
+Milestone 4C was the final feature before the initial Raspberry Pi hardware bring-up. Version 0.5.0 follows that successful deployment with integrated CD ripping and update foundations. Visualisation remains future work.
 
 ## Agreed product behaviour
 
@@ -124,6 +124,20 @@ Milestone 4C is the final software feature before Raspberry Pi hardware bring-up
 - Defer shuffle and repeat.
 - Begin with a clean, modern visual direction.
 - Use configuration files for initial kiosk administration.
+
+## Version 0.5.0 scope
+
+Version 0.5.0 adds the first hardware-integrated library-creation workflow:
+
+- Detect the configured audio-CD drive without blocking startup.
+- Query MusicBrainz and Cover Art Archive with bounded network operations and a generic no-match fallback.
+- Present release cards and a keyboard-free Rip, Cancel, Eject and Retry flow at 1280Ã—720.
+- Read and encode one track at a time, tag FLAC with Mutagen, atomically finalize it, and make it playable before the album completes.
+- Persist honest job/track states and retain completed tracks through cancellation, failure or restart.
+- Refuse an unmounted, read-only or full external drive, output-root escape or existing filename conflict.
+- Show rip progress globally while preserving browsing, queue editing and playback.
+- Establish version 0.5.0, non-blocking stable-release checks, private-repository credential isolation, checksum validation and health-check rollback foundations.
+- Keep software installation disabled until an external update helper and release channel are explicitly approved.
 
 ## Touch and accessibility requirements
 
@@ -144,11 +158,10 @@ Milestone 4C is the final software feature before Raspberry Pi hardware bring-up
 
 ## Out of scope for v0.1
 
-- CD playback or ripping
+- Direct audio playback from a CD
 - Streaming services
 - User accounts
 - Remote access and phone control
-- Internet metadata lookup
 - Tag editing
 - Playlists and favourites
 - Lyrics

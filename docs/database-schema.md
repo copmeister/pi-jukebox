@@ -1,6 +1,6 @@
 # Database schema notes
 
-The runtime SQLite database is stored in the ignored configured data directory. Milestone 4B raises `PRAGMA user_version` from 1 to 2 using additive `CREATE TABLE IF NOT EXISTS` statements. Existing artists, albums, tracks, artwork, and scan runs are preserved; the user must never delete or rebuild an existing catalogue to gain queue support.
+The runtime SQLite database is stored in the ignored configured data directory. Version 0.5.0 raises `PRAGMA user_version` to 3 using additive `CREATE TABLE IF NOT EXISTS` statements. Existing artists, albums, tracks, artwork, scans and queue rows are preserved; the user must never delete or rebuild an existing catalogue for an upgrade.
 
 ## Queue tables
 
@@ -23,3 +23,11 @@ Queue records contain no source filename or absolute/relative media path. The tr
 Multi-row writes start with `BEGIN IMMEDIATE`. Add, replace, move, remove, upcoming-only clear, complete Stop & Clear, and advance operations update positions and revision in the same transaction. Stop & Clear deletes every `queue_items` row without altering catalogue tables. Temporary high positions avoid unique-position collisions during reordering. A stale advance must present the old current queue-item ID and is rejected, which protects against duplicate browser completion events.
 
 Playback time, volume, mute state, and listening history are not persisted. A restored current item is presented paused at time zero and does not autoplay.
+
+## CD rip history
+
+- `cd_rip_jobs` stores disc/release identity, safe album labels, job status, aggregate counts, timestamps, cancellation intent and user-safe diagnostics.
+- `cd_rip_tracks` stores the track snapshot and Waiting/Reading/Encoding/Tagging/Ready/Error/Cancelled lifecycle. Only Ready rows contain a final library-relative path.
+- Active rows found at startup become Interrupted/Error; finalized catalogue tracks and queue rows are untouched.
+
+`software_update_runs` reserves durable diagnostic history for the separate updater. Release credentials and command output are never stored.

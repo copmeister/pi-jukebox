@@ -8,10 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from pi_jukebox.api.router import api_router
 from pi_jukebox.catalogue.database import Catalogue
+from pi_jukebox.cd.hardware import CdHardware
+from pi_jukebox.cd.metadata import CandidateArtworkCache, MusicMetadataClient
+from pi_jukebox.cd.ripper import RipService
+from pi_jukebox.cd.service import CdService
+from pi_jukebox.cd.storage import StorageGuard
+from pi_jukebox.cd.store import RipStore
 from pi_jukebox.config import Settings as AppSettings
 from pi_jukebox.config import get_settings
 from pi_jukebox.library.scanner import LibraryScanner, ScanService
 from pi_jukebox.queue.database import QueueStore
+from pi_jukebox.updates.service import GitHubCliReleaseSource, UpdateService
+from pi_jukebox.version import __version__
 
 
 def create_app(settings: AppSettings | None = None) -> FastAPI:
@@ -26,15 +34,36 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         scanner = LibraryScanner(settings=settings, catalogue=catalogue)
         application.state.catalogue = catalogue
         application.state.queue_store = QueueStore(catalogue)
-        application.state.scan_service = ScanService(scanner=scanner, catalogue=catalogue)
+        scan_service = ScanService(scanner=scanner, catalogue=catalogue)
+        application.state.scan_service = scan_service
+        rip_store = RipStore(catalogue)
+        hardware = CdHardware(settings)
+        storage = StorageGuard(settings)
+        ripper = RipService(settings, rip_store, storage, hardware, scan_service)
+        cd_service = CdService(
+            settings,
+            hardware,
+            MusicMetadataClient(settings),
+            CandidateArtworkCache(settings.cd_artwork_directory),
+            storage,
+            ripper,
+            rip_store,
+        )
+        update_service = UpdateService(settings, GitHubCliReleaseSource(settings))
+        application.state.cd_service = cd_service
+        application.state.update_service = update_service
+        cd_service.start()
+        update_service.start()
         try:
             yield
         finally:
-            application.state.scan_service.wait(timeout=5)
+            cd_service.stop()
+            update_service.stop()
+            scan_service.wait(timeout=5)
 
     application = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
+        version=__version__,
         description="Local API for the Pi Jukebox touchscreen application.",
         lifespan=lifespan,
     )

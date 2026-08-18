@@ -1,6 +1,6 @@
 # pi-jukebox
 
-A touchscreen-first local music jukebox for Raspberry Pi. The backend catalogues one local music folder, securely serves catalogue tracks, and owns a persistent SQLite playback queue used by the React interface. The visualiser and Raspberry Pi deployment are intentionally not implemented yet.
+A touchscreen-first local music jukebox for Raspberry Pi. Version 0.5.0 adds hardware-integrated, track-at-a-time CD-to-FLAC ripping and safe stable-release update checking while preserving the existing catalogue, queue, playback and classic selector.
 
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. Milestone 4C uses this as its only detailed visual acceptance target; older responsive rules remain in place but are not separately accepted for this feature.
 
@@ -68,6 +68,8 @@ npm.cmd --prefix frontend run dev -- --host 127.0.0.1
 ```
 
 Open <http://127.0.0.1:5173> in your browser.
+
+The **CD** screen is safe to open on Windows. With no optical drive configured it shows an honest unavailable state; automated tests use fake drives and processes and never rip a real disc. The **Settings** screen shows the authoritative installed version and non-blocking update status.
 
 The application opens in **Jukebox** mode. Four panels show 32 randomly mixed codes from A1 through D8. A, B, C, and D are persistent panel identities with permanent amber, blue, violet, and green accents. Choose a letter and then a number: the first selection starts immediately when nothing is current, while later selections append to the persistent queue. Swipe left or use **NEXT ›** to move every panel left and recycle the outgoing identity with newly randomized songs on the right. The transition resets invisibly after the panels finish moving, so it never travels backwards. Panels have no back history, and moving them never changes queued music. **Stop & Clear** requires confirmation and stops audio while clearing the complete queue.
 
@@ -137,6 +139,31 @@ Use the interactive API documentation to open a particular album or track. See [
 
 Stop either development server by pressing `Ctrl+C` in its PowerShell window.
 
+## CD ripping on Raspberry Pi
+
+The CD workflow runs only when all Pi paths are configured and the external path is a real mounted filesystem. Add these values to the Pi's untracked `/home/admin/jukebox/.env`:
+
+```dotenv
+PI_JUKEBOX_ENVIRONMENT=production
+PI_JUKEBOX_DATA_DIRECTORY=/home/admin/jukebox-data
+PI_JUKEBOX_MUSIC_LIBRARY_PATH=/mnt/jukebox/Music
+PI_JUKEBOX_OPTICAL_DRIVE_PATH=/dev/sr0
+PI_JUKEBOX_EXTERNAL_STORAGE_PATH=/mnt/jukebox
+PI_JUKEBOX_RIP_OUTPUT_PATH=/mnt/jukebox/Music
+```
+
+The backend identifies discs through `cd-discid` and MusicBrainz. Select a release card and tap **Rip to Library**. Each track moves through Waiting, Reading, Encoding, Tagging and Ready. Only a completely tagged FLAC is atomically moved into the library and indexed; temporary WAV/FLAC files stay under the runtime data directory. Completed tracks can be played while later tracks continue.
+
+Cancellation retains Ready tracks and removes disposable staging files. Restart recovery marks an interrupted job honestly without touching finalized music. Artwork failure does not fail extraction, and existing destination tracks are never overwritten.
+
+See [Raspberry Pi deployment and hardware testing](docs/pi-deployment.md) for prerequisites, permissions, startup, cancellation and failure-condition checks.
+
+## Software updates
+
+The backend checks once shortly after startup for the latest stable GitHub Release. The private repository is accessed only through the Raspberry Pi service account's authenticated GitHub CLI; credentials and release URLs are never returned to the browser. Offline checks remain unobtrusive and never delay startup.
+
+The repository includes a tested release-package validator and atomic rollback foundation. **Update Software remains disabled by default** because the production release channel and separately installed helper still require an explicit decision. Do not enable it until choosing authenticated private release artifacts or a separate public release channel and completing the one-time setup documented in the architecture.
+
 ## Run the checks
 
 Run backend checks from the repository root:
@@ -159,8 +186,8 @@ npm.cmd --prefix frontend run build
 
 ## Current scope
 
-The backend provides an incremental SQLite catalogue, background scanning, search, album and track queries, cached embedded artwork, range-capable audio responses, and an authoritative persistent queue. The frontend opens with the four-panel classic selector while retaining modern touch browsing, search, queue editing, persistent Chromium playback through one audio element, and optional synthesized Jukebox-only mechanical feedback and record-loading presentation. Playback position, discarded selector panels, selector transition history, and the modern/Jukebox presentation mode are not saved. Sound-effect preferences are local to the browser. The visualiser, kiosk deployment, and Raspberry Pi hardware integration remain pending.
+The backend provides the incremental catalogue, secure media, authoritative queue, persistent CD diagnostics, hardware-safe background extraction and non-blocking release checks. The frontend retains one Chromium audio element and adds touch-only CD and software-administration screens plus a persistent rip indicator. Playback position and transient selector state are not saved. The visualiser remains future work.
 
-Milestone 4C is the final pre-hardware feature milestone. The next project stage is Raspberry Pi hardware bring-up and validation, not another software feature milestone.
+Version 0.5.0 still requires physical validation of the Asus drive, metadata networking, storage mount, DAC responsiveness and final resource tuning on the Raspberry Pi 5.
 
 See [the architecture](docs/architecture.md), [database schema notes](docs/database-schema.md), and [the product specification](docs/product-specification.md) for the approved design and v0.1 boundaries.

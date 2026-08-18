@@ -237,7 +237,7 @@ def test_existing_database_upgrade_preserves_catalogue(tmp_path: Path) -> None:
             assert count_rows(catalogue, "queue_items") == 0
             with catalogue.connect() as connection:
                 version = connection.execute("PRAGMA user_version").fetchone()[0]
-            assert version == 2
+            assert version == 3
 
     asyncio.run(exercise())
 

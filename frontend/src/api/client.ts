@@ -1,12 +1,17 @@
 import type {
   AlbumDetail,
   AlbumSummary,
+  ApiAction,
+  CdRelease,
+  CdRipJob,
+  CdStatus,
   QueueItem,
   QueueSnapshot,
   ScanStart,
   ScanStatus,
   SearchResults,
   Track,
+  UpdateStatus,
 } from './types'
 
 type JsonRecord = Record<string, unknown>
@@ -206,6 +211,143 @@ function isQueueSnapshot(value: unknown): value is QueueSnapshot {
   )
 }
 
+function isCdRelease(value: unknown): value is CdRelease {
+  return (
+    isRecord(value) &&
+    typeof value.release_id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.artist === 'string' &&
+    isNullableString(value.year) &&
+    isNullableString(value.country) &&
+    isNullableString(value.edition) &&
+    isNumber(value.track_count) &&
+    Array.isArray(value.tracks) &&
+    value.tracks.every(
+      (track) =>
+        isRecord(track) &&
+        isNumber(track.number) &&
+        typeof track.title === 'string' &&
+        typeof track.artist === 'string' &&
+        isNullableNumber(track.duration_seconds),
+    ) &&
+    typeof value.artwork_available === 'boolean'
+  )
+}
+
+function isCdRipJob(value: unknown): value is CdRipJob {
+  const states = [
+    'waiting',
+    'reading',
+    'encoding',
+    'tagging',
+    'ready',
+    'error',
+    'cancelled',
+  ]
+  return (
+    isRecord(value) &&
+    isNumber(value.id) &&
+    [
+      'queued',
+      'ripping',
+      'completed',
+      'partial',
+      'cancelled',
+      'failed',
+      'interrupted',
+    ].includes(String(value.status)) &&
+    typeof value.disc_id === 'string' &&
+    isNullableString(value.release_id) &&
+    typeof value.album_title === 'string' &&
+    typeof value.album_artist === 'string' &&
+    isNumber(value.total_tracks) &&
+    isNumber(value.completed_tracks) &&
+    isNumber(value.failed_tracks) &&
+    isNullableString(value.message) &&
+    isNullableString(value.error_message) &&
+    typeof value.cancel_requested === 'boolean' &&
+    typeof value.created_at === 'string' &&
+    isNullableString(value.started_at) &&
+    isNullableString(value.finished_at) &&
+    Array.isArray(value.tracks) &&
+    value.tracks.every(
+      (track) =>
+        isRecord(track) &&
+        isNumber(track.track_number) &&
+        typeof track.title === 'string' &&
+        typeof track.artist === 'string' &&
+        isNullableNumber(track.duration_seconds) &&
+        states.includes(String(track.state)) &&
+        isNullableString(track.final_relative_path) &&
+        isNullableString(track.error_message) &&
+        typeof track.updated_at === 'string',
+    )
+  )
+}
+
+function isCdStatus(value: unknown): value is CdStatus {
+  const drive = isRecord(value) && isRecord(value.drive) ? value.drive : null
+  const storage =
+    isRecord(value) && isRecord(value.storage) ? value.storage : null
+  const disc = drive?.disc
+  return (
+    isRecord(value) &&
+    drive !== null &&
+    typeof drive.configured === 'boolean' &&
+    typeof drive.available === 'boolean' &&
+    typeof drive.disc_present === 'boolean' &&
+    typeof drive.message === 'string' &&
+    (disc === null ||
+      (isRecord(disc) &&
+        typeof disc.disc_id === 'string' &&
+        isNumber(disc.track_count) &&
+        Array.isArray(disc.track_durations) &&
+        disc.track_durations.every(isNullableNumber))) &&
+    storage !== null &&
+    typeof storage.configured === 'boolean' &&
+    typeof storage.available === 'boolean' &&
+    typeof storage.mounted === 'boolean' &&
+    typeof storage.writable === 'boolean' &&
+    isNullableNumber(storage.free_bytes) &&
+    typeof storage.message === 'string' &&
+    ['idle', 'reading', 'searching', 'ready', 'unavailable'].includes(
+      String(value.metadata_state),
+    ) &&
+    isNullableString(value.metadata_message) &&
+    Array.isArray(value.release_candidates) &&
+    value.release_candidates.every(isCdRelease) &&
+    isNullableString(value.selected_release_id) &&
+    typeof value.active === 'boolean' &&
+    (value.latest_job === null || isCdRipJob(value.latest_job))
+  )
+}
+
+function isApiAction(value: unknown): value is ApiAction {
+  return (
+    isRecord(value) &&
+    typeof value.accepted === 'boolean' &&
+    typeof value.message === 'string' &&
+    (value.job_id === undefined ||
+      value.job_id === null ||
+      isNumber(value.job_id))
+  )
+}
+
+function isUpdateStatus(value: unknown): value is UpdateStatus {
+  return (
+    isRecord(value) &&
+    typeof value.installed_version === 'string' &&
+    isNullableString(value.latest_version) &&
+    typeof value.checking === 'boolean' &&
+    typeof value.installing === 'boolean' &&
+    typeof value.update_available === 'boolean' &&
+    typeof value.install_available === 'boolean' &&
+    isNullableString(value.message) &&
+    isNullableString(value.last_error) &&
+    typeof value.source === 'string'
+  )
+}
+
 export function getAlbums(signal?: AbortSignal): Promise<AlbumSummary[]> {
   return requestJson(
     '/albums?limit=500',
@@ -329,4 +471,54 @@ export function advanceQueue(currentItemId: number): Promise<QueueSnapshot> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ current_item_id: currentItemId }),
   })
+}
+
+export function getCdStatus(signal?: AbortSignal): Promise<CdStatus> {
+  return requestJson('/cd/status', isCdStatus, { signal })
+}
+
+export function retryCdMetadata(): Promise<ApiAction> {
+  return requestJson('/cd/metadata/retry', isApiAction, { method: 'POST' })
+}
+
+export function selectCdRelease(releaseId: string): Promise<ApiAction> {
+  return requestJson(
+    `/cd/releases/${encodeURIComponent(releaseId)}/select`,
+    isApiAction,
+    { method: 'POST' },
+  )
+}
+
+export function cdArtworkUrl(releaseId: string): string {
+  return apiUrl(`/cd/releases/${encodeURIComponent(releaseId)}/artwork`)
+}
+
+export function startCdRip(releaseId: string): Promise<ApiAction> {
+  return requestJson('/cd/rips', isApiAction, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ release_id: releaseId }),
+  })
+}
+
+export function cancelCdRip(jobId: number): Promise<ApiAction> {
+  return requestJson(`/cd/rips/${jobId}/cancel`, isApiAction, {
+    method: 'POST',
+  })
+}
+
+export function ejectCd(): Promise<ApiAction> {
+  return requestJson('/cd/eject', isApiAction, { method: 'POST' })
+}
+
+export function getUpdateStatus(signal?: AbortSignal): Promise<UpdateStatus> {
+  return requestJson('/system/updates', isUpdateStatus, { signal })
+}
+
+export function checkForUpdates(): Promise<ApiAction> {
+  return requestJson('/system/updates/check', isApiAction, { method: 'POST' })
+}
+
+export function installUpdate(): Promise<ApiAction> {
+  return requestJson('/system/updates/install', isApiAction, { method: 'POST' })
 }

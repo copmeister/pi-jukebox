@@ -136,6 +136,22 @@ button {
   background: var(--danger);
   box-shadow: 0 0 0 5px rgba(255, 151, 140, 0.1);
 }
+.top-statuses {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rip-status-pill {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(243, 181, 63, 0.35);
+  border-radius: 99px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
 
 .main-content {
   min-height: 0;
@@ -1597,9 +1613,247 @@ h2 {
 .navigation {
   min-height: 58px;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   border-top: 1px solid var(--border);
   background: #0e141a;
+}
+
+.cd-screen,
+.settings-screen {
+  min-height: 100%;
+}
+.cd-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.cd-feedback {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 0.72rem;
+}
+.cd-feedback.is-error,
+.cd-storage-error,
+.settings-error {
+  color: var(--danger);
+  background: rgba(255, 151, 140, 0.08);
+}
+.cd-ready-layout {
+  display: grid;
+  grid-template-columns: minmax(310px, 0.8fr) minmax(430px, 1.2fr);
+  gap: 14px;
+}
+.cd-releases,
+.cd-selected,
+.cd-rip-progress,
+.software-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--panel);
+}
+.cd-releases > header,
+.cd-selected > header,
+.cd-rip-progress > header,
+.software-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cd-releases > header .secondary-button {
+  min-height: 44px;
+}
+.cd-metadata-note,
+.cd-storage-error,
+.cd-rip-progress header p,
+.cd-selected header p,
+.software-card p {
+  margin: 4px 0 8px;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.cd-release-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+.cd-release-card {
+  width: 100%;
+  min-height: 82px;
+  padding: 7px;
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  color: #fff;
+  background: var(--panel-raised);
+  text-align: left;
+  cursor: pointer;
+}
+.cd-release-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.cd-release-artwork {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 9px;
+  color: var(--accent);
+  background: #242e37;
+  font-weight: 850;
+}
+.cd-release-artwork img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cd-release-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.cd-release-copy strong,
+.cd-release-copy span,
+.cd-release-copy small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cd-release-copy strong {
+  font-size: 0.8rem;
+}
+.cd-release-copy span,
+.cd-release-copy small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+.cd-track-preview,
+.cd-track-progress {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cd-track-preview li,
+.cd-track-progress li {
+  min-height: 44px;
+  padding: 5px 7px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(80px, 0.65fr) 45px;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.68rem;
+}
+.cd-track-preview strong,
+.cd-track-preview small,
+.cd-track-progress strong,
+.cd-track-progress small {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cd-track-preview small,
+.cd-track-preview time,
+.cd-track-progress small {
+  color: var(--muted);
+}
+.cd-rip-progress > header > strong {
+  color: var(--accent);
+  font-size: 1.45rem;
+}
+.cd-progress-bar {
+  height: 9px;
+  margin: 12px 0;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #26313b;
+}
+.cd-progress-bar span {
+  height: 100%;
+  display: block;
+  background: var(--accent);
+}
+.cd-track-progress {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 12px;
+}
+.cd-track-progress li {
+  grid-template-columns: 25px minmax(0, 1fr) minmax(72px, 0.5fr);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.cd-track-progress li.is-ready small {
+  color: #67d58b;
+}
+.cd-track-progress li.is-error small {
+  color: var(--danger);
+}
+.cd-screen > .danger-button {
+  min-height: 46px;
+  margin-top: 10px;
+  padding-inline: 18px;
+}
+.software-card {
+  max-width: 820px;
+}
+.update-badge {
+  padding: 8px 11px;
+  border-radius: 99px;
+  color: #67d58b;
+  background: rgba(103, 213, 139, 0.1);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.update-badge.is-available {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+.software-card dl {
+  margin: 16px 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.software-card dl > div {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 11px;
+  background: var(--panel-raised);
+}
+.software-card dt {
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+.software-card dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+.software-actions {
+  display: flex;
+  gap: 8px;
+}
+.software-actions button {
+  min-height: 46px;
+}
+.software-card .settings-note {
+  margin-top: 12px;
 }
 .navigation__item {
   position: relative;
@@ -1778,6 +2032,15 @@ h2 {
   }
   .mini-player__progress {
     display: none;
+  }
+  .navigation__item {
+    font-size: 0.58rem;
+  }
+  .cd-ready-layout {
+    grid-template-columns: 1fr;
+  }
+  .cd-track-progress {
+    grid-template-columns: 1fr;
   }
 }
 

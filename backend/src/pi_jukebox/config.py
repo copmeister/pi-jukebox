@@ -27,6 +27,29 @@ class Settings(BaseSettings):
     data_directory: Path = Path("data")
     music_library_path: Path | None = None
     frontend_origin: str = "http://127.0.0.1:5173"
+    optical_drive_path: Path | None = None
+    external_storage_path: Path | None = None
+    rip_output_path: Path | None = None
+    rip_staging_path: Path | None = None
+    cd_minimum_free_bytes: int = 2_000_000_000
+    cd_poll_interval_seconds: float = 3.0
+    cd_process_nice: int | None = 10
+    cd_discid_executable: str = "cd-discid"
+    cd_eject_executable: str = "eject"
+    cdparanoia_executable: str = "cdparanoia"
+    flac_executable: str = "flac"
+    musicbrainz_base_url: str = "https://musicbrainz.org/ws/2"
+    cover_art_base_url: str = "https://coverartarchive.org"
+    metadata_timeout_seconds: float = 8.0
+    metadata_retry_count: int = 2
+    update_repository: str = "copmeister/pi-jukebox"
+    update_check_enabled: bool = True
+    update_install_enabled: bool = False
+    update_check_delay_seconds: float = 5.0
+    update_timeout_seconds: float = 8.0
+    update_helper_path: Path | None = None
+    update_release_root: Path | None = None
+    update_health_url: str = "http://127.0.0.1:8000/api/health"
 
     @property
     def database_path(self) -> Path:
@@ -39,6 +62,22 @@ class Settings(BaseSettings):
         """Return the runtime artwork-cache directory."""
 
         return self.data_directory / "artwork"
+
+    @property
+    def cd_artwork_directory(self) -> Path:
+        """Return the runtime cache used for candidate cover art."""
+
+        return self.data_directory / "cd-artwork"
+
+    @property
+    def rip_staging_directory(self) -> Path:
+        """Return same-filesystem staging when external storage is configured."""
+
+        if self.rip_staging_path is not None:
+            return self.rip_staging_path
+        if self.external_storage_path is not None:
+            return self.external_storage_path / ".pi-jukebox-rip-staging"
+        return self.data_directory / "rip-staging"
 
     def validated_library_root(self) -> Path:
         """Resolve and validate the configured music-library root."""

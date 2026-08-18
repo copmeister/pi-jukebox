@@ -1,6 +1,6 @@
 """Versioned SQLite schema for the local music catalogue."""
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS artists (
@@ -91,4 +91,48 @@ CREATE INDEX IF NOT EXISTS idx_queue_items_track_id ON queue_items(track_id);
 
 INSERT OR IGNORE INTO queue_state (id, revision, updated_at)
 VALUES (1, 0, '1970-01-01T00:00:00+00:00');
+
+CREATE TABLE IF NOT EXISTS cd_rip_jobs (
+    id INTEGER PRIMARY KEY,
+    status TEXT NOT NULL,
+    disc_id TEXT NOT NULL,
+    release_id TEXT,
+    album_title TEXT NOT NULL,
+    album_artist TEXT NOT NULL,
+    total_tracks INTEGER NOT NULL CHECK (total_tracks > 0),
+    completed_tracks INTEGER NOT NULL DEFAULT 0,
+    failed_tracks INTEGER NOT NULL DEFAULT 0,
+    message TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT,
+    cancel_requested INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS cd_rip_tracks (
+    id INTEGER PRIMARY KEY,
+    job_id INTEGER NOT NULL REFERENCES cd_rip_jobs(id) ON DELETE CASCADE,
+    track_number INTEGER NOT NULL CHECK (track_number > 0),
+    title TEXT NOT NULL,
+    artist TEXT NOT NULL,
+    duration_seconds REAL,
+    state TEXT NOT NULL,
+    final_relative_path TEXT,
+    error_message TEXT,
+    updated_at TEXT NOT NULL,
+    UNIQUE (job_id, track_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cd_rip_tracks_job ON cd_rip_tracks(job_id, track_number);
+
+CREATE TABLE IF NOT EXISTS software_update_runs (
+    id INTEGER PRIMARY KEY,
+    requested_version TEXT NOT NULL,
+    status TEXT NOT NULL,
+    message TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    finished_at TEXT
+);
 """

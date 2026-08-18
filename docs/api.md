@@ -42,3 +42,23 @@ Every successful mutation returns the complete queue snapshot. `DELETE /queue` i
 - `/tracks/{id}/media` — root-confined audio with complete and single-range responses
 
 FastAPI also exposes interactive documentation at `/docs` while the backend is running.
+
+## CD endpoints
+
+- `GET /api/cd/status` â€” drive, disc, storage, metadata candidates, selection and latest job
+- `POST /api/cd/metadata/retry` â€” restart bounded metadata lookup
+- `POST /api/cd/releases/{release_id}/select` â€” select only a server-known candidate
+- `GET /api/cd/releases/{release_id}/artwork` â€” runtime-cached selected cover
+- `POST /api/cd/rips` with `{ "release_id": "..." }` â€” start the sole background job
+- `POST /api/cd/rips/{job_id}/cancel` â€” request race-safe cancellation
+- `POST /api/cd/eject` â€” eject only while the ripper is idle
+
+No CD endpoint accepts a device path, output path, executable, command or arbitrary URL.
+
+## Software endpoints
+
+- `GET /api/system/updates` â€” installed/latest version and safe availability state
+- `POST /api/system/updates/check` â€” start one asynchronous stable-release check
+- `POST /api/system/updates/install` â€” request the fixed helper only when explicitly configured
+
+The browser never receives GitHub credentials or controls repository/release URLs.
