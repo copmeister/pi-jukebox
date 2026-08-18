@@ -84,6 +84,7 @@ function renderJukebox(
     sounds?: JukeboxSoundController
     transitionDurationMs?: number
     jukeboxLoadingDelayMs?: number
+    selectionResetMs?: number
   } = {},
 ) {
   const sounds = options.sounds ?? createSoundController()
@@ -100,7 +101,7 @@ function renderJukebox(
             onOpenLibrary={vi.fn()}
             random={() => 0.42}
             transitionDurationMs={options.transitionDurationMs ?? 20}
-            selectionResetMs={100}
+            selectionResetMs={options.selectionResetMs ?? 100}
             soundController={sounds}
           />
         </AudioPlayerProvider>
@@ -415,7 +416,6 @@ describe('classic Jukebox screen', () => {
 
     expect(await screen.findByText('B7 added')).toBeInTheDocument()
     expect(sounds.playConfirmation).toHaveBeenCalledTimes(1)
-    expect(selection).toHaveClass('is-confirmed')
     expect(selection.closest('.jukebox-panel')).toHaveClass('jukebox-accent--b')
     expect(confirmedQueue.current?.track_id).toBe(selectedTrack.id)
     expect(confirmedQueue.upcoming).toHaveLength(0)
@@ -442,6 +442,21 @@ describe('classic Jukebox screen', () => {
     )
     expect(sounds.playLoading).toHaveBeenCalledTimes(1)
     expect(sounds.playConfirmation).toHaveBeenCalledTimes(3)
+  })
+
+  it('highlights a confirmed selection before its visual reset', async () => {
+    const user = userEvent.setup()
+    const { container } = renderJukebox({ selectionResetMs: 10_000 })
+    await screen.findByRole('region', { name: 'Panel B' })
+
+    const selection = container.querySelector('[data-code="B7"]')!
+    await user.click(screen.getByRole('button', { name: 'Select panel B' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Select song number 7' }),
+    )
+
+    expect(await screen.findByText('B7 added')).toBeInTheDocument()
+    expect(selection).toHaveClass('is-confirmed')
   })
 
   it('plays exactly two heavy clicks and one accepted latch for B1', async () => {

@@ -1,10 +1,12 @@
 """Safe optical-drive probing and controlled subprocess execution."""
 
+import importlib
 import os
 import subprocess
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from pi_jukebox.cd.models import DiscLayout, DriveState
 from pi_jukebox.config import Settings
@@ -27,6 +29,47 @@ class CommandRunner(Protocol):
         cancel: threading.Event,
         nice: int | None = None,
     ) -> CommandResult: ...
+
+
+class DiscReader(Protocol):
+    def read(self, device: str) -> DiscLayout: ...
+
+
+class DiscReadError(RuntimeError):
+    """Raised when libdiscid cannot read a usable audio-disc TOC."""
+
+
+class LibdiscidReader:
+    """Read the physical TOC through python-discid and MusicBrainz libdiscid."""
+
+    def __init__(self, read: Callable[[str], Any] | None = None) -> None:
+        self._read = read
+
+    def read(self, device: str) -> DiscLayout:
+        try:
+            read = self._read
+            if read is None:
+                # Import lazily so Windows development remains usable without a
+                # native libdiscid DLL when no optical drive is configured.
+                read = importlib.import_module("discid").read
+            raw_disc = read(device)
+            tracks = tuple(raw_disc.tracks)
+            musicbrainz_id = str(raw_disc.id)
+            toc = str(raw_disc.toc_string or "").strip()
+            freedb_id = str(raw_disc.freedb_id)
+            durations = tuple(max(0.0, float(track.sectors) / 75) for track in tracks)
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise DiscReadError("libdiscid could not read the audio disc.") from exc
+
+        if not tracks or not musicbrainz_id or not toc or not freedb_id:
+            raise DiscReadError("libdiscid returned an incomplete audio-disc TOC.")
+        return DiscLayout(
+            disc_id=freedb_id,
+            track_count=len(tracks),
+            track_durations=durations,
+            musicbrainz_disc_id=musicbrainz_id,
+            musicbrainz_toc=toc,
+        )
 
 
 class SubprocessRunner:
@@ -72,9 +115,15 @@ class SubprocessRunner:
 
 
 class CdHardware:
-    def __init__(self, settings: Settings, runner: CommandRunner | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        runner: CommandRunner | None = None,
+        disc_reader: DiscReader | None = None,
+    ) -> None:
         self.settings = settings
         self.runner = runner or SubprocessRunner()
+        self.disc_reader = disc_reader or LibdiscidReader()
 
     def probe(self) -> DriveState:
         drive = self.settings.optical_drive_path
@@ -83,14 +132,8 @@ class CdHardware:
         if not drive.exists():
             return DriveState(True, False, False, "The configured optical drive is unavailable.")
         try:
-            result = self.runner.run([self.settings.cd_discid_executable, str(drive)], timeout=6)
-        except (OSError, subprocess.SubprocessError):
-            return DriveState(True, True, False, "The drive is ready. Insert an audio CD.")
-        if result.returncode != 0:
-            return DriveState(True, True, False, "The drive is ready. Insert an audio CD.")
-        try:
-            disc = parse_cd_discid(result.stdout)
-        except ValueError:
+            disc = self.disc_reader.read(str(drive))
+        except DiscReadError:
             return DriveState(True, True, False, "The inserted disc could not be read.")
         return DriveState(True, True, True, "Audio CD detected.", disc)
 
@@ -107,23 +150,3 @@ class CdHardware:
             )
         except (OSError, subprocess.SubprocessError):
             return False
-
-
-def parse_cd_discid(output: str) -> DiscLayout:
-    fields = output.strip().split()
-    if len(fields) < 4:
-        raise ValueError("Incomplete disc ID output")
-    disc_id = fields[0]
-    track_count = int(fields[1])
-    offsets = [int(value) for value in fields[2 : 2 + track_count]]
-    total_seconds = int(fields[2 + track_count])
-    if track_count < 1 or len(offsets) != track_count:
-        raise ValueError("Invalid track layout")
-    # CDDB offsets include the standard 150-frame lead-in while the final
-    # length is reported as playable seconds.
-    leadout_frames = total_seconds * 75 + 150
-    durations: list[float | None] = []
-    for index, offset in enumerate(offsets):
-        next_offset = offsets[index + 1] if index + 1 < len(offsets) else leadout_frames
-        durations.append(max(0.0, (next_offset - offset) / 75))
-    return DiscLayout(disc_id, track_count, tuple(durations))

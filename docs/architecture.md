@@ -25,7 +25,7 @@ Python library scanner ───► SQLite catalogue
 Milestones 2 through 4C implement the local catalogue, browser playback, persistent queue and classic selector. Version 0.5.0 adds isolated CD and release-update domains without replacing those stable paths.
 
 ```text
-USB audio CD -> cd-discid -> MusicBrainz / Cover Art Archive
+USB audio CD -> python-discid/libdiscid TOC -> MusicBrainz / Cover Art Archive
       |                              |
       +-> cdparanoia -> WAV staging  |
               -> flac -> Mutagen tags/artwork
@@ -47,7 +47,7 @@ The backend is an installable Python package under `backend/src/pi_jukebox`.
 - **Mutagen** reads tags, duration, and embedded artwork without modifying source files.
 - Library scanning and metadata extraction are isolated from HTTP routing so they can be tested without running a server.
 - A guarded background thread performs manual scans. Only one scan can run at a time, and FastAPI remains available while it runs.
-- The CD coordinator polls a configured drive in a daemon thread, suspends probing while secure extraction is active, and keeps hardware/network failures independent from playback.
+- The CD coordinator polls a configured drive in a daemon thread, suspends probing while secure extraction is active, and keeps hardware/network failures independent from playback. The maintained `python-discid` binding reads MusicBrainz `libdiscid` results: its short FreeDB ID remains the internal job/disc key, while its distinct 28-character MusicBrainz Disc ID and TOC are used for exact and fuzzy release lookup.
 - `cdparanoia` reads one track into a hidden staging directory on the external filesystem, `flac` encodes it, and Mutagen applies FLAC tags and optional front artwork. Same-filesystem staging makes the final rename genuinely atomic. Subprocesses use explicit argument arrays with `shell=False`; metadata never becomes executable input. Configurable POSIX niceness reduces Pi contention.
 - SQLite schema version 3 adds jobs and per-track lifecycle history. Startup marks previously active work interrupted, retains finalized tracks, and cleans only the configured staging root.
 - Finalized tracks use sanitized Artist/Album names and `os.replace`, then enter the catalogue through a single-file scanner operation sharing a lock with full scans. A final reconciliation follows the job.

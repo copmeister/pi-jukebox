@@ -1,12 +1,18 @@
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
 from conftest import metadata
 from pi_jukebox.catalogue.database import Catalogue, count_rows, utc_now
-from pi_jukebox.cd.hardware import CdHardware, CommandResult, parse_cd_discid
+from pi_jukebox.cd.hardware import (
+    CdHardware,
+    CommandResult,
+    DiscReadError,
+    LibdiscidReader,
+)
 from pi_jukebox.cd.metadata import MetadataLookupError, MusicMetadataClient
 from pi_jukebox.cd.models import DiscLayout, DriveState, ReleaseCandidate, ReleaseTrack
 from pi_jukebox.cd.ripper import RipAlreadyRunningError, RipConflictError, RipService
@@ -64,6 +70,18 @@ class FakeHardware:
 
     def probe(self) -> DriveState:
         return DriveState(True, True, True, "Audio CD detected.", self.disc)
+
+
+class FakeDiscReader:
+    def __init__(self, disc: DiscLayout | None = None) -> None:
+        self.disc = disc
+        self.devices: list[str] = []
+
+    def read(self, device: str) -> DiscLayout:
+        self.devices.append(device)
+        if self.disc is None:
+            raise DiscReadError("no audio disc")
+        return self.disc
 
 
 class AnyMetadataReader:
@@ -162,14 +180,37 @@ def test_drive_absent_empty_and_audio_disc(tmp_path: Path) -> None:
     drive = tmp_path / "sr0"
     drive.write_bytes(b"")
     settings = Settings(_env_file=None, optical_drive_path=drive)
-    assert CdHardware(settings, FakeRunner()).probe().disc_present is False
+    assert CdHardware(settings, FakeRunner(), FakeDiscReader()).probe().disc_present is False
 
-    layout = parse_cd_discid("deadbeef 2 150 4650 122")
+    layout = DiscLayout(
+        "deadbeef",
+        2,
+        (60.0, 62.0),
+        "I5l9cCSFccLKFEKS.7wqSZAorPU-",
+        "1 2 9300 150 4650",
+    )
     assert layout.track_count == 2
     assert layout.track_durations[0] == 60
     assert layout.track_durations[1] == 62
-    detected = CdHardware(settings, FakeRunner(disc_output="deadbeef 2 150 4650 122"))
+    reader = FakeDiscReader(layout)
+    detected = CdHardware(settings, FakeRunner(), reader)
     assert detected.probe().disc == layout
+    assert reader.devices == [str(drive)]
+
+
+def test_libdiscid_reader_separates_local_and_musicbrainz_identifiers() -> None:
+    raw_disc = SimpleNamespace(
+        id="I5l9cCSFccLKFEKS.7wqSZAorPU-",
+        freedb_id="e310b410",
+        toc_string="1 2 9300 150 4650",
+        tracks=[SimpleNamespace(sectors=4500), SimpleNamespace(sectors=4650)],
+    )
+    layout = LibdiscidReader(lambda device: raw_disc).read("/dev/sr0")
+
+    assert layout.disc_id == "e310b410"
+    assert layout.musicbrainz_disc_id == "I5l9cCSFccLKFEKS.7wqSZAorPU-"
+    assert layout.musicbrainz_toc == "1 2 9300 150 4650"
+    assert layout.track_durations == (60.0, 62.0)
 
 
 class FakeResponse:
@@ -200,6 +241,10 @@ class FakeHttp:
         return response
 
 
+MUSICBRAINZ_DISC_ID = "I5l9cCSFccLKFEKS.7wqSZAorPU-"
+MUSICBRAINZ_TOC = "1 1 4725 150"
+
+
 def musicbrainz_payload(release_count: int = 1):
     releases = []
     for index in range(release_count):
@@ -212,7 +257,7 @@ def musicbrainz_payload(release_count: int = 1):
                 "country": "GB",
                 "media": [
                     {
-                        "discs": [{"id": "abc123"}],
+                        "discs": [{"id": MUSICBRAINZ_DISC_ID}],
                         "tracks": [
                             {
                                 "position": 1,
@@ -230,9 +275,21 @@ def musicbrainz_payload(release_count: int = 1):
 
 def test_musicbrainz_single_multiple_timeout_and_artwork() -> None:
     settings = Settings(_env_file=None, metadata_retry_count=0)
-    disc = DiscLayout("abc123", 1, (61.0,))
-    one = MusicMetadataClient(settings, FakeHttp([FakeResponse(musicbrainz_payload())]))
+    disc = DiscLayout(
+        "e310b410",
+        1,
+        (61.0,),
+        MUSICBRAINZ_DISC_ID,
+        MUSICBRAINZ_TOC,
+    )
+    one_http = FakeHttp([FakeResponse(musicbrainz_payload())])
+    one = MusicMetadataClient(settings, one_http)
     assert one.releases_for_disc(disc)[0].tracks[0].artist == "Guest"
+    url, kwargs = one_http.calls[0]
+    assert url.endswith(f"/discid/{MUSICBRAINZ_DISC_ID}")
+    assert "e310b410" not in url
+    assert kwargs["params"]["toc"] == MUSICBRAINZ_TOC
+    assert kwargs["params"]["cdstubs"] == "no"
     multiple = MusicMetadataClient(settings, FakeHttp([FakeResponse(musicbrainz_payload(2))]))
     assert len(multiple.releases_for_disc(disc)) == 2
     timeout = MusicMetadataClient(settings, FakeHttp([httpx.TimeoutException("offline")]))
@@ -242,6 +299,17 @@ def test_musicbrainz_single_multiple_timeout_and_artwork() -> None:
     assert no_art.fetch_front_cover("missing") is None
     cover = MusicMetadataClient(settings, FakeHttp([FakeResponse(content=b"jpeg")]))
     assert cover.fetch_front_cover("release") == (b"jpeg", "image/jpeg")
+
+
+def test_short_cddb_id_is_never_sent_as_musicbrainz_disc_id() -> None:
+    http = FakeHttp([])
+    client = MusicMetadataClient(Settings(_env_file=None), http)
+    invalid = DiscLayout("e310b410", 1, (61.0,), "e310b410", MUSICBRAINZ_TOC)
+
+    with pytest.raises(MetadataLookupError, match="valid MusicBrainz Disc ID"):
+        client.releases_for_disc(invalid)
+
+    assert http.calls == []
 
 
 def test_external_storage_mount_space_and_confinement(tmp_path: Path) -> None:

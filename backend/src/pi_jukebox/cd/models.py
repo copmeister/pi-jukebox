@@ -11,9 +11,12 @@ JobState = Literal[
 
 @dataclass(frozen=True, slots=True)
 class DiscLayout:
+    # The short FreeDB/CDDB identifier remains useful as a stable local job key.
     disc_id: str
     track_count: int
     track_durations: tuple[float | None, ...]
+    musicbrainz_disc_id: str | None = None
+    musicbrainz_toc: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,4 +55,19 @@ class DriveState:
     disc: DiscLayout | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        # MusicBrainz lookup values are backend implementation details. Keep the
+        # established touchscreen API response focused on the local identifier.
+        disc = None
+        if self.disc is not None:
+            disc = {
+                "disc_id": self.disc.disc_id,
+                "track_count": self.disc.track_count,
+                "track_durations": self.disc.track_durations,
+            }
+        return {
+            "configured": self.configured,
+            "available": self.available,
+            "disc_present": self.disc_present,
+            "message": self.message,
+            "disc": disc,
+        }

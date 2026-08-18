@@ -1,6 +1,7 @@
 """MusicBrainz release lookup and bounded Cover Art Archive retrieval."""
 
 import hashlib
+import re
 import time
 from pathlib import Path
 from typing import Any, Protocol
@@ -18,6 +19,9 @@ class MetadataLookupError(RuntimeError):
 
 class HttpClient(Protocol):
     def get(self, url: str, **kwargs: Any) -> Any: ...
+
+
+MUSICBRAINZ_DISC_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{28}$")
 
 
 def _artist_credit(value: Any, fallback: str = "Unknown Artist") -> str:
@@ -45,10 +49,25 @@ class MusicMetadataClient:
         }
 
     def releases_for_disc(self, disc: DiscLayout) -> list[ReleaseCandidate]:
-        url = f"{self.settings.musicbrainz_base_url.rstrip('/')}/discid/{disc.disc_id}"
+        musicbrainz_id = disc.musicbrainz_disc_id or ""
+        if MUSICBRAINZ_DISC_ID_PATTERN.fullmatch(musicbrainz_id) is None:
+            raise MetadataLookupError(
+                "The disc reader did not produce a valid MusicBrainz Disc ID."
+            )
+        url = f"{self.settings.musicbrainz_base_url.rstrip('/')}/discid/{musicbrainz_id}"
+        params = {
+            "inc": "recordings+artists+release-groups+media",
+            "fmt": "json",
+        }
+        if disc.musicbrainz_toc:
+            # MusicBrainz uses the TOC for fuzzy matching when an exact pressing
+            # has not yet had its Disc ID attached. Suppress CD stubs so they do
+            # not prevent that fuzzy lookup.
+            params["toc"] = disc.musicbrainz_toc
+            params["cdstubs"] = "no"
         response = self._get(
             url,
-            params={"inc": "recordings+artists+release-groups+media", "fmt": "json"},
+            params=params,
         )
         try:
             payload = response.json()
@@ -109,7 +128,10 @@ class MusicMetadataClient:
             if not isinstance(medium, dict):
                 continue
             discs = medium.get("discs", [])
-            if any(isinstance(item, dict) and item.get("id") == disc.disc_id for item in discs):
+            if any(
+                isinstance(item, dict) and item.get("id") == disc.musicbrainz_disc_id
+                for item in discs
+            ):
                 matching_medium = medium
                 break
         if matching_medium is None:

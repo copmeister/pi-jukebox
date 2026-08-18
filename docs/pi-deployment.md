@@ -15,18 +15,17 @@ Install required packages if they are not already present:
 
 ```bash
 sudo apt update
-sudo apt install abcde cdparanoia cd-discid flac eject python3-venv nodejs npm gh
+sudo apt install cdparanoia libdiscid0 flac eject python3-venv nodejs npm gh
 ```
 
 Confirm the optical drive and local GitHub authentication without ripping:
 
 ```bash
 ls -l /dev/sr0
-cd-discid /dev/sr0
 gh auth status
 ```
 
-Run `cd-discid` only with an audio CD inserted; failure with an empty tray is expected. Ensure the service account can read `/dev/sr0`, normally through the `cdrom` group. Log out and back in after an administrator changes group membership.
+Ensure the service account can read `/dev/sr0`, normally through the `cdrom` group. Log out and back in after an administrator changes group membership. `libdiscid0` is the native MusicBrainz TOC/Disc-ID library; the project's Python dependency installs the maintained `python-discid` binding into its virtual environment.
 
 Only after `findmnt` confirms the external filesystem, create the required application-owned directories:
 
@@ -55,6 +54,14 @@ python3 -m venv .venv
 npm install --prefix frontend
 npm run build --prefix frontend
 ```
+
+With an audio CD inserted, verify that libdiscid returns a 28-character MusicBrainz Disc ID and its TOC:
+
+```bash
+.venv/bin/python -c "import discid; d=discid.read('/dev/sr0'); print(d.id); print(d.toc_string)"
+```
+
+An empty tray causes this diagnostic command to fail and is not an application error.
 
 Do not replace the Pi's existing `.env`. Add the new values manually:
 

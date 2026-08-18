@@ -152,7 +152,7 @@ PI_JUKEBOX_EXTERNAL_STORAGE_PATH=/mnt/jukebox
 PI_JUKEBOX_RIP_OUTPUT_PATH=/mnt/jukebox/Music
 ```
 
-The backend identifies discs through `cd-discid` and MusicBrainz. Select a release card and tap **Rip to Library**. Each track moves through Waiting, Reading, Encoding, Tagging and Ready. Only a completely tagged FLAC is atomically moved into the library and indexed; temporary WAV/FLAC files stay under the runtime data directory. Completed tracks can be played while later tracks continue.
+The backend reads the physical CD table of contents through the `python-discid` binding and MusicBrainz `libdiscid`. It keeps libdiscid's short FreeDB identifier for local job identity, but sends only the separate 28-character MusicBrainz Disc ID and TOC to MusicBrainz. The TOC allows fuzzy release matching for pressings whose exact Disc ID is not yet attached. Select a release card and tap **Rip to Library**. Each track moves through Waiting, Reading, Encoding, Tagging and Ready. Only a completely tagged FLAC is atomically moved into the library and indexed; temporary WAV/FLAC files stay under the runtime data directory. Completed tracks can be played while later tracks continue.
 
 Cancellation retains Ready tracks and removes disposable staging files. Restart recovery marks an interrupted job honestly without touching finalized music. Artwork failure does not fail extraction, and existing destination tracks are never overwritten.
 

@@ -34,7 +34,6 @@ class Settings(BaseSettings):
     cd_minimum_free_bytes: int = 2_000_000_000
     cd_poll_interval_seconds: float = 3.0
     cd_process_nice: int | None = 10
-    cd_discid_executable: str = "cd-discid"
     cd_eject_executable: str = "eject"
     cdparanoia_executable: str = "cdparanoia"
     flac_executable: str = "flac"
