@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     data_directory: Path = Path("data")
     music_library_path: Path | None = None
     frontend_origin: str = "http://127.0.0.1:5173"
+    frontend_directory: Path | None = None
     optical_drive_path: Path | None = None
     external_storage_path: Path | None = None
     rip_output_path: Path | None = None
@@ -46,9 +47,8 @@ class Settings(BaseSettings):
     update_install_enabled: bool = False
     update_check_delay_seconds: float = 5.0
     update_timeout_seconds: float = 8.0
-    update_helper_path: Path | None = None
-    update_release_root: Path | None = None
-    update_health_url: str = "http://127.0.0.1:8000/api/health"
+    update_request_path: Path | None = None
+    update_status_path: Path | None = None
 
     @property
     def database_path(self) -> Path:

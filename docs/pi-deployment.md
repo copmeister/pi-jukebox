@@ -1,4 +1,4 @@
-# Raspberry Pi 5 CD and update preparation
+# Raspberry Pi 5 deployment and hardware preparation
 
 These steps are for the reviewed v0.5.0 build. They do not erase, repartition or reformat storage.
 
@@ -15,7 +15,7 @@ Install required packages if they are not already present:
 
 ```bash
 sudo apt update
-sudo apt install cdparanoia libdiscid0 flac eject python3-venv nodejs npm gh
+sudo apt install cdparanoia libdiscid0 flac eject python3-venv gh
 ```
 
 Confirm the optical drive and local GitHub authentication without ripping:
@@ -36,7 +36,7 @@ sudo install -d -o admin -g admin /home/admin/jukebox-data
 
 ## Deploy the reviewed source
 
-Until the release helper is approved, update only after this reviewed work has been committed and pushed. First confirm the Pi checkout has no local source changes, then use a fast-forward-only pull:
+Before the managed-service migration in the software-update guide, deploy reviewed source only after it has been committed and pushed. First confirm the Pi checkout has no local source changes, then use a fast-forward-only pull:
 
 ```bash
 cd /home/admin/jukebox
@@ -121,6 +121,8 @@ MusicBrainz diagnostics record the HTTP status and bounded attempt number, JSON 
 
 If playback skips while ripping, raise the configured nice value modestly and retest. Extraction speed, USB power, DAC responsiveness, temperatures, artwork appearance and speaker behaviour require physical observation.
 
-## Update decision still required
+## Managed software updates
 
-Choose authenticated private GitHub Release assets or a separate public release channel. Then install a root-owned fixed helper that downloads only the requested known version, validates manifest/checksums, prepares immutable release dependencies and frontend, switches `current-version`, restarts, checks `/api/health`, and rolls back on failure. Keep `.env`, `/home/admin/jukebox-data` and `/mnt/jukebox` outside release directories. Until that review is complete, leave `PI_JUKEBOX_UPDATE_INSTALL_ENABLED=false`.
+The initial checkout-and-Vite startup remains the safe deployment path until the separate one-time migration is deliberately performed. The reviewed updater uses published stable GitHub Release assets, a root-owned helper, immutable versions, a managed application service, version-aware health checks and automatic rollback. It keeps `.env`, `/home/admin/jukebox-data` and `/mnt/jukebox` outside every release.
+
+Do not merely change `PI_JUKEBOX_UPDATE_INSTALL_ENABLED` in the existing checkout. Follow [Safe software updates](software-updates.md) from beginning to end; it includes the service migration, retained labwc/Chromium startup, ARM64 release procedure, first physical update, deliberate rollback test and manual recovery.

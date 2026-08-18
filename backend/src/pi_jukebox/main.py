@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from pi_jukebox.api.router import api_router
 from pi_jukebox.catalogue.database import Catalogue
@@ -77,6 +78,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         expose_headers=["Accept-Ranges", "Content-Length", "Content-Range"],
     )
     application.include_router(api_router, prefix="/api")
+    if settings.frontend_directory is not None:
+        try:
+            frontend_directory = settings.frontend_directory.resolve(strict=True)
+        except OSError as exc:
+            raise RuntimeError("The configured production frontend is unavailable.") from exc
+        if not frontend_directory.is_dir():
+            raise RuntimeError("The configured production frontend is not a directory.")
+        application.mount(
+            "/",
+            StaticFiles(directory=frontend_directory, html=True),
+            name="production-frontend",
+        )
     return application
 
 

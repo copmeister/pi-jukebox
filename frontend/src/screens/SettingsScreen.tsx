@@ -11,6 +11,11 @@ import {
   DISPLAY_SIZE_OPTIONS,
   useDisplaySize,
 } from '../display/DisplaySizeContext'
+import {
+  rememberRequestedUpdate,
+  UPDATE_RELOAD_STORAGE_KEY,
+  updateOutcomeNeedsReload,
+} from '../update/updateReload'
 
 function errorMessage(error: unknown): string {
   return error instanceof ApiError
@@ -18,11 +23,26 @@ function errorMessage(error: unknown): string {
     : 'Update information is unavailable right now.'
 }
 
+const UPDATE_STAGE_LABELS: Record<string, string> = {
+  idle: 'Ready',
+  queued: 'Queued',
+  downloading: 'Downloading',
+  verifying: 'Verifying',
+  preparing: 'Preparing',
+  installing: 'Installing',
+  restarting: 'Restarting',
+  rolling_back: 'Restoring previous version',
+  complete: 'Complete',
+  recovery_required: 'Recovery required',
+}
 export function SettingsScreen() {
   const { displaySize, setDisplaySize } = useDisplaySize()
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const updateStage = status
+    ? (UPDATE_STAGE_LABELS[status.stage] ?? 'Working')
+    : 'Ready'
 
   const refresh = useCallback(async () => {
     try {
@@ -42,11 +62,30 @@ export function SettingsScreen() {
     }
   }, [refresh])
 
-  const action = async (operation: () => Promise<unknown>) => {
+  useEffect(() => {
+    if (!status) return
+    try {
+      const requestedVersion = window.sessionStorage.getItem(
+        UPDATE_RELOAD_STORAGE_KEY,
+      )
+      if (updateOutcomeNeedsReload(status, requestedVersion)) {
+        window.sessionStorage.removeItem(UPDATE_RELOAD_STORAGE_KEY)
+        window.location.reload()
+      }
+    } catch {
+      // Reload is a presentation refresh; update integrity does not depend on it.
+    }
+  }, [status])
+
+  const action = async (
+    operation: () => Promise<unknown>,
+    onAccepted?: () => void,
+  ) => {
     setBusy(true)
     setError(null)
     try {
       await operation()
+      onAccepted?.()
       await refresh()
     } catch (requestError) {
       setError(errorMessage(requestError))
@@ -116,7 +155,7 @@ export function SettingsScreen() {
           kind="loading"
         />
       ) : null}
-      {error ? (
+      {error && !status ? (
         <ScreenState
           title="Update service unavailable"
           message={error}
@@ -134,16 +173,26 @@ export function SettingsScreen() {
             </div>
             <span
               className={
-                status.update_available
-                  ? 'update-badge is-available'
-                  : 'update-badge'
+                status.outcome === 'rolled_back' || status.outcome === 'failed'
+                  ? 'update-badge is-error'
+                  : status.update_available
+                    ? 'update-badge is-available'
+                    : 'update-badge'
               }
             >
               {status.checking
                 ? 'Checking…'
-                : status.update_available
-                  ? `Version ${status.latest_version} available`
-                  : 'Up to date'}
+                : status.installing
+                  ? updateStage
+                  : status.outcome === 'succeeded'
+                    ? `Updated to ${status.installed_version}`
+                    : status.outcome === 'rolled_back'
+                      ? `Restored ${status.installed_version}`
+                      : status.outcome === 'failed'
+                        ? 'Update failed'
+                        : status.update_available
+                          ? `Version ${status.latest_version} available`
+                          : 'Up to date'}
             </span>
           </header>
           <dl>
@@ -161,9 +210,22 @@ export function SettingsScreen() {
             </div>
           </dl>
           {status.message ? <p role="status">{status.message}</p> : null}
-          {status.last_error ? (
+          {status.installing ? (
+            <div className="update-progress" role="status" aria-live="polite">
+              <span aria-hidden="true" />
+              <div>
+                <strong>{updateStage}</strong>
+                <small>
+                  Keep Pi Jukebox powered on. The screen may reconnect during
+                  restart.
+                </small>
+              </div>
+            </div>
+          ) : null}
+          {status.last_error || error ? (
             <p className="settings-error" role="status">
-              {status.last_error}
+              {status.last_error ??
+                'The jukebox is temporarily reconnecting after the update.'}
             </p>
           ) : null}
           <div className="software-actions">
@@ -179,9 +241,13 @@ export function SettingsScreen() {
               type="button"
               className="primary-button"
               disabled={busy || !status.install_available || status.installing}
-              onClick={() => void action(installUpdate)}
+              onClick={() =>
+                void action(installUpdate, () =>
+                  rememberRequestedUpdate(status.latest_version),
+                )
+              }
             >
-              {status.installing ? 'Preparing update…' : 'Update Software'}
+              {status.installing ? `${updateStage}…` : 'Update Software'}
             </button>
           </div>
           {!status.install_available && status.update_available ? (

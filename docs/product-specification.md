@@ -147,7 +147,7 @@ Version 0.5.0 adds the first hardware-integrated library-creation workflow:
 - Refuse an unmounted, read-only or full external drive, output-root escape or existing filename conflict.
 - Show rip progress globally while preserving browsing, queue editing and playback.
 - Establish version 0.5.0, non-blocking stable-release checks, private-repository credential isolation, checksum validation and health-check rollback foundations.
-- Keep software installation disabled until an external update helper and release channel are explicitly approved.
+- Provide an opt-in managed installer for published stable releases: a fixed browser request, narrowly privileged root helper, deterministic ARM64 package, immutable versions, atomic activation and verified automatic rollback. Keep installation disabled until its one-time Pi service migration and physical acceptance tests are completed.
 
 ## Touch and accessibility requirements
 

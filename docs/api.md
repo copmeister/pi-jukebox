@@ -57,8 +57,8 @@ No CD endpoint accepts a device path, output path, executable, command or arbitr
 
 ## Software endpoints
 
-- `GET /api/system/updates` â€” installed/latest version and safe availability state
-- `POST /api/system/updates/check` â€” start one asynchronous stable-release check
-- `POST /api/system/updates/install` â€” request the fixed helper only when explicitly configured
+- `GET /api/system/updates` â€” installed/latest version, availability, helper stage, requested/previous versions and persisted success/rollback/failure outcome
+- `POST /api/system/updates/check` â€” start one asynchronous published-stable-release check
+- `POST /api/system/updates/install` â€” create a fixed-schema request for the already discovered version and trigger the fixed root-owned systemd helper when explicitly configured; the jukebox client supplies the fixed `X-Pi-Jukebox-Action` header so foreign browser origins must pass CORS preflight
 
-The browser never receives GitHub credentials or controls repository/release URLs.
+The browser never receives GitHub credentials, release URLs, filesystem destinations or command arguments. Duplicate or unsafe install requests return a conflict instead of starting another helper.

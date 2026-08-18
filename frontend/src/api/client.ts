@@ -56,15 +56,19 @@ async function requestJson<T>(
 
   if (!response.ok) {
     throw new ApiError(
-      path.startsWith('/queue')
-        ? response.status === 404
-          ? 'That track or queue item is no longer available.'
+      path.startsWith('/system/updates')
+        ? response.status === 409
+          ? 'Another update is already active, or no installable stable release is available.'
+          : 'The software update request could not be completed.'
+        : path.startsWith('/queue')
+          ? response.status === 404
+            ? 'That track or queue item is no longer available.'
+            : response.status === 409
+              ? 'The queue changed before that action completed. Its current state has been kept.'
+              : 'The queue action could not be completed.'
           : response.status === 409
-            ? 'The queue changed before that action completed. Its current state has been kept.'
-            : 'The queue action could not be completed.'
-        : response.status === 409
-          ? 'A library scan is already running.'
-          : 'The jukebox service could not complete that request.',
+            ? 'A library scan is already running.'
+            : 'The jukebox service could not complete that request.',
       response.status,
     )
   }
@@ -350,6 +354,11 @@ function isUpdateStatus(value: unknown): value is UpdateStatus {
     typeof value.installing === 'boolean' &&
     typeof value.update_available === 'boolean' &&
     typeof value.install_available === 'boolean' &&
+    typeof value.stage === 'string' &&
+    (value.outcome === null ||
+      ['succeeded', 'rolled_back', 'failed'].includes(String(value.outcome))) &&
+    isNullableString(value.requested_version) &&
+    isNullableString(value.previous_version) &&
     isNullableString(value.message) &&
     isNullableString(value.last_error) &&
     typeof value.source === 'string'
@@ -528,5 +537,8 @@ export function checkForUpdates(): Promise<ApiAction> {
 }
 
 export function installUpdate(): Promise<ApiAction> {
-  return requestJson('/system/updates/install', isApiAction, { method: 'POST' })
+  return requestJson('/system/updates/install', isApiAction, {
+    method: 'POST',
+    headers: { 'X-Pi-Jukebox-Action': 'install-stable-release' },
+  })
 }

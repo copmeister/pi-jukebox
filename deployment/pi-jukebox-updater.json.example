@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "repository": "copmeister/pi-jukebox",
+  "release_root": "/home/admin/pi-jukebox-releases",
+  "request_path": "/home/admin/jukebox-data/updater/request.json",
+  "status_path": "/var/lib/pi-jukebox-updater/status.json",
+  "lock_path": "/run/lock/pi-jukebox-updater.lock",
+  "gh_user": "admin",
+  "command_timeout_seconds": 120,
+  "download_timeout_seconds": 600,
+  "retry_count": 2,
+  "health_attempts": 15,
+  "health_interval_seconds": 2
+}

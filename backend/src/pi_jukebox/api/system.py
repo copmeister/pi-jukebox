@@ -1,8 +1,8 @@
 """Application version and controlled software-update API."""
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 
 from pi_jukebox.updates.service import UpdateService
@@ -19,6 +19,10 @@ class UpdateStatusResponse(BaseModel):
     installing: bool
     update_available: bool
     install_available: bool
+    stage: str
+    outcome: str | None
+    requested_version: str | None
+    previous_version: str | None
     message: str | None
     last_error: str | None
     source: str
@@ -50,7 +54,15 @@ def check_updates(request: Request) -> UpdateActionResponse:
 
 
 @router.post("/updates/install", response_model=UpdateActionResponse, status_code=202)
-def install_update(request: Request) -> UpdateActionResponse:
+def install_update(
+    request: Request,
+    action: Annotated[str | None, Header(alias="X-Pi-Jukebox-Action")] = None,
+) -> UpdateActionResponse:
+    if action != "install-stable-release":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This update action must originate from the jukebox interface.",
+        )
     if not _updates(request).request_install():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

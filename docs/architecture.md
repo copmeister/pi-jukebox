@@ -32,8 +32,10 @@ USB audio CD -> python-discid/libdiscid TOC -> MusicBrainz / Cover Art Archive
               -> atomic FLAC rename -> single-file catalogue index
 
 GitHub Release check -> authenticated local gh CLI -> safe status API
-Release ZIP -> manifest/checksums -> immutable staging -> version pointer
-                                                -> health check -> rollback
+stable release tar + external manifest -> root-owned validation and staging
+              -> offline per-version venv + prebuilt frontend
+              -> atomic version pointer -> service restart + health check
+                                      `-> automatic rollback on failure
 ```
 
 ## Backend
@@ -122,11 +124,13 @@ The scanner resolves the configured library root before walking it. Catalogue pa
 
 ## Safe release update boundary
 
-`pi_jukebox.version.__version__` is authoritative and is mirrored in Python and frontend package metadata. A short startup task calls authenticated local `gh api` for one configured repository's stable latest release. It never accepts repository names, URLs, commands or credentials from the browser and does not poll continuously.
+`pi_jukebox.version.__version__` is authoritative and is mirrored in Python and frontend package metadata. A short startup task calls authenticated local `gh api` for one configured repository's published stable releases. It ignores drafts, prereleases, branch heads and non-semantic tags. Repository names, URLs, asset paths, commands and credentials never cross the browser API.
 
-The offline-testable installer accepts semantic versions and only ZIP entries listed in `manifest.json`, rejects traversal, verifies each SHA-256, prepares an immutable release directory, and atomically changes a `current-version` pointer. Restart and health callbacks must succeed or the old pointer is restored and restarted. Configuration, data and music live outside release directories.
+FastAPI can write only a fixed-schema request for the already discovered newer version. A root-owned systemd path unit watches only that predetermined file and starts the root-owned one-shot helper, so the application account needs no sudo permission. The helper independently rechecks that exact stable release, downloads only the expected tar and external manifest through the Pi account's existing `gh` authentication, validates compatibility and SHA-256 for the archive and every file, and rejects traversal, links, special entries, extras and size-limit violations.
 
-Production installation is intentionally disabled until the owner chooses authenticated private release assets or a public binary channel and installs a separate fixed helper. FastAPI may request only the known latest version from that helper; there is no general command endpoint. The launcher/helper must provide the concrete download, dependency preparation, frontend build, restart and health operations.
+Each release is prepared under a root-owned staging directory. Its hashed dependency lock is installed offline from an ARM64 wheelhouse into a release-local virtual environment, and its prebuilt frontend requires no production Node process. Only then is it renamed into an immutable semantic-version directory and the root-owned `current-version` text pointer atomically replaced. The managed application service restarts and `/api/health` must return both `ok` and the requested version; otherwise the old pointer is restored and the known-good service is health checked. Configuration, SQLite data, artwork, music, queue state and browser preferences remain outside release directories.
+
+The existing graphical-session startup retains ownership of Chromium kiosk launch but no longer launches FastAPI or Vite. A fixed system service owns the application lifecycle and serves both API and prebuilt frontend on the kiosk's existing production origin, `http://127.0.0.1:5173`, allowing the updater to restart it safely while Chromium reconnects without losing origin-scoped display preferences. Windows development remains Vite on 5173 proxying FastAPI on 8000. Installation is opt-in and remains disabled until the documented one-time service migration is completed. Exact operations and recovery are in [Safe software updates](software-updates.md).
 
 ## Future component boundaries
 
@@ -139,6 +143,6 @@ The following frontend feature area remains for later work:
 - The system is local-only in v0.1.
 - Chromium owns playback in v0.1; Python does not wrap VLC, MPV, or GStreamer.
 - There are no accounts, cloud services, or remote control.
-- Existing Pi service/kiosk files remain locally managed until the reviewed release-helper layout is chosen.
+- The labwc kiosk command remains machine-local; reviewed root-owned system services manage the application and updater after the one-time migration.
 - Raspberry Pi codec and performance support must be proven on real target hardware.
-- The Raspberry Pi 5, Touch Display 2 and DAC Pro playback path is operational; CD extraction and update installation still require v0.5.0 physical acceptance.
+- The Raspberry Pi 5, Touch Display 2 and DAC Pro playback path is operational; the managed update and rollback workflow still requires physical acceptance before release installation is enabled.

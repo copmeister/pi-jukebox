@@ -5,6 +5,10 @@ import {
   DISPLAY_SIZE_STORAGE_KEY,
   DisplaySizeProvider,
 } from '../display/DisplaySizeContext'
+import {
+  UPDATE_RELOAD_STORAGE_KEY,
+  updateOutcomeNeedsReload,
+} from '../update/updateReload'
 import { SettingsScreen } from './SettingsScreen'
 
 function response(payload: unknown): Response {
@@ -20,6 +24,10 @@ const status = {
   installing: false,
   update_available: true,
   install_available: false,
+  stage: 'idle',
+  outcome: null,
+  requested_version: null,
+  previous_version: null,
   message: 'Version 0.5.1 is available.',
   last_error: null,
   source: 'Authenticated GitHub Releases via the local GitHub CLI',
@@ -30,6 +38,7 @@ describe('Settings software updates', () => {
     cleanup()
     vi.unstubAllGlobals()
     window.localStorage.clear()
+    window.sessionStorage.clear()
   })
 
   it('shows versions, checks asynchronously, and keeps unsafe install disabled', async () => {
@@ -95,5 +104,102 @@ describe('Settings software updates', () => {
     expect(
       await screen.findByRole('radio', { name: /Extra Large/i }),
     ).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('starts an installable stable update and reports real installation stages', async () => {
+    const installingStatus = {
+      ...status,
+      install_available: true,
+      installing: true,
+      stage: 'verifying',
+      requested_version: '0.5.1',
+      previous_version: '0.5.0',
+      message: 'Verifying the release integrity manifest.',
+    }
+    let installing = false
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/system/updates/install')) {
+        installing = true
+        return response({ accepted: true, message: 'Update accepted.' })
+      }
+      if (url.endsWith('/api/system/updates')) {
+        return response(
+          installing
+            ? installingStatus
+            : { ...status, install_available: true },
+        )
+      }
+      throw new Error('unexpected')
+    })
+    vi.stubGlobal('fetch', fetch)
+    const user = userEvent.setup()
+    render(
+      <DisplaySizeProvider>
+        <SettingsScreen />
+      </DisplaySizeProvider>,
+    )
+
+    const install = await screen.findByRole('button', {
+      name: 'Update Software',
+    })
+    expect(install).toBeEnabled()
+    await user.click(install)
+    expect(await screen.findAllByText('Verifying')).toHaveLength(2)
+    expect(
+      screen.getByText(/screen may reconnect during restart/i),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Verifying…' })).toBeDisabled()
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/system/updates/install'),
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'X-Pi-Jukebox-Action': 'install-stable-release' },
+      }),
+    )
+    expect(window.sessionStorage.getItem(UPDATE_RELOAD_STORAGE_KEY)).toBe(
+      '0.5.1',
+    )
+  })
+
+  it('reloads presentation only for the release requested by this browser session', () => {
+    const completed = {
+      ...status,
+      installed_version: '0.5.1',
+      requested_version: '0.5.1',
+      outcome: 'succeeded' as const,
+      stage: 'complete',
+    }
+    expect(updateOutcomeNeedsReload(completed, '0.5.1')).toBe(true)
+    expect(updateOutcomeNeedsReload(completed, null)).toBe(false)
+    expect(updateOutcomeNeedsReload(completed, '0.5.2')).toBe(false)
+  })
+
+  it('shows a clear restored-version outcome after automatic rollback', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        response({
+          ...status,
+          update_available: true,
+          install_available: true,
+          outcome: 'rolled_back',
+          stage: 'complete',
+          requested_version: '0.5.1',
+          previous_version: '0.5.0',
+          message: 'Update failed. Pi Jukebox was restored to 0.5.0.',
+          last_error: 'The new release failed its health check.',
+        }),
+      ),
+    )
+    render(
+      <DisplaySizeProvider>
+        <SettingsScreen />
+      </DisplaySizeProvider>,
+    )
+
+    expect(await screen.findByText('Restored 0.5.0')).toBeInTheDocument()
+    expect(screen.getByText(/restored to 0.5.0/i)).toBeInTheDocument()
+    expect(screen.getByText(/failed its health check/i)).toBeInTheDocument()
   })
 })

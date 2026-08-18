@@ -213,6 +213,10 @@ export interface UpdateStatus {
   installing: boolean
   update_available: boolean
   install_available: boolean
+  stage: string
+  outcome: 'succeeded' | 'rolled_back' | 'failed' | null
+  requested_version: string | null
+  previous_version: string | null
   message: string | null
   last_error: string | null
   source: string

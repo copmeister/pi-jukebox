@@ -162,7 +162,7 @@ See [Raspberry Pi deployment and hardware testing](docs/pi-deployment.md) for pr
 
 The backend checks once shortly after startup for the latest stable GitHub Release. The private repository is accessed only through the Raspberry Pi service account's authenticated GitHub CLI; credentials and release URLs are never returned to the browser. Offline checks remain unobtrusive and never delay startup.
 
-The repository includes a tested release-package validator and atomic rollback foundation. **Update Software remains disabled by default** because the production release channel and separately installed helper still require an explicit decision. Do not enable it until choosing authenticated private release artifacts or a separate public release channel and completing the one-time setup documented in the architecture.
+The repository now includes the reviewed, opt-in installation workflow: deterministic ARM64 release assets, strict manifest and archive validation, isolated immutable versions, a narrowly privileged root helper, atomic activation, version-aware health checking, and automatic rollback. Installation remains disabled by default until the one-time Pi service migration is completed. See [Safe software updates](docs/software-updates.md) for the exact setup, release, physical acceptance, diagnostics, and recovery procedures.
 
 ## Run the checks
 
