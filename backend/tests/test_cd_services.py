@@ -225,7 +225,9 @@ class FakeResponse:
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise httpx.HTTPStatusError("failed", request=None, response=None)
+            request = httpx.Request("GET", "https://musicbrainz.test/discid/example")
+            response = httpx.Response(self.status_code, request=request)
+            raise httpx.HTTPStatusError("failed", request=request, response=response)
 
 
 class FakeHttp:
@@ -246,31 +248,75 @@ MUSICBRAINZ_TOC = "1 1 4725 150"
 
 
 def musicbrainz_payload(release_count: int = 1):
+    titles = [
+        "Just",
+        "Paranoid Android",
+        "Karma Police",
+        "Creep",
+        "No Surprises",
+        "High and Dry",
+        "My Iron Lung",
+        "There There",
+        "Lucky",
+        "Optimistic",
+        "Fake Plastic Trees",
+        "Idioteque",
+        "2 + 2 = 5",
+        "The Bends",
+        "Pyramid Song",
+        "Street Spirit (Fade Out)",
+        "Everything in Its Right Place",
+    ]
     releases = []
     for index in range(release_count):
         releases.append(
             {
                 "id": f"release-{index}",
-                "title": "Example Album",
-                "artist-credit": [{"name": "Example Artist"}],
-                "date": "2020-03-01",
-                "country": "GB",
+                "title": "The Best Of",
+                "status": "Official",
+                "artist-credit": [
+                    {
+                        "name": "Radiohead",
+                        "artist": {"id": "artist-radiohead", "name": "Radiohead"},
+                    }
+                ],
+                "date": "2008-06-03",
+                "country": "US",
+                "release-group": {
+                    "id": "release-group-best-of",
+                    "primary-type": "Album",
+                },
                 "media": [
                     {
+                        "position": 1,
+                        "format": "CD",
+                        "track-count": len(titles),
                         "discs": [{"id": MUSICBRAINZ_DISC_ID}],
                         "tracks": [
                             {
-                                "position": 1,
-                                "title": "Opening",
-                                "length": 61000,
-                                "recording": {"artist-credit": [{"name": "Guest"}]},
+                                "id": f"track-{track_number}",
+                                "position": track_number,
+                                "number": str(track_number),
+                                "title": title,
+                                "length": 240000,
+                                "recording": {
+                                    "id": f"recording-{track_number}",
+                                    "title": title,
+                                    "artist-credit": [{"name": "Radiohead"}],
+                                },
                             }
+                            for track_number, title in enumerate(titles, start=1)
                         ],
                     }
                 ],
             }
         )
-    return {"releases": releases}
+    return {
+        "id": MUSICBRAINZ_DISC_ID,
+        "sectors": 342675,
+        "offsets": [150],
+        "releases": releases,
+    }
 
 
 def test_musicbrainz_single_multiple_timeout_and_artwork() -> None:
@@ -284,10 +330,16 @@ def test_musicbrainz_single_multiple_timeout_and_artwork() -> None:
     )
     one_http = FakeHttp([FakeResponse(musicbrainz_payload())])
     one = MusicMetadataClient(settings, one_http)
-    assert one.releases_for_disc(disc)[0].tracks[0].artist == "Guest"
+    candidate = one.releases_for_disc(disc)[0]
+    assert candidate.title == "The Best Of"
+    assert candidate.artist == "Radiohead"
+    assert candidate.track_count == 17
+    assert candidate.tracks[0].title == "Just"
+    assert candidate.tracks[0].artist == "Radiohead"
     url, kwargs = one_http.calls[0]
     assert url.endswith(f"/discid/{MUSICBRAINZ_DISC_ID}")
     assert "e310b410" not in url
+    assert kwargs["params"]["inc"] == "artists+recordings+release-groups"
     assert kwargs["params"]["toc"] == MUSICBRAINZ_TOC
     assert kwargs["params"]["cdstubs"] == "no"
     multiple = MusicMetadataClient(settings, FakeHttp([FakeResponse(musicbrainz_payload(2))]))
@@ -299,6 +351,29 @@ def test_musicbrainz_single_multiple_timeout_and_artwork() -> None:
     assert no_art.fetch_front_cover("missing") is None
     cover = MusicMetadataClient(settings, FakeHttp([FakeResponse(content=b"jpeg")]))
     assert cover.fetch_front_cover("release") == (b"jpeg", "image/jpeg")
+
+
+def test_musicbrainz_logs_http_and_parsing_failures_without_response_body(caplog) -> None:
+    settings = Settings(_env_file=None, metadata_retry_count=0)
+    disc = DiscLayout("e310b410", 1, (61.0,), MUSICBRAINZ_DISC_ID, MUSICBRAINZ_TOC)
+    caplog.set_level("INFO", logger="pi_jukebox.cd.metadata")
+
+    malformed = MusicMetadataClient(settings, FakeHttp([FakeResponse(["not", "an", "object"])]))
+    with pytest.raises(MetadataLookupError, match="unreadable release information"):
+        malformed.releases_for_disc(disc)
+    assert "MusicBrainz disc lookup returned HTTP 200" in caplog.text
+    assert "MusicBrainz response parsing failed (AttributeError)" in caplog.text
+
+    caplog.clear()
+    rejected = MusicMetadataClient(
+        settings,
+        FakeHttp([FakeResponse(status=400, content=b"response body must not be logged")]),
+    )
+    with pytest.raises(MetadataLookupError, match="unavailable right now"):
+        rejected.releases_for_disc(disc)
+    assert "MusicBrainz disc lookup failed with HTTP 400" in caplog.text
+    assert "online metadata fallback will be used" in caplog.text
+    assert "response body must not be logged" not in caplog.text
 
 
 def test_short_cddb_id_is_never_sent_as_musicbrainz_disc_id() -> None:

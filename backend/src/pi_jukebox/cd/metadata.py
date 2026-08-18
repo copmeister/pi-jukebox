@@ -1,6 +1,7 @@
 """MusicBrainz release lookup and bounded Cover Art Archive retrieval."""
 
 import hashlib
+import logging
 import re
 import time
 from pathlib import Path
@@ -11,6 +12,8 @@ import httpx
 from pi_jukebox.cd.models import DiscLayout, ReleaseCandidate, ReleaseTrack
 from pi_jukebox.config import Settings
 from pi_jukebox.version import __version__
+
+logger = logging.getLogger(__name__)
 
 
 class MetadataLookupError(RuntimeError):
@@ -56,7 +59,7 @@ class MusicMetadataClient:
             )
         url = f"{self.settings.musicbrainz_base_url.rstrip('/')}/discid/{musicbrainz_id}"
         params = {
-            "inc": "recordings+artists+release-groups+media",
+            "inc": "artists+recordings+release-groups",
             "fmt": "json",
         }
         if disc.musicbrainz_toc:
@@ -67,6 +70,7 @@ class MusicMetadataClient:
             params["cdstubs"] = "no"
         response = self._get(
             url,
+            operation="MusicBrainz disc lookup",
             params=params,
         )
         try:
@@ -76,15 +80,25 @@ class MusicMetadataClient:
                 raise ValueError
             candidates = [self._candidate(release, disc) for release in releases]
         except (AttributeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "MusicBrainz response parsing failed (%s); response body omitted.",
+                type(exc).__name__,
+            )
             raise MetadataLookupError(
                 "MusicBrainz returned unreadable release information."
             ) from exc
-        return [candidate for candidate in candidates if candidate is not None]
+        usable = [candidate for candidate in candidates if candidate is not None]
+        logger.info(
+            "MusicBrainz response parsed: %d release(s), %d usable candidate(s).",
+            len(releases),
+            len(usable),
+        )
+        return usable
 
     def fetch_front_cover(self, release_id: str) -> tuple[bytes, str] | None:
         url = f"{self.settings.cover_art_base_url.rstrip('/')}/release/{release_id}/front-500"
         try:
-            response = self._get(url)
+            response = self._get(url, operation="Cover Art Archive front-cover lookup")
         except MetadataLookupError:
             return None
         if response.status_code == 404:
@@ -97,9 +111,10 @@ class MusicMetadataClient:
             return None
         return content, mime_type
 
-    def _get(self, url: str, **kwargs: Any) -> Any:
+    def _get(self, url: str, *, operation: str, **kwargs: Any) -> Any:
         last_error: Exception | None = None
-        for attempt in range(self.settings.metadata_retry_count + 1):
+        total_attempts = self.settings.metadata_retry_count + 1
+        for attempt in range(total_attempts):
             try:
                 response = self.client.get(
                     url,
@@ -108,13 +123,52 @@ class MusicMetadataClient:
                     **kwargs,
                 )
                 if response.status_code == 404:
+                    logger.info(
+                        "%s returned HTTP 404 (attempt %d/%d).",
+                        operation,
+                        attempt + 1,
+                        total_attempts,
+                    )
                     return response
                 response.raise_for_status()
+                logger.info(
+                    "%s returned HTTP %d (attempt %d/%d).",
+                    operation,
+                    response.status_code,
+                    attempt + 1,
+                    total_attempts,
+                )
                 return response
             except (httpx.HTTPError, OSError) as exc:
                 last_error = exc
+                status = (
+                    exc.response.status_code
+                    if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None
+                    else None
+                )
+                if status is None:
+                    logger.warning(
+                        "%s failed on attempt %d/%d (%s).",
+                        operation,
+                        attempt + 1,
+                        total_attempts,
+                        type(exc).__name__,
+                    )
+                else:
+                    logger.warning(
+                        "%s failed with HTTP %d on attempt %d/%d.",
+                        operation,
+                        status,
+                        attempt + 1,
+                        total_attempts,
+                    )
                 if attempt < self.settings.metadata_retry_count:
                     time.sleep(0.15 * (attempt + 1))
+        logger.warning(
+            "%s exhausted %d attempt(s); online metadata fallback will be used.",
+            operation,
+            total_attempts,
+        )
         raise MetadataLookupError(
             "Online disc information is unavailable right now."
         ) from last_error

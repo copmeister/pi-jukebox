@@ -1,5 +1,6 @@
 """Non-blocking CD state coordinator used by API polling and the rip worker."""
 
+import logging
 import threading
 from dataclasses import replace
 from pathlib import Path
@@ -17,6 +18,8 @@ from pi_jukebox.cd.ripper import RipService
 from pi_jukebox.cd.storage import StorageGuard
 from pi_jukebox.cd.store import RipStore
 from pi_jukebox.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class CdService:
@@ -187,7 +190,18 @@ class CdService:
         except MetadataLookupError as exc:
             candidates = []
             message = str(exc)
+            logger.warning(
+                "CD metadata lookup for local disc %s is using fallback: %s",
+                expected_disc_id,
+                message,
+            )
         if not candidates:
+            if message is None:
+                logger.info(
+                    "MusicBrainz returned no usable candidates for local disc %s; "
+                    "using generic metadata.",
+                    expected_disc_id,
+                )
             candidates = [fallback_release(disc)]
             message = message or (
                 "No MusicBrainz match was found. Generic track names are available."

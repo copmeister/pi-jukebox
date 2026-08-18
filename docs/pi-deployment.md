@@ -106,6 +106,8 @@ Inspect the journal for the existing service configuration, for example:
 journalctl --user -u pi-jukebox --since today
 ```
 
+MusicBrainz diagnostics record the HTTP status and bounded attempt number, JSON parsing category, usable candidate count, and safe fallback reason. They deliberately omit response bodies, request headers, credentials, and release artwork bytes.
+
 `GET /api/cd/status` reports safe job state without command lines or absolute final paths. Rip history remains in the configured SQLite database. Disposable work is confined to `/home/admin/jukebox-data/rip-staging` and cleaned after restart. Do not delete completed music to recover a failed job.
 
 If playback skips while ripping, raise the configured nice value modestly and retest. Extraction speed, USB power, DAC responsiveness, temperatures, artwork appearance and speaker behaviour require physical observation.
