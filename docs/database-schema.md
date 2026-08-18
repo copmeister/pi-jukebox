@@ -29,5 +29,6 @@ Playback time, volume, mute state, and listening history are not persisted. A re
 - `cd_rip_jobs` stores disc/release identity, safe album labels, job status, aggregate counts, timestamps, cancellation intent and user-safe diagnostics.
 - `cd_rip_tracks` stores the track snapshot and Waiting/Reading/Encoding/Tagging/Ready/Error/Cancelled lifecycle. Only Ready rows contain a final library-relative path.
 - Active rows found at startup become Interrupted/Error; finalized catalogue tracks and queue rows are untouched.
+- Resume preserves terminal history by creating a new job. It copies only verified Ready paths from the latest matching cancelled/interrupted disc-and-release snapshot; all other tracks start Waiting. Existing FLAC tags and confined paths must match before a row can be reused.
 
 `software_update_runs` reserves durable diagnostic history for the separate updater. Release credentials and command output are never stored.

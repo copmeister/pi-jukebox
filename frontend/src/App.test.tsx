@@ -111,6 +111,11 @@ const cdStatus = {
   selected_release_id: null,
   active: false,
   latest_job: null,
+  rip_action: {
+    action: 'unavailable',
+    message: 'Insert and identify an audio CD first.',
+    source_job_id: null,
+  },
 }
 
 const updateStatus = {

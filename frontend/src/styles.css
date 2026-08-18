@@ -1639,6 +1639,7 @@ h2 {
 }
 .cd-feedback.is-error,
 .cd-storage-error,
+.cd-rip-assessment.is-conflict,
 .settings-error {
   color: var(--danger);
   background: rgba(255, 151, 140, 0.08);
@@ -1672,6 +1673,7 @@ h2 {
 }
 .cd-metadata-note,
 .cd-storage-error,
+.cd-rip-assessment,
 .cd-rip-progress header p,
 .cd-selected header p,
 .software-card p {

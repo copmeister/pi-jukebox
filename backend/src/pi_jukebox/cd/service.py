@@ -155,10 +155,14 @@ class CdService:
     def status(self) -> dict[str, Any]:
         with self._lock:
             drive = self._drive.to_dict()
+            disc = self._drive.disc
             candidates = [candidate.to_dict() for candidate in self._candidates]
             metadata_state = self._metadata_state
             metadata_message = self._metadata_message
             selected_id = self._selected_id
+            selected = next(
+                (item for item in self._candidates if item.release_id == selected_id), None
+            )
         for candidate in candidates:
             candidate["artwork_available"] = (
                 self.artwork_cache.get(candidate["release_id"]) is not None
@@ -172,6 +176,7 @@ class CdService:
             "selected_release_id": selected_id,
             "active": self.ripper.active,
             "latest_job": self.store.latest_job(),
+            "rip_action": self.ripper.assess(disc, selected).to_dict(),
         }
 
     def _monitor_loop(self) -> None:

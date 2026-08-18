@@ -140,6 +140,18 @@ export function CdScreen({ cd }: CdScreenProps) {
     job &&
     !['queued', 'ripping'].includes(job.status) &&
     (!status.drive.disc || status.drive.disc.disc_id === job.disc_id)
+  const ripAction = status.rip_action
+  const ripButtonLabel =
+    ripAction.action === 'resume'
+      ? 'Resume Rip'
+      : ripAction.action === 'complete'
+        ? 'Already in Library'
+        : ripAction.action === 'conflict'
+          ? 'Rip Conflict'
+          : ripAction.action === 'unavailable'
+            ? 'Rip Unavailable'
+            : 'Rip to Library'
+  const canStartRip = ['start', 'resume'].includes(ripAction.action)
   return (
     <div className="screen cd-screen">
       <header className="screen-header cd-header">
@@ -172,32 +184,32 @@ export function CdScreen({ cd }: CdScreenProps) {
         </p>
       ) : null}
 
-      {job && (status.active || terminalJob) ? (
+      {job && terminalJob && !status.active ? <RipProgress job={job} /> : null}
+
+      {job && status.active ? (
         <>
           <RipProgress job={job} />
-          {status.active ? (
-            confirmCancel ? (
-              <ConfirmationPanel
-                title="Cancel this CD rip?"
-                message="Tracks already marked Ready will be kept. Incomplete temporary files will be removed."
-                confirmLabel="Cancel Rip"
-                disabled={cd.mutating}
-                onCancel={() => setConfirmCancel(false)}
-                onConfirm={() => {
-                  setConfirmCancel(false)
-                  void cd.cancelRip(job.id)
-                }}
-              />
-            ) : (
-              <button
-                type="button"
-                className="danger-button"
-                onClick={() => setConfirmCancel(true)}
-              >
-                Cancel Rip
-              </button>
-            )
-          ) : null}
+          {confirmCancel ? (
+            <ConfirmationPanel
+              title="Cancel this CD rip?"
+              message="Tracks already marked Ready will be kept. Incomplete temporary files will be removed."
+              confirmLabel="Cancel Rip"
+              disabled={cd.mutating}
+              onCancel={() => setConfirmCancel(false)}
+              onConfirm={() => {
+                setConfirmCancel(false)
+                void cd.cancelRip(job.id)
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="danger-button"
+              onClick={() => setConfirmCancel(true)}
+            >
+              Cancel Rip
+            </button>
+          )}
         </>
       ) : !status.drive.configured ? (
         <ScreenState
@@ -268,12 +280,24 @@ export function CdScreen({ cd }: CdScreenProps) {
                   <button
                     type="button"
                     className="primary-button"
-                    disabled={!status.storage.available || cd.mutating}
+                    disabled={
+                      !status.storage.available || !canStartRip || cd.mutating
+                    }
                     onClick={() => void cd.startRip(selected.release_id)}
                   >
-                    Rip to Library
+                    {ripButtonLabel}
                   </button>
                 </header>
+                {ripAction.action !== 'start' ? (
+                  <p
+                    className={`cd-rip-assessment${
+                      ripAction.action === 'conflict' ? ' is-conflict' : ''
+                    }`}
+                    role={ripAction.action === 'conflict' ? 'alert' : 'status'}
+                  >
+                    {ripAction.message}
+                  </p>
+                ) : null}
                 {!status.storage.available ? (
                   <p className="cd-storage-error" role="alert">
                     {status.storage.message}

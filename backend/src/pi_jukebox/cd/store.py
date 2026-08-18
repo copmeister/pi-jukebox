@@ -39,15 +39,18 @@ class RipStore:
                 )
             return len(rows)
 
-    def create_job(self, disc_id: str, release: ReleaseCandidate) -> int:
+    def create_job(
+        self, disc_id: str, release: ReleaseCandidate, *, ready_paths: dict[int, str] | None = None
+    ) -> int:
+        ready_paths = ready_paths or {}
         now = utc_now()
         with self.catalogue.connect() as connection:
             cursor = connection.execute(
                 """
                 INSERT INTO cd_rip_jobs (
                     status, disc_id, release_id, album_title, album_artist,
-                    total_tracks, created_at
-                ) VALUES ('queued', ?, ?, ?, ?, ?, ?)
+                    total_tracks, completed_tracks, created_at
+                ) VALUES ('queued', ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     disc_id,
@@ -55,6 +58,7 @@ class RipStore:
                     release.title,
                     release.artist,
                     len(release.tracks),
+                    len(ready_paths),
                     now,
                 ),
             )
@@ -62,8 +66,9 @@ class RipStore:
             connection.executemany(
                 """
                 INSERT INTO cd_rip_tracks (
-                    job_id, track_number, title, artist, duration_seconds, state, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'waiting', ?)
+                    job_id, track_number, title, artist, duration_seconds, state, updated_at,
+                    final_relative_path
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     (
@@ -72,12 +77,26 @@ class RipStore:
                         track.title,
                         track.artist,
                         track.duration_seconds,
+                        "ready" if track.number in ready_paths else "waiting",
                         now,
+                        ready_paths.get(track.number),
                     )
                     for track in release.tracks
                 ),
             )
             return job_id
+
+    def latest_for_disc_release(self, disc_id: str, release_id: str) -> dict[str, Any] | None:
+        with self.catalogue.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM cd_rip_jobs
+                WHERE disc_id = ? AND release_id = ?
+                ORDER BY id DESC LIMIT 1
+                """,
+                (disc_id, release_id),
+            ).fetchone()
+            return self._with_tracks(connection, dict(row)) if row else None
 
     def set_job_state(
         self,

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 
-from pi_jukebox.cd.ripper import RipAlreadyRunningError, RipConflictError
+from pi_jukebox.cd.ripper import RipAction, RipAlreadyRunningError, RipConflictError
 from pi_jukebox.cd.service import CdService
 from pi_jukebox.cd.storage import StorageSafetyError
 
@@ -89,6 +89,12 @@ class RipJobResponse(ApiModel):
     tracks: list[RipTrackResponse]
 
 
+class RipActionResponse(ApiModel):
+    action: RipAction
+    message: str
+    source_job_id: int | None
+
+
 class CdStatusResponse(ApiModel):
     drive: DriveResponse
     storage: StorageResponse
@@ -98,6 +104,7 @@ class CdStatusResponse(ApiModel):
     selected_release_id: str | None
     active: bool
     latest_job: RipJobResponse | None
+    rip_action: RipActionResponse
 
 
 class RipStartRequest(ApiModel):

@@ -134,6 +134,7 @@ Version 0.5.0 adds the first hardware-integrated library-creation workflow:
 - Present release cards and a keyboard-free Rip, Cancel, Eject and Retry flow at 1280Ã—720.
 - Read and encode one track at a time, tag FLAC with Mutagen, atomically finalize it, and make it playable before the album completes.
 - Persist honest job/track states and retain completed tracks through cancellation, failure or restart.
+- Offer Resume Rip for the same disc and selected release after cancellation/interruption, after verifying finalized paths and FLAC identity. Never rewrite verified Ready tracks or overwrite an ambiguous destination; completed albums do not offer resume.
 - Refuse an unmounted, read-only or full external drive, output-root escape or existing filename conflict.
 - Show rip progress globally while preserving browsing, queue editing and playback.
 - Establish version 0.5.0, non-blocking stable-release checks, private-repository credential isolation, checksum validation and health-check rollback foundations.

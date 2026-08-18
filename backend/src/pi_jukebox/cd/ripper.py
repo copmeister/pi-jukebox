@@ -5,9 +5,11 @@ import re
 import shutil
 import threading
 from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
+from mutagen import MutagenError
 from mutagen.flac import FLAC, Picture
 
 from pi_jukebox.cd.hardware import CdHardware, CommandRunner, SubprocessRunner
@@ -35,6 +37,69 @@ class AudioTagger(Protocol):
         track: ReleaseTrack,
         artwork: tuple[bytes, str] | None,
     ) -> None: ...
+
+
+class FinalizedTrackVerifier(Protocol):
+    def matches(
+        self,
+        path: Path,
+        *,
+        release: ReleaseCandidate,
+        track: ReleaseTrack,
+    ) -> bool: ...
+
+
+class MutagenFinalizedTrackVerifier:
+    """Verify that an existing FLAC belongs to the persisted release snapshot."""
+
+    @staticmethod
+    def _first(audio: FLAC, key: str) -> str | None:
+        values = audio.get(key)
+        return str(values[0]) if values else None
+
+    def matches(
+        self,
+        path: Path,
+        *,
+        release: ReleaseCandidate,
+        track: ReleaseTrack,
+    ) -> bool:
+        try:
+            audio = FLAC(path)
+            track_number = self._first(audio, "tracknumber")
+            if track_number is None or int(track_number.split("/", 1)[0]) != track.number:
+                return False
+            expected = {
+                "title": track.title,
+                "artist": track.artist,
+                "album": release.title,
+                "albumartist": release.artist,
+            }
+            if any(self._first(audio, key) != value for key, value in expected.items()):
+                return False
+            if not release.release_id.startswith("disc-"):
+                return self._first(audio, "musicbrainz_albumid") == release.release_id
+            return True
+        except (MutagenError, OSError, TypeError, ValueError):
+            return False
+
+
+RipAction = Literal["start", "resume", "complete", "conflict", "unavailable"]
+
+
+@dataclass(frozen=True, slots=True)
+class RipAssessment:
+    action: RipAction
+    message: str
+    source_job_id: int | None = None
+    ready_paths: tuple[tuple[int, str], ...] = ()
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "action": self.action,
+            "message": self.message,
+            "source_job_id": self.source_job_id,
+        }
 
 
 class MutagenFlacTagger:
@@ -96,6 +161,7 @@ class RipService:
         *,
         runner: CommandRunner | None = None,
         tagger: AudioTagger | None = None,
+        finalized_verifier: FinalizedTrackVerifier | None = None,
     ) -> None:
         self.settings = settings
         self.store = store
@@ -104,6 +170,7 @@ class RipService:
         self.scan_service = scan_service
         self.runner = runner or SubprocessRunner()
         self.tagger = tagger or MutagenFlacTagger()
+        self.finalized_verifier = finalized_verifier or MutagenFinalizedTrackVerifier()
         self._guard = threading.Lock()
         self._thread: threading.Thread | None = None
         self._cancel = threading.Event()
@@ -126,18 +193,40 @@ class RipService:
             if self._active_job_id is not None:
                 raise RipAlreadyRunningError("A CD rip is already running.")
             output_root = self.storage.require_safe_output()
-            self._check_conflicts(output_root, release)
-            job_id = self.store.create_job(disc.disc_id, release)
+            assessment = self._assess(output_root, disc, release)
+            if assessment.action == "conflict":
+                raise RipConflictError(assessment.message)
+            if assessment.action == "complete":
+                raise RipConflictError(assessment.message)
+            if assessment.action == "unavailable":
+                raise RipConflictError(assessment.message)
+            ready_paths = dict(assessment.ready_paths)
+            job_id = self.store.create_job(
+                disc.disc_id,
+                release,
+                ready_paths=ready_paths,
+            )
             self._active_job_id = job_id
             self._cancel = threading.Event()
             self._thread = threading.Thread(
                 target=self._run,
-                args=(job_id, disc, release, artwork),
+                args=(job_id, disc, release, artwork, frozenset(ready_paths)),
                 name=f"cd-rip-{job_id}",
                 daemon=True,
             )
             self._thread.start()
             return job_id
+
+    def assess(self, disc: DiscLayout | None, release: ReleaseCandidate | None) -> RipAssessment:
+        if disc is None or release is None:
+            return RipAssessment("unavailable", "Select a release for the inserted CD first.")
+        if self.active:
+            return RipAssessment("unavailable", "A CD rip is already running.")
+        try:
+            output_root = self.storage.require_safe_output()
+        except StorageSafetyError as exc:
+            return RipAssessment("unavailable", str(exc))
+        return self._assess(output_root, disc, release)
 
     def cancel(self, job_id: int) -> bool:
         with self._guard:
@@ -170,8 +259,14 @@ class RipService:
         disc: DiscLayout,
         release: ReleaseCandidate,
         artwork: tuple[bytes, str] | None,
+        ready_track_numbers: frozenset[int],
     ) -> None:
-        self.store.set_job_state(job_id, "ripping", message="Preparing the first track.")
+        message = (
+            f"Resuming with {len(ready_track_numbers)} completed track(s)."
+            if ready_track_numbers
+            else "Preparing the first track."
+        )
+        self.store.set_job_state(job_id, "ripping", message=message)
         try:
             output_root = self.storage.require_safe_output()
             staging = self.storage.require_safe_staging() / str(job_id)
@@ -180,6 +275,8 @@ class RipService:
             album_directory.mkdir(parents=True, exist_ok=True)
             self._save_cover(album_directory, artwork)
             for track in release.tracks:
+                if track.number in ready_track_numbers:
+                    continue
                 if self._cancelled(job_id):
                     self._cancel_waiting(job_id, release.tracks, track.number)
                     break
@@ -323,16 +420,135 @@ class RipService:
                     error="The CD was removed or changed." if error else None,
                 )
 
-    def _check_conflicts(self, output_root: Path, release: ReleaseCandidate) -> None:
+    def _assess(
+        self,
+        output_root: Path,
+        disc: DiscLayout,
+        release: ReleaseCandidate,
+    ) -> RipAssessment:
+        prior = self.store.latest_for_disc_release(disc.disc_id, release.release_id)
         album = self._album_directory(output_root, release)
-        conflicts = [
-            track for track in release.tracks if (album / self._track_filename(track)).exists()
-        ]
-        if conflicts:
-            raise RipConflictError(
-                "One or more destination tracks already exist. "
-                "Existing music will not be overwritten."
+        expected_paths = {
+            track.number: album / self._track_filename(track) for track in release.tracks
+        }
+        existing = [path for path in expected_paths.values() if path.exists() or path.is_symlink()]
+
+        if prior is None:
+            if existing:
+                return RipAssessment(
+                    "conflict",
+                    "Destination tracks already exist without matching rip history. "
+                    "Nothing will be overwritten.",
+                )
+            return RipAssessment("start", "This release is ready to rip.")
+
+        mismatch = self._snapshot_mismatch(prior, release)
+        if mismatch:
+            return RipAssessment("conflict", mismatch, int(prior["id"]))
+
+        resumable = prior["status"] in {"cancelled", "interrupted"}
+        completed = prior["status"] == "completed"
+        if not resumable and not completed:
+            if existing:
+                return RipAssessment(
+                    "conflict",
+                    "Existing tracks belong to a previous rip that is not safely resumable. "
+                    "Nothing will be overwritten.",
+                    int(prior["id"]),
+                )
+            return RipAssessment("start", "This release is ready to rip.")
+
+        rows = {int(row["track_number"]): row for row in prior["tracks"]}
+        ready_paths: dict[int, str] = {}
+        library_root = self.settings.validated_library_root()
+        for track in release.tracks:
+            row = rows[track.number]
+            path = expected_paths[track.number]
+            expected_relative = path.relative_to(library_root).as_posix()
+            recorded_relative = row["final_relative_path"]
+            if path.exists() or path.is_symlink():
+                try:
+                    resolved = path.resolve(strict=True)
+                    resolved.relative_to(library_root)
+                except (OSError, RuntimeError, ValueError):
+                    return self._track_conflict(prior, track)
+                if (
+                    path.is_symlink()
+                    or not resolved.is_file()
+                    or (recorded_relative is not None and recorded_relative != expected_relative)
+                    or not self.finalized_verifier.matches(
+                        resolved,
+                        release=release,
+                        track=track,
+                    )
+                ):
+                    return self._track_conflict(prior, track)
+                ready_paths[track.number] = expected_relative
+            elif row["state"] == "ready" or recorded_relative is not None:
+                return RipAssessment(
+                    "conflict",
+                    f"Track {track.number} was recorded as Ready but its finalized file "
+                    "is missing. "
+                    "Nothing will be overwritten.",
+                    int(prior["id"]),
+                )
+
+        if len(ready_paths) == len(release.tracks):
+            return RipAssessment(
+                "complete",
+                "Every track for this disc and release is already in the library.",
+                int(prior["id"]),
+                tuple(sorted(ready_paths.items())),
             )
+        if completed:
+            return RipAssessment(
+                "conflict",
+                "The completed rip history no longer matches every destination track. "
+                "Nothing will be overwritten.",
+                int(prior["id"]),
+            )
+        return RipAssessment(
+            "resume",
+            f"Resume will keep {len(ready_paths)} verified track(s) and rip only the remainder.",
+            int(prior["id"]),
+            tuple(sorted(ready_paths.items())),
+        )
+
+    @staticmethod
+    def _snapshot_mismatch(prior: dict[str, object], release: ReleaseCandidate) -> str | None:
+        if (
+            prior["album_title"] != release.title
+            or prior["album_artist"] != release.artist
+            or int(prior["total_tracks"]) != len(release.tracks)
+        ):
+            return (
+                "The selected release no longer matches the persisted rip details. "
+                "Nothing will be overwritten."
+            )
+        rows = prior["tracks"]
+        if not isinstance(rows, list) or len(rows) != len(release.tracks):
+            return "The persisted track list is incomplete. Nothing will be overwritten."
+        for row, track in zip(rows, release.tracks, strict=True):
+            if (
+                int(row["track_number"]) != track.number
+                or row["title"] != track.title
+                or row["artist"] != track.artist
+            ):
+                return (
+                    "The selected release track list differs from the persisted rip. "
+                    "Nothing will be overwritten."
+                )
+        return None
+
+    @staticmethod
+    def _track_conflict(prior: dict[str, object], track: ReleaseTrack) -> RipAssessment:
+        return RipAssessment(
+            "conflict",
+            f"Existing track {track.number} could not be verified as part of this disc "
+            "and release. "
+            "Nothing will be overwritten.",
+            int(prior["id"]),
+        )
 
     @staticmethod
     def _album_directory(output_root: Path, release: ReleaseCandidate) -> Path:

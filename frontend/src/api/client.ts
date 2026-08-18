@@ -290,6 +290,8 @@ function isCdStatus(value: unknown): value is CdStatus {
   const storage =
     isRecord(value) && isRecord(value.storage) ? value.storage : null
   const disc = drive?.disc
+  const ripAction =
+    isRecord(value) && isRecord(value.rip_action) ? value.rip_action : null
   return (
     isRecord(value) &&
     drive !== null &&
@@ -318,7 +320,13 @@ function isCdStatus(value: unknown): value is CdStatus {
     value.release_candidates.every(isCdRelease) &&
     isNullableString(value.selected_release_id) &&
     typeof value.active === 'boolean' &&
-    (value.latest_job === null || isCdRipJob(value.latest_job))
+    (value.latest_job === null || isCdRipJob(value.latest_job)) &&
+    ripAction !== null &&
+    ['start', 'resume', 'complete', 'conflict', 'unavailable'].includes(
+      String(ripAction.action),
+    ) &&
+    typeof ripAction.message === 'string' &&
+    (ripAction.source_job_id === null || isNumber(ripAction.source_job_id))
   )
 }
 

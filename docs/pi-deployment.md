@@ -94,9 +94,12 @@ cd /home/admin/jukebox
 4. Start ripping and play, pause, seek and navigate existing music during extraction.
 5. After the first Ready track, confirm it appears in Library/Search and can be queued before later tracks finish.
 6. Cancel during a later track. Confirm Ready FLACs remain, the current partial disappears and unrelated music/queue entries remain.
-7. Start again with a non-conflicting disc. Confirm Ready/error counts, `Cover.jpg` when available, album ordering and Eject.
-8. Stop the app, temporarily unmount the external drive using the normal desktop/administrator workflow, restart, and confirm ripping is refused. Do not create `/mnt/jukebox/Music` while unmounted.
-9. Disconnect networking and confirm generic track names remain available and artwork failure does not prevent ripping.
+7. Leave the same disc inserted and confirm **Resume Rip** appears. Resume and verify the earlier Ready files retain their timestamps while only the missing tracks are read and completed.
+8. Repeat cancellation, restart the backend or Pi, reinsert the same disc if needed and confirm Resume Rip still appears from persisted state.
+9. Confirm a fully completed album says it is already in the library and does not offer Resume Rip. If testing a deliberately mismatched destination, confirm the screen reports a conflict and no file changes.
+10. Start again with a non-conflicting disc. Confirm Ready/error counts, `Cover.jpg` when available, album ordering and Eject.
+11. Stop the app, temporarily unmount the external drive using the normal desktop/administrator workflow, restart, and confirm ripping is refused. Do not create `/mnt/jukebox/Music` while unmounted.
+12. Disconnect networking and confirm generic track names remain available and artwork failure does not prevent ripping.
 
 ## Diagnostics and recovery
 
@@ -108,7 +111,7 @@ journalctl --user -u pi-jukebox --since today
 
 MusicBrainz diagnostics record the HTTP status and bounded attempt number, JSON parsing category, usable candidate count, and safe fallback reason. They deliberately omit response bodies, request headers, credentials, and release artwork bytes.
 
-`GET /api/cd/status` reports safe job state without command lines or absolute final paths. Rip history remains in the configured SQLite database. Disposable work is confined to `/home/admin/jukebox-data/rip-staging` and cleaned after restart. Do not delete completed music to recover a failed job.
+`GET /api/cd/status` reports safe job state and a `rip_action` assessment without command lines or absolute final paths. Rip history remains in the configured SQLite database. Disposable work is confined to `/home/admin/jukebox-data/rip-staging` and cleaned after restart. Do not delete completed music to recover a cancelled or interrupted job; use Resume Rip. A conflict intentionally requires administrator review rather than automatic deletion or replacement.
 
 If playback skips while ripping, raise the configured nice value modestly and retest. Extraction speed, USB power, DAC responsiveness, temperatures, artwork appearance and speaker behaviour require physical observation.
 

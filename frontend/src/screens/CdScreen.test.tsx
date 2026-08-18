@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { CdStatus } from '../api/types'
+import type { CdRipJob, CdStatus } from '../api/types'
 import type { CdState } from '../hooks/useCdStatus'
 import { CdScreen } from './CdScreen'
 
@@ -47,6 +47,51 @@ const ready: CdStatus = {
   selected_release_id: 'release-1',
   active: false,
   latest_job: null,
+  rip_action: {
+    action: 'start',
+    message: 'This release is ready to rip.',
+    source_job_id: null,
+  },
+}
+
+const cancelledJob: CdRipJob = {
+  id: 5,
+  status: 'cancelled',
+  disc_id: 'abc',
+  release_id: 'release-1',
+  album_title: release.title,
+  album_artist: release.artist,
+  total_tracks: 2,
+  completed_tracks: 1,
+  failed_tracks: 0,
+  message: 'Rip cancelled; completed tracks were kept.',
+  error_message: null,
+  created_at: '2026-08-18T10:00:00Z',
+  started_at: '2026-08-18T10:00:01Z',
+  finished_at: '2026-08-18T10:01:02Z',
+  cancel_requested: true,
+  tracks: [
+    {
+      track_number: 1,
+      title: 'Opening Song',
+      artist: release.artist,
+      duration_seconds: 61,
+      state: 'ready',
+      final_relative_path: 'Example Artist/Album/01.flac',
+      error_message: null,
+      updated_at: '2026-08-18T10:01:00Z',
+    },
+    {
+      track_number: 2,
+      title: 'Final Song',
+      artist: 'Guest',
+      duration_seconds: 72,
+      state: 'cancelled',
+      final_relative_path: null,
+      error_message: null,
+      updated_at: '2026-08-18T10:01:01Z',
+    },
+  ],
 }
 
 function state(status: CdStatus): CdState {
@@ -138,6 +183,54 @@ describe('CD touchscreen screen', () => {
     expect(dialog).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Cancel Rip' }))
     expect(cd.cancelRip).toHaveBeenCalledWith(4)
+  })
+
+  it('offers Resume Rip after cancellation and preserves the progress view', async () => {
+    const cd = state({
+      ...ready,
+      latest_job: cancelledJob,
+      rip_action: {
+        action: 'resume',
+        message:
+          'Resume will keep 1 verified track and rip only the remainder.',
+        source_job_id: cancelledJob.id,
+      },
+    })
+    const user = userEvent.setup()
+    render(<CdScreen cd={cd} />)
+
+    expect(screen.getByRole('progressbar')).toHaveAttribute(
+      'aria-valuenow',
+      '1',
+    )
+    expect(screen.getByText(/keep 1 verified track/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Resume Rip' }))
+    expect(cd.startRip).toHaveBeenCalledWith('release-1')
+  })
+
+  it('shows a safe conflict and never offers an enabled rip action', () => {
+    render(
+      <CdScreen
+        cd={state({
+          ...ready,
+          latest_job: cancelledJob,
+          rip_action: {
+            action: 'conflict',
+            message:
+              'Existing track 1 could not be verified. Nothing will be overwritten.',
+            source_job_id: cancelledJob.id,
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /nothing will be overwritten/i,
+    )
+    expect(screen.getByRole('button', { name: 'Rip Conflict' })).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Resume Rip' }),
+    ).not.toBeInTheDocument()
   })
 
   it.each([

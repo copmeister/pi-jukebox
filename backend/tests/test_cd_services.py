@@ -15,7 +15,12 @@ from pi_jukebox.cd.hardware import (
 )
 from pi_jukebox.cd.metadata import MetadataLookupError, MusicMetadataClient
 from pi_jukebox.cd.models import DiscLayout, DriveState, ReleaseCandidate, ReleaseTrack
-from pi_jukebox.cd.ripper import RipAlreadyRunningError, RipConflictError, RipService
+from pi_jukebox.cd.ripper import (
+    MutagenFinalizedTrackVerifier,
+    RipAlreadyRunningError,
+    RipConflictError,
+    RipService,
+)
 from pi_jukebox.cd.storage import StorageGuard, StorageSafetyError
 from pi_jukebox.cd.store import RipStore
 from pi_jukebox.config import Settings
@@ -98,6 +103,16 @@ class FakeTagger:
         self.calls.append(track.number)
 
 
+class FakeFinalizedTrackVerifier:
+    def __init__(self) -> None:
+        self.rejected: set[int] = set()
+        self.calls: list[int] = []
+
+    def matches(self, path: Path, *, release, track) -> bool:
+        self.calls.append(track.number)
+        return path.is_file() and track.number not in self.rejected
+
+
 class BlockingTagger(FakeTagger):
     def __init__(self) -> None:
         super().__init__()
@@ -119,7 +134,12 @@ def wait_until(predicate, timeout: float = 3) -> None:
     raise AssertionError("condition did not become true")
 
 
-def rip_fixture(tmp_path: Path, *, free: int = 10_000_000_000):
+def rip_fixture(
+    tmp_path: Path,
+    *,
+    free: int = 10_000_000_000,
+    track_count: int = 2,
+):
     mount = tmp_path / "jukebox"
     library = mount / "Music"
     library.mkdir(parents=True, exist_ok=True)
@@ -145,9 +165,14 @@ def rip_fixture(tmp_path: Path, *, free: int = 10_000_000_000):
         free_bytes=lambda _path: free,
         writable=lambda _path: True,
     )
-    disc = DiscLayout("abc123", 2, (61.0, 62.0))
+    disc = DiscLayout(
+        "abc123",
+        track_count,
+        tuple(60.0 + number for number in range(1, track_count + 1)),
+    )
     runner = FakeRunner()
     tagger = FakeTagger()
+    verifier = FakeFinalizedTrackVerifier()
     ripper = RipService(
         settings,
         store,
@@ -156,7 +181,14 @@ def rip_fixture(tmp_path: Path, *, free: int = 10_000_000_000):
         scans,
         runner=runner,
         tagger=tagger,
+        finalized_verifier=verifier,
     )
+    titles = [
+        "First / Song",
+        "Second Song",
+        *(f"Track {number}" for number in range(3, track_count + 1)),
+    ]
+    artists = ["Test Artist", "Guest", *("Test Artist" for _ in range(3, track_count + 1))]
     release = ReleaseCandidate(
         "release-1",
         "Test Album",
@@ -164,10 +196,10 @@ def rip_fixture(tmp_path: Path, *, free: int = 10_000_000_000):
         "2026",
         "GB",
         "Album",
-        2,
-        (
-            ReleaseTrack(1, "First / Song", "Test Artist", 61.0),
-            ReleaseTrack(2, "Second Song", "Guest", 62.0),
+        track_count,
+        tuple(
+            ReleaseTrack(number, titles[number - 1], artists[number - 1], 60.0 + number)
+            for number in range(1, track_count + 1)
         ),
     )
     return settings, catalogue, store, ripper, runner, release, disc
@@ -403,6 +435,26 @@ def test_external_storage_mount_space_and_confinement(tmp_path: Path) -> None:
     assert "outside" in outside.status().message
 
 
+def test_finalized_track_verification_requires_matching_release_tags(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _settings, _catalogue, _store, _ripper, _runner, release, _disc = rip_fixture(tmp_path)
+    tags = {
+        "tracknumber": ["1"],
+        "title": ["First / Song"],
+        "artist": ["Test Artist"],
+        "album": ["Test Album"],
+        "albumartist": ["Test Artist"],
+        "musicbrainz_albumid": ["release-1"],
+    }
+    monkeypatch.setattr("pi_jukebox.cd.ripper.FLAC", lambda _path: tags)
+
+    verifier = MutagenFinalizedTrackVerifier()
+    assert verifier.matches(tmp_path / "track.flac", release=release, track=release.tracks[0])
+    tags["musicbrainz_albumid"] = ["different-release"]
+    assert not verifier.matches(tmp_path / "track.flac", release=release, track=release.tracks[0])
+
+
 def test_track_is_atomic_and_playable_before_album_finishes(tmp_path: Path) -> None:
     _settings, catalogue, store, ripper, runner, release, disc = rip_fixture(tmp_path)
     runner.block_track = 2
@@ -503,6 +555,9 @@ def test_simultaneous_job_and_existing_track_conflicts(tmp_path: Path) -> None:
     conflict = settings.rip_output_path / "Test Artist" / "Test Album" / "01 - First _ Song.flac"
     conflict.parent.mkdir(parents=True, exist_ok=True)
     conflict.write_bytes(b"existing")
+    verifier = ripper.finalized_verifier
+    assert isinstance(verifier, FakeFinalizedTrackVerifier)
+    verifier.rejected.add(1)
     with pytest.raises(RipConflictError):
         ripper.start(disc, release, None)
     assert conflict.read_bytes() == b"existing"
@@ -522,3 +577,131 @@ def test_interrupted_recovery_and_partial_cleanup(tmp_path: Path) -> None:
     _settings, _catalogue, _store, ripper, *_ = rip_fixture(tmp_path)
     ripper.cleanup_staging()
     assert not partial.exists()
+
+
+def test_cancelled_rip_resumes_without_overwriting_ready_tracks(tmp_path: Path) -> None:
+    _settings, catalogue, store, ripper, runner, release, disc = rip_fixture(
+        tmp_path, track_count=4
+    )
+    runner.block_track = 3
+    runner.block_stage = "reading"
+    cancelled_id = ripper.start(disc, release, None)
+    assert runner.entered.wait(2)
+    assert ripper.cancel(cancelled_id)
+    assert ripper.wait()
+
+    cancelled = store.get_job(cancelled_id)
+    assert cancelled and cancelled["status"] == "cancelled"
+    assert [track["state"] for track in cancelled["tracks"]] == [
+        "ready",
+        "ready",
+        "cancelled",
+        "cancelled",
+    ]
+    ready_files = {
+        path.name: path.read_bytes()
+        for path in (tmp_path / "jukebox" / "Music" / "Test Artist" / "Test Album").glob("*.flac")
+    }
+    assert len(ready_files) == 2
+
+    assessment = ripper.assess(disc, release)
+    assert assessment.action == "resume"
+    assert assessment.source_job_id == cancelled_id
+    assert dict(assessment.ready_paths).keys() == {1, 2}
+
+    runner.block_track = None
+    runner.block_stage = None
+    runner.entered.clear()
+    resumed_id = ripper.start(disc, release, None)
+    assert resumed_id != cancelled_id
+    assert ripper.wait()
+
+    resumed = store.get_job(resumed_id)
+    assert resumed and resumed["status"] == "completed"
+    assert [track["state"] for track in resumed["tracks"]] == ["ready"] * 4
+    assert resumed["completed_tracks"] == 4
+    assert count_rows(catalogue, "tracks") == 4
+    album = tmp_path / "jukebox" / "Music" / "Test Artist" / "Test Album"
+    assert {name: (album / name).read_bytes() for name in ready_files} == ready_files
+    read_tracks = [int(command[3]) for command in runner.commands if command[0] == "cdparanoia"]
+    assert read_tracks.count(1) == 1
+    assert read_tracks.count(2) == 1
+    assert read_tracks.count(3) == 2  # One cancelled attempt, then one resumed read.
+    assert read_tracks.count(4) == 1
+    assert store.get_job(cancelled_id)["status"] == "cancelled"
+
+
+def test_resume_survives_backend_restart_and_cleans_staging(tmp_path: Path) -> None:
+    settings, _catalogue, store, ripper, runner, release, disc = rip_fixture(
+        tmp_path, track_count=4
+    )
+    runner.block_track = 3
+    runner.block_stage = "reading"
+    interrupted_id = ripper.start(disc, release, None)
+    assert runner.entered.wait(2)
+    assert ripper.cancel(interrupted_id)
+    assert ripper.wait()
+    store.set_job_state(interrupted_id, "ripping")
+    disposable = settings.rip_staging_directory / "old-job" / "track-03.partial.flac"
+    disposable.parent.mkdir(parents=True)
+    disposable.write_bytes(b"disposable")
+
+    restarted_runner = FakeRunner()
+    restarted = RipService(
+        settings,
+        store,
+        ripper.storage,
+        ripper.hardware,
+        ripper.scan_service,
+        runner=restarted_runner,
+        tagger=FakeTagger(),
+        finalized_verifier=FakeFinalizedTrackVerifier(),
+    )
+
+    interrupted = store.get_job(interrupted_id)
+    assert interrupted and interrupted["status"] == "interrupted"
+    assert not disposable.exists()
+    assert restarted.assess(disc, release).action == "resume"
+    resumed_id = restarted.start(disc, release, None)
+    assert restarted.wait()
+    assert store.get_job(resumed_id)["status"] == "completed"
+    read_tracks = [
+        int(command[3]) for command in restarted_runner.commands if command[0] == "cdparanoia"
+    ]
+    assert read_tracks == [3, 4]
+
+
+def test_resume_rejects_mismatched_existing_track_without_overwrite(tmp_path: Path) -> None:
+    settings, _catalogue, _store, ripper, runner, release, disc = rip_fixture(
+        tmp_path, track_count=4
+    )
+    runner.block_track = 3
+    runner.block_stage = "reading"
+    job_id = ripper.start(disc, release, None)
+    assert runner.entered.wait(2)
+    assert ripper.cancel(job_id)
+    assert ripper.wait()
+    first = settings.rip_output_path / "Test Artist" / "Test Album" / "01 - First _ Song.flac"
+    original = first.read_bytes()
+    verifier = ripper.finalized_verifier
+    assert isinstance(verifier, FakeFinalizedTrackVerifier)
+    verifier.rejected.add(1)
+
+    assessment = ripper.assess(disc, release)
+    assert assessment.action == "conflict"
+    assert "could not be verified" in assessment.message
+    with pytest.raises(RipConflictError, match="could not be verified"):
+        ripper.start(disc, release, None)
+    assert first.read_bytes() == original
+
+
+def test_completed_album_does_not_offer_resume(tmp_path: Path) -> None:
+    _settings, _catalogue, store, ripper, _runner, release, disc = rip_fixture(tmp_path)
+    job_id = ripper.start(disc, release, None)
+    assert ripper.wait()
+
+    assessment = ripper.assess(disc, release)
+    assert assessment.action == "complete"
+    assert assessment.source_job_id == job_id
+    with pytest.raises(RipConflictError, match="already in the library"):
+        ripper.start(disc, release, None)

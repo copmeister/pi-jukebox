@@ -57,6 +57,11 @@ class FakeCdService:
             "selected_release_id": "release-1",
             "active": False,
             "latest_job": None,
+            "rip_action": {
+                "action": "start",
+                "message": "This release is ready to rip.",
+                "source_job_id": None,
+            },
         }
 
     def lookup(self):
@@ -93,6 +98,7 @@ def test_cd_status_and_touch_actions(tmp_path: Path) -> None:
                 response = await client.get("/api/cd/status")
                 assert response.status_code == 200
                 assert response.json()["release_candidates"][0]["title"] == "Album"
+                assert response.json()["rip_action"]["action"] == "start"
                 assert (await client.post("/api/cd/releases/release-1/select")).status_code == 200
                 started = await client.post("/api/cd/rips", json={"release_id": "release-1"})
                 assert started.status_code == 202

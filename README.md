@@ -154,7 +154,7 @@ PI_JUKEBOX_RIP_OUTPUT_PATH=/mnt/jukebox/Music
 
 The backend reads the physical CD table of contents through the `python-discid` binding and MusicBrainz `libdiscid`. It keeps libdiscid's short FreeDB identifier for local job identity, but sends only the separate 28-character MusicBrainz Disc ID and TOC to MusicBrainz. The TOC allows fuzzy release matching for pressings whose exact Disc ID is not yet attached. Select a release card and tap **Rip to Library**. Each track moves through Waiting, Reading, Encoding, Tagging and Ready. Only a completely tagged FLAC is atomically moved into the library and indexed; temporary WAV/FLAC files stay under the runtime data directory. Completed tracks can be played while later tracks continue.
 
-Cancellation retains Ready tracks and removes disposable staging files. Restart recovery marks an interrupted job honestly without touching finalized music. Artwork failure does not fail extraction, and existing destination tracks are never overwritten.
+Cancellation retains Ready tracks and removes disposable staging files. When the same disc and release return, the CD screen offers **Resume Rip** after verifying each finalized FLAC against the persisted disc/release snapshot and tags. Resume creates a new durable attempt, keeps verified tracks untouched and extracts only missing tracks; the same recovery works after an application or Pi restart. An ambiguous or mismatched destination is shown as a conflict and is never overwritten. Fully completed albums remain complete rather than offering Resume. Artwork failure does not fail extraction.
 
 See [Raspberry Pi deployment and hardware testing](docs/pi-deployment.md) for prerequisites, permissions, startup, cancellation and failure-condition checks.
 

@@ -182,6 +182,12 @@ export interface CdRipJob {
   tracks: CdRipTrack[]
 }
 
+export interface CdRipAction {
+  action: 'start' | 'resume' | 'complete' | 'conflict' | 'unavailable'
+  message: string
+  source_job_id: number | null
+}
+
 export interface CdStatus {
   drive: CdDriveStatus
   storage: CdStorageStatus
@@ -191,6 +197,7 @@ export interface CdStatus {
   selected_release_id: string | null
   active: boolean
   latest_job: CdRipJob | null
+  rip_action: CdRipAction
 }
 
 export interface ApiAction {
