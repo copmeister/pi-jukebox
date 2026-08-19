@@ -37,6 +37,8 @@ class AdapterControl(Protocol):
 
     async def connect(self, path: str) -> None: ...
 
+    async def wait_for_audio_transport(self, path: str) -> bool: ...
+
     async def disconnect(self, path: str) -> None: ...
 
     async def forget(self, path: str) -> None: ...
@@ -182,6 +184,8 @@ class BluetoothBroker:
                 and not device.trusted
             ):
                 await self.adapter.set_trusted(device.path, True)
+                await self.adapter.connect(device.path)
+                await self.adapter.wait_for_audio_transport(device.path)
                 snapshot = await self.adapter.snapshot()
                 break
 
@@ -344,6 +348,7 @@ class BluetoothBroker:
                 ):
                     await self.adapter.disconnect(connected.path)
             await self.adapter.connect(device.path)
+            await self.adapter.wait_for_audio_transport(device.path)
             self.active_device_path = device.path
         return await self.status()
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -273,6 +274,19 @@ class BluezAdapter:
         except DBusError as exc:
             if exc.type != "org.bluez.Error.AlreadyConnected":
                 raise
+
+    async def wait_for_audio_transport(self, path: str) -> bool:
+        """Wait briefly for BlueZ to expose the A2DP transport after Device1.Connect."""
+        for _attempt in range(20):
+            managed = await self._managed_objects()
+            if any(
+                _value(properties, "Device", "") == path
+                for values in managed.values()
+                if (properties := values.get(MEDIA_TRANSPORT)) is not None
+            ):
+                return True
+            await asyncio.sleep(0.1)
+        return False
 
     async def disconnect(self, path: str) -> None:
         interface = await self._interface(path, DEVICE)
