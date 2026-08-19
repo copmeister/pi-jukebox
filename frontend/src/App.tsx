@@ -3,6 +3,7 @@ import { AudioPlayerProvider } from './audio/AudioPlayerContext'
 import { BluetoothProvider, useBluetooth } from './bluetooth/BluetoothContext'
 import { MiniPlayer } from './components/MiniPlayer'
 import { Navigation } from './components/Navigation'
+import { SleepScreen } from './components/SleepScreen'
 import {
   DisplaySizeProvider,
   useDisplaySize,
@@ -26,6 +27,7 @@ function AppContent() {
   const [activeDestination, setActiveDestination] =
     useState<Destination>('Jukebox')
   const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null)
+  const [sleepTime, setSleepTime] = useState<string | null>(null)
   const catalogue = useCatalogue()
   const cd = useCdStatus(() => void catalogue.refresh())
   const queue = useQueue()
@@ -87,72 +89,91 @@ function AppContent() {
 
   const serviceReady = !catalogue.error
   return (
-    <div className="app-shell" data-display-size={displaySize}>
-      <header className="top-bar">
-        <button
-          className="brand"
-          type="button"
-          onClick={() => navigate('Jukebox')}
-          aria-label="Go to classic Jukebox"
+    <>
+      <div className="app-shell" data-display-size={displaySize}>
+        <header className="top-bar">
+          <button
+            className="brand"
+            type="button"
+            onClick={() => navigate('Jukebox')}
+            aria-label="Go to classic Jukebox"
+          >
+            <span className="brand__mark" aria-hidden="true">
+              PJ
+            </span>
+            <span>Pi Jukebox</span>
+          </button>
+          <div className="top-statuses">
+            <button
+              type="button"
+              className="sleep-button"
+              onClick={() =>
+                setSleepTime(
+                  new Intl.DateTimeFormat([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }).format(new Date()),
+                )
+              }
+            >
+              Sleep
+            </button>
+            {bluetooth.status.mode_active ? (
+              <button
+                type="button"
+                className="bluetooth-status-pill"
+                onClick={() => navigate('Bluetooth')}
+                aria-label="Open Bluetooth receiver controls"
+              >
+                Bluetooth · {bluetooth.status.state.replaceAll('_', ' ')}
+              </button>
+            ) : null}
+            {cd.status?.active && cd.status.latest_job ? (
+              <button
+                type="button"
+                className="rip-status-pill"
+                onClick={() => navigate('CD')}
+                aria-label="Return to current CD rip"
+              >
+                Ripping {cd.status.latest_job.completed_tracks}/
+                {cd.status.latest_job.total_tracks}
+              </button>
+            ) : null}
+            <div
+              className={`connection-status${serviceReady ? '' : ' is-offline'}`}
+              role="status"
+            >
+              <span aria-hidden="true" />{' '}
+              {serviceReady ? 'Local catalogue ready' : 'Backend unavailable'}
+            </div>
+          </div>
+        </header>
+
+        <main
+          id="main-content"
+          className={`main-content${activeDestination === 'Jukebox' ? ' is-jukebox' : ''}`}
+          data-scroll-region="vertical"
+          tabIndex={-1}
         >
-          <span className="brand__mark" aria-hidden="true">
-            PJ
-          </span>
-          <span>Pi Jukebox</span>
-        </button>
-        <div className="top-statuses">
-          {bluetooth.status.mode_active ? (
-            <button
-              type="button"
-              className="bluetooth-status-pill"
-              onClick={() => navigate('Bluetooth')}
-              aria-label="Open Bluetooth receiver controls"
+          {activeDestination !== 'Jukebox' && (queue.notice || queue.error) ? (
+            <div
+              className={`queue-feedback${queue.error ? ' is-error' : ''}`}
+              role={queue.error ? 'alert' : 'status'}
+              aria-live="polite"
             >
-              Bluetooth · {bluetooth.status.state.replaceAll('_', ' ')}
-            </button>
+              {queue.error ?? queue.notice}
+            </div>
           ) : null}
-          {cd.status?.active && cd.status.latest_job ? (
-            <button
-              type="button"
-              className="rip-status-pill"
-              onClick={() => navigate('CD')}
-              aria-label="Return to current CD rip"
-            >
-              Ripping {cd.status.latest_job.completed_tracks}/
-              {cd.status.latest_job.total_tracks}
-            </button>
-          ) : null}
-          <div
-            className={`connection-status${serviceReady ? '' : ' is-offline'}`}
-            role="status"
-          >
-            <span aria-hidden="true" />{' '}
-            {serviceReady ? 'Local catalogue ready' : 'Backend unavailable'}
-          </div>
-        </div>
-      </header>
+          {content}
+        </main>
 
-      <main
-        id="main-content"
-        className={`main-content${activeDestination === 'Jukebox' ? ' is-jukebox' : ''}`}
-        data-scroll-region="vertical"
-        tabIndex={-1}
-      >
-        {activeDestination !== 'Jukebox' && (queue.notice || queue.error) ? (
-          <div
-            className={`queue-feedback${queue.error ? ' is-error' : ''}`}
-            role={queue.error ? 'alert' : 'status'}
-            aria-live="polite"
-          >
-            {queue.error ?? queue.notice}
-          </div>
-        ) : null}
-        {content}
-      </main>
-
-      <MiniPlayer onOpenBluetooth={() => navigate('Bluetooth')} />
-      <Navigation active={activeDestination} onNavigate={navigate} />
-    </div>
+        <MiniPlayer onOpenBluetooth={() => navigate('Bluetooth')} />
+        <Navigation active={activeDestination} onNavigate={navigate} />
+      </div>
+      {sleepTime !== null ? (
+        <SleepScreen time={sleepTime} onWake={() => setSleepTime(null)} />
+      ) : null}
+    </>
   )
 }
 

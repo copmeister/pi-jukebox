@@ -120,8 +120,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.0',
-  latest_version: '0.6.0',
+  installed_version: '0.6.2',
+  latest_version: '0.6.2',
   checking: false,
   installing: false,
   update_available: false,
@@ -317,7 +317,7 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.0')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.2')).toBeInTheDocument()
   })
 
   it('does not create Jukebox effects while navigating other screens', async () => {
@@ -340,6 +340,23 @@ describe('App catalogue interface', () => {
     }
 
     expect(audioContext).not.toHaveBeenCalled()
+  })
+
+  it('sleeps over the current screen and wakes without disturbing player context', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+    await user.click(screen.getByRole('button', { name: 'Library' }))
+    const miniPlayer = screen.getByRole('region', { name: 'Mini player' })
+
+    await user.click(screen.getByRole('button', { name: 'Sleep' }))
+    const sleepScreen = screen.getByRole('button', { name: 'Wake Pi Jukebox' })
+    expect(sleepScreen).toHaveTextContent('Tap anywhere to wake')
+    expect(miniPlayer).toBeInTheDocument()
+
+    await user.click(sleepScreen)
+    expect(screen.getByRole('heading', { name: 'Library' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Mini player' })).toBe(miniPlayer)
   })
 
   it('pauses local playback for Bluetooth and keeps the local queue item paused', async () => {
