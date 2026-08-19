@@ -11,6 +11,7 @@ import tarfile
 from pathlib import Path, PurePosixPath
 
 VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+DEFAULT_PYTHON_VERSION = "3.13"
 
 
 def sha256(path: Path) -> str:
@@ -48,7 +49,7 @@ def build(
     python_version: str,
 ) -> tuple[Path, Path]:
     if not VERSION_PATTERN.fullmatch(version):
-        raise ValueError("Version must be a stable semantic version such as 0.5.1.")
+        raise ValueError("Version must be a stable semantic version such as 0.6.0.")
     if architecture not in {"aarch64", "arm64"}:
         raise ValueError("Update packages must target 64-bit Raspberry Pi OS.")
     if not re.fullmatch(r"3\.\d+", python_version):
@@ -116,7 +117,7 @@ def main() -> int:
     parser.add_argument("--frontend-dist", required=True, type=Path)
     parser.add_argument("--output-directory", required=True, type=Path)
     parser.add_argument("--architecture", default="aarch64")
-    parser.add_argument("--python-version", default="3.13")
+    parser.add_argument("--python-version", default=DEFAULT_PYTHON_VERSION)
     args = parser.parse_args()
     archive, manifest = build(
         version=args.version,

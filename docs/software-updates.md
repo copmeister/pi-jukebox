@@ -44,18 +44,18 @@ cannot replace. Local data and the semver request remain under
 
 ## Release asset format
 
-A stable `v0.5.1` release must contain these two exact named assets:
+A stable `v0.6.0` release must contain these two exact named assets:
 
 ```text
-pi-jukebox-v0.5.1.tar.gz
-pi-jukebox-v0.5.1-manifest.json
+pi-jukebox-v0.6.0.tar.gz
+pi-jukebox-v0.6.0-manifest.json
 ```
 
 The archive contains only regular files. It has no links, device entries or
 absolute/traversing paths:
 
 ```text
-app/pi_jukebox-0.5.1-py3-none-any.whl
+app/pi_jukebox-0.6.0-py3-none-any.whl
 requirements.lock
 wheelhouse/*.whl
 frontend/dist/index.html
@@ -72,9 +72,9 @@ The external manifest format is:
 ```json
 {
   "format_version": 1,
-  "application_version": "0.5.1",
+  "application_version": "0.6.0",
   "archive": {
-    "filename": "pi-jukebox-v0.5.1.tar.gz",
+    "filename": "pi-jukebox-v0.6.0.tar.gz",
     "sha256": "64-lowercase-hex-characters"
   },
   "compatibility": {
@@ -82,7 +82,7 @@ The external manifest format is:
     "python": "3.13"
   },
   "files": {
-    "app/pi_jukebox-0.5.1-py3-none-any.whl": "sha256",
+    "app/pi_jukebox-0.6.0-py3-none-any.whl": "sha256",
     "requirements.lock": "sha256",
     "wheelhouse/example.whl": "sha256",
     "frontend/dist/index.html": "sha256"
@@ -390,10 +390,12 @@ bootstrap release.
 ## Building and publishing a release
 
 Build on the target Pi or an equivalent clean ARM64 Raspberry Pi OS builder.
-Use the same Python minor version as the appliance and Node 22 through nvm.
-Start from the exact reviewed commit intended for the tag. Update
+Version 0.6.0 targets the appliance's Python 3.13 major/minor and Node 22
+through nvm. Start from the exact reviewed commit intended for the tag. The
+reviewed commit must already contain the same version in
 `backend/src/pi_jukebox/version.py`, `pyproject.toml`, `frontend/package.json`
-and `frontend/package-lock.json` to the same version in one reviewed change.
+and the root package in `frontend/package-lock.json`; do not edit version files
+during the artifact build.
 
 The physical Pi can build the first package safely **after** the managed
 migration: the live service executes the root-owned immutable release, while
@@ -405,29 +407,53 @@ reboot unless `apt` explicitly reports that one is needed.
 
 ```bash
 set -euo pipefail
+release_version=0.6.0
+release_tag="v$release_version"
+
+# First stop local playback in the touchscreen UI and confirm no rip is active.
+systemctl is-active --quiet pi-jukebox-app.service
+curl -fsS http://127.0.0.1:5173/api/health
+curl -fsS http://127.0.0.1:5173/api/cd/status | \
+  python3 -c 'import json,sys; status=json.load(sys.stdin); print(json.dumps(status, indent=2)); assert not status["active"], "A CD rip is active"'
+systemctl --no-pager --full status pi-jukebox-app.service \
+  pi-jukebox-update.path pi-jukebox-update.service || true
+
 test "$(uname -m)" = aarch64
+test "$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')" = 3.13
 test "$(node --version | cut -d. -f1)" = v22
-python3 --version
 df -h /home/admin
-sudo apt update
-sudo apt install -y build-essential python3-dev libdiscid-dev
+
+build_packages=(build-essential python3-dev libdiscid-dev)
+missing_packages=()
+for package in "${build_packages[@]}"; do
+  dpkg-query -W -f='${db:Status-Abbrev}' "$package" 2>/dev/null | \
+    grep -q '^ii ' || missing_packages+=("$package")
+done
+if ((${#missing_packages[@]})); then
+  printf 'Missing build packages: %s\n' "${missing_packages[*]}"
+  sudo apt-get install --no-install-recommends "${missing_packages[@]}"
+else
+  echo 'All release build packages are installed; apt was not run.'
+fi
 
 cd /home/admin/jukebox
 git status --short
 test -z "$(git status --porcelain)"
 git switch main
 git pull --ff-only origin main
-git switch -c release/0.5.1
-
-# Edit the four version files named above, then review them before building.
-git diff -- backend/src/pi_jukebox/version.py pyproject.toml \
-  frontend/package.json frontend/package-lock.json
+test -z "$(git status --porcelain)"
+test "$(PYTHONPATH=backend/src python3 -c \
+  'from pi_jukebox.version import __version__; print(__version__)')" = "$release_version"
+test "$(python3 -c \
+  'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')" = "$release_version"
+test "$(node -p 'require("./frontend/package.json").version')" = "$release_version"
+test "$(node -p 'require("./frontend/package-lock.json").packages[""].version')" = "$release_version"
 
 npm ci --prefix frontend
 npm run build --prefix frontend
 
-release_tools=/home/admin/pi-jukebox-build-tools/0.5.1
-release_build=build/update/0.5.1
+release_tools="/home/admin/pi-jukebox-build-tools/$release_version"
+release_build="build/update/$release_version"
 test ! -e "$release_tools"
 test ! -e "$release_build"
 python3 -m venv "$release_tools"
@@ -443,9 +469,11 @@ mkdir -p "$release_build/app" "$release_build/wheelhouse" \
 "$release_tools/bin/python" -m pip wheel \
   --require-hashes --wheel-dir "$release_build/wheelhouse" \
   -r "$release_build/requirements.lock"
+test -n "$(find "$release_build/wheelhouse" -maxdepth 1 \
+  -type f -iname 'dbus_fast-*.whl' -print -quit)"
 "$release_tools/bin/python" scripts/build_update_release.py \
-  --version 0.5.1 \
-  --app-wheel "$release_build/app/pi_jukebox-0.5.1-py3-none-any.whl" \
+  --version "$release_version" \
+  --app-wheel "$release_build/app/pi_jukebox-$release_version-py3-none-any.whl" \
   --requirements-lock "$release_build/requirements.lock" \
   --wheelhouse "$release_build/wheelhouse" \
   --frontend-dist frontend/dist \
@@ -460,42 +488,64 @@ npm --prefix frontend run lint
 npm --prefix frontend run typecheck
 npm --prefix frontend run test
 npm --prefix frontend run build
-sha256sum "$release_build/assets/pi-jukebox-v0.5.1.tar.gz" \
-  "$release_build/assets/pi-jukebox-v0.5.1-manifest.json"
+git diff --check
+
+archive="$release_build/assets/pi-jukebox-v$release_version.tar.gz"
+manifest="$release_build/assets/pi-jukebox-v$release_version-manifest.json"
+"$release_tools/bin/python" - "$manifest" "$release_version" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from pi_jukebox.updates.installer import ReleaseManifest
+
+path = Path(sys.argv[1])
+version = sys.argv[2]
+payload = json.loads(path.read_text(encoding="utf-8"))
+validated = ReleaseManifest.load(path, version)
+assert payload["application_version"] == version
+assert payload["compatibility"] == {"architecture": "aarch64", "python": "3.13"}
+assert validated.architecture == "aarch64"
+assert validated.python_version == "3.13"
+print(json.dumps(payload, indent=2, sort_keys=True))
+PY
+tar -tzf "$archive"
+sha256sum "$archive" "$manifest"
 ```
 
-Review the two assets and test the manifest with the project test suite. Commit
-the version change, push it for review, and merge it through the normal project
-workflow. Do not tag the release branch. After the reviewed version commit is
-on `origin/main`, return to `main`, fast-forward, verify the four versions and
-tag that exact commit. The ignored `$release_build` assets remain available in
-the checkout. Create a draft first; the production updater ignores it:
+Review the two assets and manifest before any tag or publication. After the
+reviewed release commit is on `origin/main`, return to `main`, fast-forward,
+verify the four versions and tag that exact commit. The ignored
+`$release_build` assets remain available in the checkout. Create a draft first;
+the production updater ignores it:
 
 ```bash
 set -euo pipefail
 cd /home/admin/jukebox
-release_build=build/update/0.5.1
+release_version=0.6.0
+release_tag="v$release_version"
+release_build="build/update/$release_version"
 git switch main
 git pull --ff-only origin main
 test -z "$(git status --porcelain)"
 git diff --exit-code origin/main...HEAD
 test "$(PYTHONPATH=backend/src python3 -c \
-  'from pi_jukebox.version import __version__; print(__version__)')" = 0.5.1
+  'from pi_jukebox.version import __version__; print(__version__)')" = "$release_version"
 test "$(python3 -c \
-  'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')" = 0.5.1
-test "$(node -p 'require("./frontend/package.json").version')" = 0.5.1
-test "$(node -p 'require("./frontend/package-lock.json").packages[""].version')" = 0.5.1
-git tag -a v0.5.1 -m 'Pi Jukebox v0.5.1'
-git push origin v0.5.1
-gh release create v0.5.1 \
-  "$release_build/assets/pi-jukebox-v0.5.1.tar.gz" \
-  "$release_build/assets/pi-jukebox-v0.5.1-manifest.json" \
+  'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')" = "$release_version"
+test "$(node -p 'require("./frontend/package.json").version')" = "$release_version"
+test "$(node -p 'require("./frontend/package-lock.json").packages[""].version')" = "$release_version"
+git tag -a "$release_tag" -m "Pi Jukebox $release_tag"
+git push origin "$release_tag"
+gh release create "$release_tag" \
+  "$release_build/assets/pi-jukebox-v$release_version.tar.gz" \
+  "$release_build/assets/pi-jukebox-v$release_version-manifest.json" \
   --repo copmeister/pi-jukebox \
-  --title 'Pi Jukebox v0.5.1' \
-  --notes 'First appliance update acceptance release.' \
+  --title "Pi Jukebox $release_tag" \
+  --notes 'Adds Bluetooth A2DP receiver support and touchscreen Bluetooth device management. Requires the documented supervised one-time Bluetooth infrastructure migration before Bluetooth is enabled.' \
   --verify-tag \
   --draft
-gh release view v0.5.1 --repo copmeister/pi-jukebox \
+gh release view "$release_tag" --repo copmeister/pi-jukebox \
   --json tagName,isDraft,isPrerelease,assets
 ```
 
@@ -503,21 +553,25 @@ After independently verifying the tag, asset names and checksums, publish the
 draft only when the Pi is ready for the supervised test:
 
 ```bash
-gh release edit v0.5.1 --repo copmeister/pi-jukebox \
+gh release edit "$release_tag" --repo copmeister/pi-jukebox \
   --verify-tag --draft=false --latest
 ```
 
 Do not publish from this implementation pass.
 
-## First physical update test
+## Historical first physical update test
+
+The following v0.5.0-to-v0.5.1 scenario records the original updater acceptance
+procedure. Its version numbers are intentionally historical; do not use them to
+build the current release.
 
 1. Confirm `current-version`, `/api/health` and Settings all report 0.5.0.
 2. Record the album/track counts, queue contents, current display-size setting
    and `stat` output for `/home/admin/jukebox-data/catalogue.sqlite3`.
 3. Confirm normal playback, CD idle state and the external mount, then stop
    playback and ensure no rip is active.
-4. Publish the reviewed v0.5.1 draft as a stable release using the command
-   above. Do not change `main` or use `git pull` as the update mechanism.
+4. Publish the reviewed v0.5.1 draft using the then-current stable-release
+   procedure. Do not change `main` or use `git pull` as the update mechanism.
 5. Open Settings and tap **Check for updates**.
 6. Confirm `0.5.0 → 0.5.1` is offered; no branch commit is mentioned.
 7. Tap **Update Software** once. A second tap must be disabled/rejected.
@@ -534,7 +588,7 @@ Do not publish from this implementation pass.
 14. Reboot once as a separate persistence/boot-order test and confirm 0.5.1 and
     the Chromium kiosk return without Vite.
 
-## Deliberate rollback test
+## Historical deliberate rollback test
 
 Create a separately reviewed v0.5.2 test release whose wheel reports version
 0.5.2 and passes preparation, but whose `pi_jukebox.main` deliberately raises a
