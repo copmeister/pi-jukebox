@@ -501,7 +501,7 @@ def write_request(config: HelperConfig, version="0.6.1") -> None:
 
 def test_helper_persists_success_and_rollback_outcomes(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("pi_jukebox.updates.helper.platform.machine", lambda: "aarch64")
-    monkeypatch.setattr("pi_jukebox.updates.helper.__version__", "0.5.0")
+    monkeypatch.setattr("pi_jukebox.updates.helper.__version__", __version__)
     archive, manifest = make_release(tmp_path / "package")
 
     success_config = helper_config(tmp_path / "success")
