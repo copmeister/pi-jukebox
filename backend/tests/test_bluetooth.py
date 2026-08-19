@@ -12,6 +12,7 @@ from pi_jukebox.bluetooth.adapter import (
     safe_device_name,
     supports_a2dp_source,
 )
+from pi_jukebox.bluetooth.bluez import PiJukeboxAgent
 from pi_jukebox.bluetooth.broker import BluetoothBroker, BluetoothConflict
 from pi_jukebox.bluetooth.helper import HelperConfig
 from pi_jukebox.bluetooth.models import BluetoothPlaybackState, BluetoothStatus
@@ -23,6 +24,10 @@ from pi_jukebox.bluetooth.protocol import (
     success_response,
     validate_request,
 )
+
+
+def test_bluez_agent_decorators_load() -> None:
+    assert PiJukeboxAgent.__name__ == "PiJukeboxAgent"
 
 
 def device(

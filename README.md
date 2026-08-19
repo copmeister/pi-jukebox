@@ -2,6 +2,8 @@
 
 A touchscreen-first local music jukebox for Raspberry Pi. Version 0.6.0 adds a secure, touchscreen-controlled Bluetooth receiver mode while preserving the local catalogue, queue, playback, classic selector, CD ripping and safe updater.
 
+Version 0.6.1 corrects native D-Bus agent compatibility and documents the narrow helper release-path ACL.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows
