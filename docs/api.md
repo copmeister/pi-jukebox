@@ -62,3 +62,25 @@ No CD endpoint accepts a device path, output path, executable, command or arbitr
 - `POST /api/system/updates/install` â€” create a fixed-schema request for the already discovered version and trigger the fixed root-owned systemd helper when explicitly configured; the jukebox client supplies the fixed `X-Pi-Jukebox-Action` header so foreign browser origins must pass CORS preflight
 
 The browser never receives GitHub credentials, release URLs, filesystem destinations or command arguments. Duplicate or unsafe install requests return a conflict instead of starting another helper.
+
+## Bluetooth receiver endpoints
+
+| Method and path | Meaning |
+| --- | --- |
+| `GET /api/bluetooth/status` | Safe availability, receiver state, pairing window, eligible trusted A2DP audio sources and pending touchscreen confirmation. |
+| `POST /api/bluetooth/activate` | Pause local presentation and make trusted-phone connections available. |
+| `POST /api/bluetooth/deactivate` | Disconnect phone audio, cancel pairing and return to local mode. |
+| `POST /api/bluetooth/pairing/start` | Open the bounded 120-second discoverable/pairable window. |
+| `POST /api/bluetooth/pairing/cancel` | Close pairing and reject a pending confirmation. |
+| `POST /api/bluetooth/pairing/{request_id}/accept` | Accept the exact live touchscreen confirmation. |
+| `POST /api/bluetooth/pairing/{request_id}/reject` | Reject the exact live touchscreen confirmation. |
+| `POST /api/bluetooth/devices/{device_id}/connect` | Connect one already paired and trusted phone, disconnecting another first. |
+| `POST /api/bluetooth/devices/{device_id}/disconnect` | Disconnect the selected trusted phone. |
+| `DELETE /api/bluetooth/devices/{device_id}` | Disconnect and forget the selected phone. |
+
+Every mutation requires `X-Pi-Jukebox-Action: bluetooth-control`; the header is
+not a credential, but ensures a foreign browser origin must pass the configured
+CORS preflight. IDs are short-lived or opaque hashes resolved only inside the
+helper. The API never accepts MAC addresses, D-Bus paths, shell commands or
+audio destinations. On Windows and unmigrated Pis, status remains safely
+`unavailable` and mutations return 503 without affecting local playback.

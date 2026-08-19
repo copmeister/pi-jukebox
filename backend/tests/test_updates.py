@@ -65,11 +65,11 @@ def wait_until(predicate, timeout: float = 2) -> None:
 @pytest.mark.parametrize(
     ("candidate", "installed", "available"),
     [
-        ("0.5.0", "0.5.0", False),
-        ("v0.5.1", "0.5.0", True),
+        ("0.6.0", "0.6.0", False),
+        ("v0.6.1", "0.6.0", True),
         ("0.10.0", "0.9.9", True),
-        ("0.5.0-rc1", "0.5.0", False),
-        ("main", "0.5.0", False),
+        ("0.6.0-rc1", "0.6.0", False),
+        ("main", "0.6.0", False),
     ],
 )
 def test_strict_semantic_version_comparison(candidate, installed, available) -> None:
@@ -85,7 +85,7 @@ def test_update_check_current_and_newer_release() -> None:
     wait_until(lambda: not current.status()["checking"])
     assert current.status()["update_available"] is False
 
-    newer = UpdateService(Settings(_env_file=None), Source(release_info("0.5.2")))
+    newer = UpdateService(Settings(_env_file=None), Source(release_info("0.6.1")))
     assert newer.check()
     wait_until(lambda: not newer.status()["checking"])
     assert newer.status()["update_available"] is True
@@ -107,7 +107,7 @@ def test_release_without_required_assets_is_visible_but_not_installable(tmp_path
         update_request_path=(tmp_path / "request.json").resolve(),
         update_status_path=(tmp_path / "status.json").resolve(),
     )
-    service = UpdateService(settings, Source(release_info("0.5.2", assets=False)))
+    service = UpdateService(settings, Source(release_info("0.6.1", assets=False)))
     service.check()
     wait_until(lambda: not service.status()["checking"])
     assert service.status()["update_available"] is True
@@ -123,21 +123,21 @@ def test_old_terminal_outcome_does_not_hide_a_later_release(tmp_path: Path) -> N
                 "format_version": 1,
                 "state": "succeeded",
                 "stage": "complete",
-                "requested_version": "0.5.1",
-                "previous_version": "0.5.0",
-                "message": "Updated successfully to 0.5.1.",
+                "requested_version": "0.6.1",
+                "previous_version": "0.6.0",
+                "message": "Updated successfully to 0.6.1.",
                 "error": None,
             }
         )
     )
     settings = Settings(_env_file=None, update_status_path=status_path)
-    service = UpdateService(settings, Source(release_info("0.5.2")))
+    service = UpdateService(settings, Source(release_info("0.6.2")))
     service.check()
     wait_until(lambda: not service.status()["checking"])
 
     assert service.status()["outcome"] is None
-    assert service.status()["latest_version"] == "0.5.2"
-    assert service.status()["message"] == "Version 0.5.2 is available."
+    assert service.status()["latest_version"] == "0.6.2"
+    assert service.status()["message"] == "Version 0.6.2 is available."
 
 
 class GhRunner:
@@ -170,13 +170,13 @@ def test_private_release_check_filters_drafts_and_prereleases_without_credential
     payload = [
         gh_release("9.0.0", draft=True),
         gh_release("8.0.0", prerelease=True),
-        gh_release("0.5.1"),
+        gh_release("0.6.1"),
         gh_release("0.4.9"),
     ]
     runner = GhRunner(CommandResult(0, json.dumps(payload), ""))
     source = GitHubCliReleaseSource(Settings(_env_file=None), runner)  # type: ignore[arg-type]
     release = source.latest_release()
-    assert release == release_info("0.5.1")
+    assert release == release_info("0.6.1")
     command = " ".join(runner.arguments)
     assert command == ("gh api --method GET repos/copmeister/pi-jukebox/releases -f per_page=30")
     assert "token" not in command.casefold()
@@ -208,13 +208,13 @@ class RootGhExecutor:
 
 def test_root_downloader_uses_fixed_authenticated_cli_and_exact_assets(tmp_path: Path) -> None:
     config = helper_config(tmp_path)
-    executor = RootGhExecutor(gh_release("0.5.1"))
+    executor = RootGhExecutor(gh_release("0.6.1"))
     archive, manifest = GitHubReleaseDownloader(config, executor).download(  # type: ignore[arg-type]
-        "0.5.1", tmp_path / "download"
+        "0.6.1", tmp_path / "download"
     )
 
-    assert archive.name == "pi-jukebox-v0.5.1.tar.gz"
-    assert manifest.name == "pi-jukebox-v0.5.1-manifest.json"
+    assert archive.name == "pi-jukebox-v0.6.1.tar.gz"
+    assert manifest.name == "pi-jukebox-v0.6.1-manifest.json"
     assert len(executor.calls) == 3
     assert all(Path(call[0][0]).as_posix() == "/usr/bin/gh" for call in executor.calls)
     assert {call[0][call[0].index("--pattern") + 1] for call in executor.calls[1:]} == {
@@ -229,16 +229,16 @@ def test_root_downloader_uses_fixed_authenticated_cli_and_exact_assets(tmp_path:
 
 def test_root_downloader_rejects_non_stable_release(tmp_path: Path) -> None:
     config = helper_config(tmp_path)
-    executor = RootGhExecutor(gh_release("0.5.1", prerelease=True))
+    executor = RootGhExecutor(gh_release("0.6.1", prerelease=True))
     with pytest.raises(ReleaseValidationError, match="not stable"):
         GitHubReleaseDownloader(config, executor).download(  # type: ignore[arg-type]
-            "0.5.1", tmp_path / "download"
+            "0.6.1", tmp_path / "download"
         )
 
 
 def make_release(
     directory: Path,
-    version: str = "0.5.1",
+    version: str = "0.6.1",
     *,
     extra_members: list[tarfile.TarInfo] | None = None,
 ) -> tuple[Path, Path]:
@@ -280,7 +280,7 @@ def make_release(
     return archive, manifest
 
 
-def active_root(tmp_path: Path, version: str = "0.5.0") -> Path:
+def active_root(tmp_path: Path, version: str = "0.6.0") -> Path:
     root = tmp_path / "releases-root"
     (root / "releases" / version).mkdir(parents=True)
     (root / "current-version").write_text(version + "\n", encoding="utf-8")
@@ -298,12 +298,12 @@ def test_manifest_archive_staging_activation_and_data_preservation(tmp_path: Pat
         root,
         prepare=lambda release, _manifest: (release / ".venv").mkdir(),
         restart=lambda: restarts.append("restart"),
-        healthy=lambda version: version == "0.5.1",
+        healthy=lambda version: version == "0.6.1",
     )
-    result = installer.install(archive, manifest, "0.5.1")
-    assert result.version == "0.5.1"
+    result = installer.install(archive, manifest, "0.6.1")
+    assert result.version == "0.6.1"
     assert (result.release_directory / "frontend" / "dist" / "index.html").is_file()
-    assert (root / "current-version").read_text().strip() == "0.5.1"
+    assert (root / "current-version").read_text().strip() == "0.6.1"
     assert data.read_bytes() == b"keep me"
     assert restarts == ["restart"]
 
@@ -316,14 +316,14 @@ def test_failed_health_check_restores_current_version(tmp_path: Path) -> None:
         root,
         prepare=lambda _release, _manifest: None,
         restart=lambda: restarts.append("restart"),
-        healthy=lambda version: version == "0.5.0",
+        healthy=lambda version: version == "0.6.0",
     )
     with pytest.raises(UpdateRolledBackError) as failure:
-        installer.install(archive, manifest, "0.5.1")
-    assert failure.value.previous_version == "0.5.0"
-    assert (root / "current-version").read_text().strip() == "0.5.0"
+        installer.install(archive, manifest, "0.6.1")
+    assert failure.value.previous_version == "0.6.0"
+    assert (root / "current-version").read_text().strip() == "0.6.0"
     assert restarts == ["restart", "restart"]
-    assert list((root / "failed").glob("0.5.1-*"))
+    assert list((root / "failed").glob("0.6.1-*"))
 
 
 def test_failed_pointer_activation_removes_unactivated_release(tmp_path: Path) -> None:
@@ -341,9 +341,9 @@ def test_failed_pointer_activation_removes_unactivated_release(tmp_path: Path) -
 
     installer.pointer.activate = fail_activation  # type: ignore[method-assign]
     with pytest.raises(OSError, match="pointer write failure"):
-        installer.install(archive, manifest, "0.5.1")
-    assert (root / "current-version").read_text().strip() == "0.5.0"
-    assert not (root / "releases" / "0.5.1").exists()
+        installer.install(archive, manifest, "0.6.1")
+    assert (root / "current-version").read_text().strip() == "0.6.0"
+    assert not (root / "releases" / "0.6.1").exists()
 
 
 def test_checksum_mismatch_and_malformed_manifest_leave_current_untouched(tmp_path: Path) -> None:
@@ -359,13 +359,13 @@ def test_checksum_mismatch_and_malformed_manifest_leave_current_untouched(tmp_pa
         healthy=lambda _version: True,
     )
     with pytest.raises(ReleaseValidationError):
-        installer.install(archive, manifest, "0.5.1")
-    assert (root / "current-version").read_text().strip() == "0.5.0"
-    assert not (root / "releases" / "0.5.1").exists()
+        installer.install(archive, manifest, "0.6.1")
+    assert (root / "current-version").read_text().strip() == "0.6.0"
+    assert not (root / "releases" / "0.6.1").exists()
 
     manifest.write_text("not json")
     with pytest.raises(ReleaseValidationError):
-        ReleaseManifest.load(manifest, "0.5.1")
+        ReleaseManifest.load(manifest, "0.6.1")
 
 
 @pytest.mark.parametrize("kind", ["traversal", "symlink"])
@@ -375,7 +375,7 @@ def test_archive_rejects_traversal_and_links(tmp_path: Path, kind: str) -> None:
         member.type = tarfile.SYMTYPE
         member.linkname = "/etc/passwd"
     archive, manifest = make_release(tmp_path / "package", extra_members=[member])
-    loaded = ReleaseManifest.load(manifest, "0.5.1")
+    loaded = ReleaseManifest.load(manifest, "0.6.1")
     destination = tmp_path / "staging"
     destination.mkdir()
     with pytest.raises(ReleaseValidationError):
@@ -391,7 +391,7 @@ def test_install_request_is_narrow_and_concurrent_requests_are_rejected(tmp_path
         update_request_path=state / "request.json",
         update_status_path=state / "status.json",
     )
-    service = UpdateService(settings, Source(release_info("0.5.2")))
+    service = UpdateService(settings, Source(release_info("0.6.1")))
     service.check()
     wait_until(lambda: not service.status()["checking"])
     assert service.request_install()
@@ -401,7 +401,7 @@ def test_install_request_is_narrow_and_concurrent_requests_are_rejected(tmp_path
     assert service.status()["stage"] == "queued"
     request = json.loads((state / "request.json").read_text())
     assert set(request) == {"format_version", "version", "installed_version", "requested_at"}
-    assert request["version"] == "0.5.2"
+    assert request["version"] == "0.6.1"
     assert all("token" not in str(value).casefold() for value in request.values())
 
 
@@ -485,14 +485,14 @@ def test_root_helper_config_rejects_arbitrary_install_destinations(tmp_path: Pat
         HelperConfig.load(path)
 
 
-def write_request(config: HelperConfig, version="0.5.1") -> None:
+def write_request(config: HelperConfig, version="0.6.1") -> None:
     config.request_path.parent.mkdir(parents=True, exist_ok=True)
     config.request_path.write_text(
         json.dumps(
             {
                 "format_version": 1,
                 "version": version,
-                "installed_version": "0.5.0",
+                "installed_version": "0.6.0",
                 "requested_at": "2026-01-01T00:00:00+00:00",
             }
         )
@@ -501,12 +501,12 @@ def write_request(config: HelperConfig, version="0.5.1") -> None:
 
 def test_helper_persists_success_and_rollback_outcomes(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("pi_jukebox.updates.helper.platform.machine", lambda: "aarch64")
-    monkeypatch.setattr("pi_jukebox.updates.helper.__version__", "0.5.0")
+    monkeypatch.setattr("pi_jukebox.updates.helper.__version__", __version__)
     archive, manifest = make_release(tmp_path / "package")
 
     success_config = helper_config(tmp_path / "success")
     write_request(success_config)
-    success_controller = FakeController({"0.5.1"})
+    success_controller = FakeController({"0.6.1"})
     success = UpdateHelper(
         success_config,
         downloader_factory=lambda _config, _executor: FakeDownloader(archive, manifest),
@@ -523,7 +523,7 @@ def test_helper_persists_success_and_rollback_outcomes(tmp_path: Path, monkeypat
 
     rollback_config = helper_config(tmp_path / "rollback")
     write_request(rollback_config)
-    rollback_controller = FakeController({"0.5.0"})
+    rollback_controller = FakeController({"0.6.0"})
     rollback = UpdateHelper(
         rollback_config,
         downloader_factory=lambda _config, _executor: FakeDownloader(archive, manifest),
@@ -535,5 +535,5 @@ def test_helper_persists_success_and_rollback_outcomes(tmp_path: Path, monkeypat
     assert not rollback.run()
     rollback_status = json.loads(rollback_config.status_path.read_text())
     assert rollback_status["state"] == "rolled_back"
-    assert "restored to 0.5.0" in rollback_status["message"]
-    assert (rollback_config.release_root / "current-version").read_text().strip() == "0.5.0"
+    assert "restored to 0.6.0" in rollback_status["message"]
+    assert (rollback_config.release_root / "current-version").read_text().strip() == "0.6.0"

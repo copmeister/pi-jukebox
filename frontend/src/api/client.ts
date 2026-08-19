@@ -2,6 +2,7 @@ import type {
   AlbumDetail,
   AlbumSummary,
   ApiAction,
+  BluetoothStatus,
   CdRelease,
   CdRipJob,
   CdStatus,
@@ -60,15 +61,19 @@ async function requestJson<T>(
         ? response.status === 409
           ? 'Another update is already active, or no installable stable release is available.'
           : 'The software update request could not be completed.'
-        : path.startsWith('/queue')
-          ? response.status === 404
-            ? 'That track or queue item is no longer available.'
+        : path.startsWith('/bluetooth')
+          ? response.status === 409
+            ? 'That Bluetooth action is no longer available. The current receiver state has been kept.'
+            : 'Bluetooth receiver control could not complete that request.'
+          : path.startsWith('/queue')
+            ? response.status === 404
+              ? 'That track or queue item is no longer available.'
+              : response.status === 409
+                ? 'The queue changed before that action completed. Its current state has been kept.'
+                : 'The queue action could not be completed.'
             : response.status === 409
-              ? 'The queue changed before that action completed. Its current state has been kept.'
-              : 'The queue action could not be completed.'
-          : response.status === 409
-            ? 'A library scan is already running.'
-            : 'The jukebox service could not complete that request.',
+              ? 'A library scan is already running.'
+              : 'The jukebox service could not complete that request.',
       response.status,
     )
   }
@@ -365,6 +370,58 @@ function isUpdateStatus(value: unknown): value is UpdateStatus {
   )
 }
 
+function isBluetoothStatus(value: unknown): value is BluetoothStatus {
+  const states = [
+    'unavailable',
+    'inactive',
+    'not_connected',
+    'pairing',
+    'connected',
+    'audio_playing',
+    'error',
+  ]
+  const deviceId = /^[0-9a-f]{16}$/
+  const requestId = /^[0-9a-f]{24}$/
+  const pending = isRecord(value) ? value.pending_pairing : undefined
+  return (
+    isRecord(value) &&
+    typeof value.available === 'boolean' &&
+    typeof value.mode_active === 'boolean' &&
+    states.includes(String(value.state)) &&
+    isNullableString(value.adapter_alias) &&
+    typeof value.discoverable === 'boolean' &&
+    typeof value.pairable === 'boolean' &&
+    isNumber(value.pairing_seconds_remaining) &&
+    (value.connected_device_id === null ||
+      (typeof value.connected_device_id === 'string' &&
+        deviceId.test(value.connected_device_id))) &&
+    Array.isArray(value.devices) &&
+    value.devices.every(
+      (device) =>
+        isRecord(device) &&
+        typeof device.id === 'string' &&
+        deviceId.test(device.id) &&
+        typeof device.name === 'string' &&
+        typeof device.paired === 'boolean' &&
+        typeof device.trusted === 'boolean' &&
+        typeof device.connected === 'boolean' &&
+        typeof device.audio_playing === 'boolean',
+    ) &&
+    (pending === null ||
+      (isRecord(pending) &&
+        typeof pending.id === 'string' &&
+        requestId.test(pending.id) &&
+        typeof pending.device_id === 'string' &&
+        deviceId.test(pending.device_id) &&
+        typeof pending.device_name === 'string' &&
+        ['confirm', 'authorize'].includes(String(pending.kind)) &&
+        (pending.passkey === null ||
+          (typeof pending.passkey === 'string' &&
+            /^\d{6}$/.test(pending.passkey))))) &&
+    typeof value.message === 'string'
+  )
+}
+
 export function getAlbums(signal?: AbortSignal): Promise<AlbumSummary[]> {
   return requestJson(
     '/albums?limit=500',
@@ -541,4 +598,74 @@ export function installUpdate(): Promise<ApiAction> {
     method: 'POST',
     headers: { 'X-Pi-Jukebox-Action': 'install-stable-release' },
   })
+}
+
+const BLUETOOTH_ACTION_HEADERS = {
+  'X-Pi-Jukebox-Action': 'bluetooth-control',
+}
+
+function bluetoothAction(
+  path: string,
+  method = 'POST',
+): Promise<BluetoothStatus> {
+  return requestJson(path, isBluetoothStatus, {
+    method,
+    headers: BLUETOOTH_ACTION_HEADERS,
+  })
+}
+
+export function getBluetoothStatus(
+  signal?: AbortSignal,
+): Promise<BluetoothStatus> {
+  return requestJson('/bluetooth/status', isBluetoothStatus, { signal })
+}
+
+export function activateBluetooth(): Promise<BluetoothStatus> {
+  return bluetoothAction('/bluetooth/activate')
+}
+
+export function deactivateBluetooth(): Promise<BluetoothStatus> {
+  return bluetoothAction('/bluetooth/deactivate')
+}
+
+export function startBluetoothPairing(): Promise<BluetoothStatus> {
+  return bluetoothAction('/bluetooth/pairing/start')
+}
+
+export function cancelBluetoothPairing(): Promise<BluetoothStatus> {
+  return bluetoothAction('/bluetooth/pairing/cancel')
+}
+
+export function respondToBluetoothPairing(
+  requestId: string,
+  accept: boolean,
+): Promise<BluetoothStatus> {
+  return bluetoothAction(
+    `/bluetooth/pairing/${encodeURIComponent(requestId)}/${accept ? 'accept' : 'reject'}`,
+  )
+}
+
+export function connectBluetoothDevice(
+  deviceId: string,
+): Promise<BluetoothStatus> {
+  return bluetoothAction(
+    `/bluetooth/devices/${encodeURIComponent(deviceId)}/connect`,
+  )
+}
+
+export function disconnectBluetoothDevice(
+  deviceId: string,
+): Promise<BluetoothStatus> {
+  return bluetoothAction(
+    `/bluetooth/devices/${encodeURIComponent(deviceId)}/disconnect`,
+  )
+}
+
+export function forgetBluetoothDevice(
+  deviceId: string,
+): Promise<BluetoothStatus> {
+  return bluetoothAction(
+    `/bluetooth/devices/${encodeURIComponent(deviceId)}`,
+    'DELETE',
+  )
 }

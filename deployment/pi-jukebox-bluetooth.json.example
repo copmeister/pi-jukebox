@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "socket_path": "/run/pi-jukebox-bluetooth/control.sock",
+  "allowed_uid": 1000,
+  "alias": "Pi Jukebox",
+  "pairing_timeout_seconds": 120
+}

@@ -4,6 +4,7 @@ export const destinations = [
   'Search',
   'Queue',
   'CD',
+  'Bluetooth',
   'Now Playing',
   'Settings',
 ] as const

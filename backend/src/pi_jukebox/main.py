@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from pi_jukebox.api.router import api_router
+from pi_jukebox.bluetooth.service import BluetoothService
 from pi_jukebox.catalogue.database import Catalogue
 from pi_jukebox.cd.hardware import CdHardware
 from pi_jukebox.cd.metadata import CandidateArtworkCache, MusicMetadataClient
@@ -51,8 +52,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             rip_store,
         )
         update_service = UpdateService(settings, GitHubCliReleaseSource(settings))
+        bluetooth_service = BluetoothService(settings)
         application.state.cd_service = cd_service
         application.state.update_service = update_service
+        application.state.bluetooth_service = bluetooth_service
         cd_service.start()
         update_service.start()
         try:

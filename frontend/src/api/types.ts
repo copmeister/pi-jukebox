@@ -221,3 +221,43 @@ export interface UpdateStatus {
   last_error: string | null
   source: string
 }
+
+export type BluetoothPlaybackState =
+  | 'unavailable'
+  | 'inactive'
+  | 'not_connected'
+  | 'pairing'
+  | 'connected'
+  | 'audio_playing'
+  | 'error'
+
+export interface BluetoothDevice {
+  id: string
+  name: string
+  paired: boolean
+  trusted: boolean
+  connected: boolean
+  audio_playing: boolean
+}
+
+export interface BluetoothPairingRequest {
+  id: string
+  device_id: string
+  device_name: string
+  kind: 'confirm' | 'authorize'
+  passkey: string | null
+}
+
+export interface BluetoothStatus {
+  available: boolean
+  mode_active: boolean
+  state: BluetoothPlaybackState
+  adapter_alias: string | null
+  discoverable: boolean
+  pairable: boolean
+  pairing_seconds_remaining: number
+  connected_device_id: string | null
+  devices: BluetoothDevice[]
+  pending_pairing: BluetoothPairingRequest | null
+  message: string
+}
