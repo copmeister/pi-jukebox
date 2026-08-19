@@ -1,6 +1,6 @@
 # pi-jukebox
 
-A touchscreen-first local music jukebox for Raspberry Pi. Version 0.5.0 adds hardware-integrated, track-at-a-time CD-to-FLAC ripping and safe stable-release update checking while preserving the existing catalogue, queue, playback and classic selector.
+A touchscreen-first local music jukebox for Raspberry Pi. Version 0.6.0 adds a secure, touchscreen-controlled Bluetooth receiver mode while preserving the local catalogue, queue, playback, classic selector, CD ripping and safe updater.
 
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
@@ -69,7 +69,7 @@ npm.cmd --prefix frontend run dev -- --host 127.0.0.1
 
 Open <http://127.0.0.1:5173> in your browser.
 
-The **CD** screen is safe to open on Windows. With no optical drive configured it shows an honest unavailable state; automated tests use fake drives and processes and never rip a real disc. The **Settings** screen includes Display Size and shows the authoritative installed version and non-blocking update status. Display Size applies immediately and is stored only in that browser profile, so it survives application and Pi restarts without changing Chromium zoom or the hardware resolution.
+The **CD** and **Bluetooth** screens are safe to open on Windows. Without Pi hardware they show honest unavailable states; automated tests use fakes and never control a real drive or Bluetooth adapter. The **Settings** screen includes Display Size and shows the authoritative installed version and non-blocking update status. Display Size applies immediately and is stored only in that browser profile, so it survives application and Pi restarts without changing Chromium zoom or the hardware resolution.
 
 The application opens in **Jukebox** mode. Standard displays four panels with 32 randomly mixed codes from A1 through D8. Large and Extra Large use three panels with 18 larger codes from A1 through C6. Panel letters retain their established colours and identity while visible. Choose a letter and then a number: the first selection starts immediately when nothing is current, while later selections append to the persistent queue. Swipe left or use **NEXT ›** to move every panel left and recycle the outgoing identity with newly randomized songs on the right. The transition resets invisibly after the panels finish moving, so it never travels backwards. Panels have no back history, and moving them never changes queued music. **Stop & Clear** requires confirmation and stops audio while clearing the complete queue.
 
@@ -158,6 +158,29 @@ Cancellation retains Ready tracks and removes disposable staging files. When the
 
 See [Raspberry Pi deployment and hardware testing](docs/pi-deployment.md) for prerequisites, permissions, startup, cancellation and failure-condition checks.
 
+## Bluetooth receiver on Raspberry Pi
+
+Bluetooth is disabled by default on Windows and on a Pi that has not completed
+the one-time v0.6.0 privileged migration. On the audited Debian 13 Pi, a phone
+acts as the A2DP source and WirePlumber routes it through the existing DAC Pro
+default sink. The FastAPI process never runs Bluetooth shell commands and gets
+no sudo access: it communicates through a strict local socket with a dedicated,
+hardened BlueZ D-Bus helper.
+
+The touchscreen opens a two-minute pairing window, displays any confirmation
+code, remembers only approved phones, and permits one connected phone at a
+time. Bluetooth activation pauses the existing browser audio without changing
+the queue. Disconnecting a phone never resumes old local audio automatically;
+choosing local Library, Search or Jukebox playback exits Bluetooth mode first.
+Phone metadata, AVRCP transport controls and system-wide volume control are not
+part of v0.6.0.
+
+Do not merely turn on the environment flag. Install and validate the fixed
+service, helper account, socket permissions and WirePlumber fragment using the
+two-phase [Bluetooth migration and hardware-test runbook](docs/bluetooth.md).
+Until the real Pi passes pairing, routing, reboot and recovery tests, Bluetooth
+remains a hardware-test candidate.
+
 ## Software updates
 
 The backend checks once shortly after startup for the latest stable GitHub Release. The private repository is accessed only through the Raspberry Pi service account's authenticated GitHub CLI; credentials and release URLs are never returned to the browser. Offline checks remain unobtrusive and never delay startup.
@@ -186,8 +209,8 @@ npm.cmd --prefix frontend run build
 
 ## Current scope
 
-The backend provides the incremental catalogue, secure media, authoritative queue, persistent CD diagnostics, hardware-safe background extraction and non-blocking release checks. The frontend retains one Chromium audio element and adds touch-only CD and software-administration screens plus a persistent rip indicator. Playback position and transient selector state are not saved. The visualiser remains future work.
+The backend provides the incremental catalogue, secure media, authoritative queue, persistent CD diagnostics, hardware-safe background extraction, non-blocking release checks and a strict Bluetooth-helper boundary. The frontend retains one Chromium audio element and coordinates it with the external phone-audio source; it does not add a second local player or queue. Playback position and transient selector/Bluetooth presentation state are not saved. The visualiser remains future work.
 
-Version 0.5.0 still requires physical validation of the Asus drive, metadata networking, storage mount, DAC responsiveness and final resource tuning on the Raspberry Pi 5.
+Version 0.6.0 Bluetooth routing, pairing behavior, phone compatibility, RF reliability and DAC-monitor coverage still require the physical acceptance checks on the Raspberry Pi 5, Touch Display 2, DAC Pro, amplifier and speakers.
 
 See [the architecture](docs/architecture.md), [database schema notes](docs/database-schema.md), and [the product specification](docs/product-specification.md) for the approved design and v0.1 boundaries.

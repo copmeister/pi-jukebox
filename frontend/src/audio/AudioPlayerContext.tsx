@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { mediaUrl } from '../api/client'
 import type { PlayerTrack, QueueItem, Track } from '../api/types'
+import { useOptionalBluetooth } from '../bluetooth/BluetoothContext'
 import {
   type JukeboxSoundController,
   useJukeboxSounds,
@@ -93,6 +94,7 @@ export function AudioPlayerProvider({
   jukeboxLoadingDelayMs = JUKEBOX_LOADING_DELAY_MS,
 }: AudioPlayerProviderProps) {
   const queue = useQueue()
+  const bluetooth = useOptionalBluetooth()
   const builtInSounds = useJukeboxSounds()
   const jukeboxSounds = soundController ?? builtInSounds
   const soundsRef = useRef(jukeboxSounds)
@@ -131,6 +133,16 @@ export function AudioPlayerProvider({
     }
     setPresentationMessage(null)
   }, [])
+
+  useEffect(() => {
+    if (!bluetooth) return
+    bluetooth.registerLocalPause(() => {
+      cancelPendingJukeboxStart()
+      audioRef.current?.pause()
+      if (currentItemRef.current) setStatus('paused')
+    })
+    return () => bluetooth.registerLocalPause(null)
+  }, [bluetooth, cancelPendingJukeboxStart])
 
   const setPresentationMode = useCallback((mode: PlaybackPresentation) => {
     presentationRef.current = mode
@@ -348,6 +360,7 @@ export function AudioPlayerProvider({
 
   const playNow = useCallback(
     async (track: Track) => {
+      if (bluetooth && !(await bluetooth.prepareLocalPlayback())) return false
       cancelPendingJukeboxStart()
       setPresentationMode('modern')
       const snapshot = await queue.playNow(track.id)
@@ -355,11 +368,18 @@ export function AudioPlayerProvider({
       startItem(snapshot.current)
       return true
     },
-    [cancelPendingJukeboxStart, queue, setPresentationMode, startItem],
+    [
+      bluetooth,
+      cancelPendingJukeboxStart,
+      queue,
+      setPresentationMode,
+      startItem,
+    ],
   )
 
   const playJukebox = useCallback(
     async (track: Track, code: string) => {
+      if (bluetooth && !(await bluetooth.prepareLocalPlayback())) return false
       cancelPendingJukeboxStart()
       const snapshot = await queue.playNow(track.id)
       if (!snapshot?.current) return false
@@ -375,6 +395,7 @@ export function AudioPlayerProvider({
     },
     [
       cancelPendingJukeboxStart,
+      bluetooth,
       prepareJukeboxItem,
       queue,
       setPresentationMode,
@@ -390,6 +411,7 @@ export function AudioPlayerProvider({
 
   const playAlbum = useCallback(
     async (albumId: number) => {
+      if (bluetooth && !(await bluetooth.prepareLocalPlayback())) return false
       cancelPendingJukeboxStart()
       setPresentationMode('modern')
       const snapshot = await queue.playAlbum(albumId)
@@ -399,7 +421,13 @@ export function AudioPlayerProvider({
       startItem(snapshot.current, false)
       return true
     },
-    [cancelPendingJukeboxStart, queue, setPresentationMode, startItem],
+    [
+      bluetooth,
+      cancelPendingJukeboxStart,
+      queue,
+      setPresentationMode,
+      startItem,
+    ],
   )
 
   const stopAndClear = useCallback(async () => {
@@ -412,7 +440,7 @@ export function AudioPlayerProvider({
     return true
   }, [cancelPendingJukeboxStart, queue, stopAudio])
 
-  const togglePlayback = useCallback(() => {
+  const toggleLocalPlayback = useCallback(() => {
     const audio = audioRef.current
     if (!audio || !currentItemRef.current) return
     const pendingItem = pendingJukeboxStartRef.current
@@ -437,6 +465,16 @@ export function AudioPlayerProvider({
       audio.pause()
     }
   }, [cancelPendingJukeboxStart, startItem])
+
+  const togglePlayback = useCallback(() => {
+    if (bluetooth?.status.mode_active) {
+      void bluetooth.prepareLocalPlayback().then((ready) => {
+        if (ready) toggleLocalPlayback()
+      })
+      return
+    }
+    toggleLocalPlayback()
+  }, [bluetooth, toggleLocalPlayback])
 
   const previous = useCallback(() => {
     const audio = audioRef.current

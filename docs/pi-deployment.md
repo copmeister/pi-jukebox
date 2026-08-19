@@ -1,6 +1,6 @@
 # Raspberry Pi 5 deployment and hardware preparation
 
-These steps are for the reviewed v0.5.0 build. They do not erase, repartition or reformat storage.
+These steps describe the reviewed v0.5.0 CD/storage base. They do not erase, repartition or reformat storage. For v0.6.0, complete this base first, then use the separate [Bluetooth receiver migration and hardware test](bluetooth.md); do not enable Bluetooth with an environment variable alone.
 
 ## Prerequisites
 
@@ -105,7 +105,7 @@ cd /home/admin/jukebox
 
 At the native 1280×720 landscape viewport, open Settings and test Standard, Large and Extra Large. In every mode, swipe vertically on Library, Search results, Queue, CD progress and Settings content; confirm content moves naturally without selecting ordinary text and without a visible right-hand scrollbar. Mouse-wheel scrolling may be checked separately during desktop development.
 
-Confirm the mini-player and all seven navigation destinations remain visible. Standard must show A–D with numbers 1–8. Large and Extra Large must show A–C with numbers 1–6, with no clipped panel rows or controls. Select C6, confirm it enters the authoritative queue normally, then test NEXT, left swipe, Sounds and Stop & Clear. Use long album, artist and track names when checking Library, Search, Queue, Now Playing, CD release cards and rip progress.
+Confirm the mini-player and all eight navigation destinations remain visible. Standard must show A–D with numbers 1–8. Large and Extra Large must show A–C with numbers 1–6, with no clipped panel rows or controls. Select C6, confirm it enters the authoritative queue normally, then test NEXT, left swipe, Sounds and Stop & Clear. Use long album, artist and track names when checking Library, Search, Queue, Now Playing, CD release cards, Bluetooth and rip progress.
 
 ## Diagnostics and recovery
 

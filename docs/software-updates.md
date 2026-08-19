@@ -652,3 +652,13 @@ future release package format must remain readable by its immediate predecessor.
 Changes to fixed root-owned launchers, units or privileged configuration require
 a separate reviewed administrator migration; an ordinary application release
 does not rewrite them.
+
+Version 0.6.0 adds `dbus-fast` to the ARM64 wheelhouse and an independently
+hardened Bluetooth service. The ordinary updater still must not create accounts
+or rewrite `/etc`, systemd or WirePlumber configuration. Follow the supervised
+[Bluetooth migration](bluetooth.md) around the first v0.6.0 installation. Once
+installed, `pi-jukebox-bluetooth.service` is `PartOf` the application service,
+so the updater's existing application restart also reloads Bluetooth helper
+code from the activated version; rollback reloads both from the restored
+version. A helper failure leaves Bluetooth unavailable and must not change the
+catalogue, queue, CD, updater or local playback data.

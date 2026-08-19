@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     update_timeout_seconds: float = 8.0
     update_request_path: Path | None = None
     update_status_path: Path | None = None
+    bluetooth_enabled: bool = False
+    bluetooth_socket_path: Path | None = None
+    bluetooth_timeout_seconds: float = 2.0
 
     @property
     def database_path(self) -> Path:

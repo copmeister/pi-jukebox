@@ -149,6 +149,33 @@ Version 0.5.0 adds the first hardware-integrated library-creation workflow:
 - Establish version 0.5.0, non-blocking stable-release checks, private-repository credential isolation, checksum validation and health-check rollback foundations.
 - Provide an opt-in managed installer for published stable releases: a fixed browser request, narrowly privileged root helper, deterministic ARM64 package, immutable versions, atomic activation and verified automatic rollback. Keep installation disabled until its one-time Pi service migration and physical acceptance tests are completed.
 
+## Version 0.6.0 scope
+
+Version 0.6.0 adds phone audio as one deliberately selected external source:
+
+- Make the Pi an A2DP receiver and route incoming audio through the existing
+  PipeWire/WirePlumber DAC Pro output.
+- Provide touch-only activation, two-minute pairing, code confirmation,
+  trusted-device connect/disconnect and confirmed Forget actions.
+- Default to inactive and non-discoverable; remember BlueZ pairings across
+  reboot without randomly auto-connecting a phone at application start.
+- Allow only one active trusted phone and never expose MAC addresses, BlueZ
+  paths, commands or privileged configuration to the browser.
+- Pause the existing local browser player before Bluetooth control, preserve
+  its queue, and never auto-resume it after phone disconnect.
+- Deactivate Bluetooth before any direct Library, Search or Jukebox start; keep
+  the authoritative queue and only one local HTML audio element.
+- Replace local mini-player/Now Playing controls with honest phone-audio state
+  while Bluetooth is active. Phone playback remains controlled on the phone.
+- Use a fixed root-owned launcher and hardened dedicated helper service with a
+  strict peer-checked Unix protocol and BlueZ D-Bus—not FastAPI sudo or shell.
+- Keep Windows safely unavailable and require a separately reviewed Pi
+  migration for the service account, unit, socket and WirePlumber fragment.
+
+AVRCP metadata/artwork/transport buttons, Bluetooth microphones/calls, multiple
+simultaneous phones, codec promises, system volume integration, phone remote
+control of the jukebox and visualisation remain outside v0.6.0.
+
 ## Touch and accessibility requirements
 
 - Primary interactive targets should be at least 44 CSS pixels in both dimensions where practical.

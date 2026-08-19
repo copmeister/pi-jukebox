@@ -1,10 +1,49 @@
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
+import { useBluetooth } from '../bluetooth/BluetoothContext'
 import { Artwork } from '../components/Artwork'
 import { PlaybackControls } from '../components/PlaybackControls'
 import { ScreenState } from '../components/ScreenState'
 
-export function NowPlayingScreen() {
+export function NowPlayingScreen({
+  onOpenBluetooth,
+}: {
+  onOpenBluetooth: () => void
+}) {
   const player = useAudioPlayer()
+  const bluetooth = useBluetooth()
+
+  if (bluetooth.status.mode_active) {
+    const device = bluetooth.status.devices.find(
+      (candidate) => candidate.id === bluetooth.status.connected_device_id,
+    )
+    return (
+      <div className="screen now-playing-screen">
+        <section className="now-playing-card bluetooth-now-playing">
+          <div
+            className="now-playing-artwork bluetooth-now-playing__mark"
+            aria-hidden="true"
+          >
+            B
+          </div>
+          <div className="now-playing-copy">
+            <p className="eyebrow">Bluetooth receiver</p>
+            <h1>{device?.name ?? 'Waiting for a phone'}</h1>
+            <p className="now-playing-artist">{bluetooth.status.message}</p>
+            <p className="now-playing-album">
+              Playback is controlled on the connected phone.
+            </p>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={onOpenBluetooth}
+            >
+              Open Bluetooth Controls
+            </button>
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   if (!player.currentTrack) {
     return (

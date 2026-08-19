@@ -22,7 +22,7 @@ Python library scanner ───► SQLite catalogue
                               Web Audio API
 ```
 
-Milestones 2 through 4C implement the local catalogue, browser playback, persistent queue and classic selector. Version 0.5.0 adds isolated CD and release-update domains without replacing those stable paths.
+Milestones 2 through 4C implement the local catalogue, browser playback, persistent queue and classic selector. Version 0.5.0 adds isolated CD and release-update domains without replacing those stable paths. Version 0.6.0 adds an external Bluetooth audio source through a separately isolated helper; it does not add a second browser player or queue.
 
 ```text
 USB audio CD -> python-discid/libdiscid TOC -> MusicBrainz / Cover Art Archive
@@ -36,6 +36,9 @@ stable release tar + external manifest -> root-owned validation and staging
               -> offline per-version venv + prebuilt frontend
               -> atomic version pointer -> service restart + health check
                                       `-> automatic rollback on failure
+
+Phone -> BlueZ A2DP sink -> PipeWire/WirePlumber -> existing DAC default sink
+Browser -> FastAPI -> strict Unix socket -> isolated BlueZ D-Bus helper
 ```
 
 ## Backend
@@ -55,6 +58,8 @@ The backend is an installable Python package under `backend/src/pi_jukebox`.
 - Finalized tracks use sanitized Artist/Album names and `os.replace`, then enter the catalogue through a single-file scanner operation sharing a lock with full scans. A final reconciliation follows the job.
 - Storage validation resolves mount, library and output paths; requires output beneath both approved roots; checks a genuine mount, write access and free space; and rejects conflicts instead of overwriting.
 - MusicBrainz requests use a versioned identifying User-Agent, timeout and bounded retry. Cover Art Archive failure is advisory. Available art is written atomically as `Cover.jpg` and embedded in each FLAC.
+- Bluetooth HTTP routes call a bounded local client only. The client speaks a versioned, exact-shape JSON protocol over one fixed Unix socket and fails closed when disabled, absent, slow or malformed. It never accepts a command, MAC address, D-Bus path or audio destination from the browser.
+- The Bluetooth broker runs under a dedicated unprivileged account, owns one BlueZ `DisplayYesNo` agent and uses `dbus-fast` rather than subprocesses. It hashes BlueZ paths into opaque UI IDs, sanitizes phone names, serializes mutations, limits discoverability/pairability to 120 seconds, requires touchscreen approval before trust, exposes only remote A2DP Audio Source devices, and reconciles explicit or unsolicited connections to one active trusted phone. BlueZ persists pairing keys; receiver presentation itself is transient and starts inactive.
 
 The API uses `/api` as its prefix. Health, scan status, albums, tracks, search, cached artwork, track media, and queue mutations are exposed. Media requests accept only a catalogue track ID. The server resolves its stored relative path beneath the configured library root, rejects escapes (including resolving symbolic links), and supports one HTTP byte range for browser seeking.
 
@@ -68,7 +73,7 @@ The frontend is a React single-page application written in TypeScript and built 
 - One application-root player context is the only component allowed to control the persistent HTML audio element. It consumes confirmed queue snapshots, so Queue, Now Playing, and the mini-player stay synchronized while navigation never recreates the element.
 - One queue context loads persisted state, serializes mutations to prevent double taps, safely refetches after failures, and shows concise confirmations or errors.
 - Chromium will perform audio decoding and playback.
-- A future Web Audio `AnalyserNode` will provide frequency data to a lightweight Canvas visualiser.
+- A future lightweight visualiser should capture the dynamically resolved DAC/default-sink monitor in the `admin` PipeWire graph. This common digital-output point can cover local browser, Bluetooth, radio and direct-CD audio when each source is routed to that sink. It must not hard-code a numeric PipeWire node ID; it will not measure analogue amplifier or speaker behavior.
 - During development, Vite proxies `/api` requests to FastAPI on port 8000.
 - A small typed client validates important response fields at runtime and converts network or invalid-response failures into safe user-facing messages.
 - Catalogue summary state is shared with Library. The Jukebox selector independently requests complete track metadata when mounted. Scan status is polled only while a scan is active, then albums are refreshed.
@@ -89,6 +94,7 @@ The frontend is a React single-page application written in TypeScript and built 
 - A small display-size context owns the browser-local `pi-jukebox:display-size:v1` preference. It applies Standard, Large or Extra Large design tokens at the document root immediately; invalid or unavailable storage safely falls back to Standard. This is deliberate typography/control/card sizing rather than Chromium zoom or a transformed canvas.
 - The main content region and scrollable dialogs use native `pan-y` scrolling, contained overscroll and hidden scrollbar styling. General kiosk text is non-selectable to prevent drag selection, while inputs, range controls and useful Settings diagnostics retain their appropriate interaction.
 - Standard retains the original four-by-eight Jukebox selector. Large and Extra Large provide three persistent letter identities A–C with six numbered slots each; the same panel generator, forward transition, queue mutation and single audio path receive the mode-specific panel count and size.
+- A root Bluetooth context polls bounded status and coordinates the two mutually exclusive sources. Activating, pairing or connecting pauses the single local `HTMLAudioElement`, cancels pending Jukebox loading and preserves the queue. Starting local playback deactivates Bluetooth first. Phone disconnect never auto-resumes an old local track. While Bluetooth is active, mini-player and Now Playing show receiver state rather than local seek, volume or transport controls.
 
 The shell targets the official Touch Display 2 at 1280×720 landscape. Standard, Large and Extra Large are visually accepted at that native size. The interface uses large touch targets, no hover-only controls, visible keyboard focus, native vertical scrolling, and fixed player/navigation rows.
 
@@ -102,6 +108,7 @@ Important settings include:
 - Runtime data directory
 - Backend host and port
 - Frontend development origin
+- Bluetooth feature flag, fixed helper socket and bounded helper timeout (Pi only)
 
 Machine-specific paths, music, databases, caches, logs, and secrets must not be committed. Runtime data lives in the configured data directory rather than in the Python package. The default database is `data/catalogue.sqlite3`; content-addressed artwork is stored under `data/artwork`.
 
@@ -130,7 +137,7 @@ FastAPI can write only a fixed-schema request for the already discovered newer v
 
 Each release is prepared under a root-owned staging directory. Its hashed dependency lock is installed offline from an ARM64 wheelhouse into a release-local virtual environment, and its prebuilt frontend requires no production Node process. Only then is it renamed into an immutable semantic-version directory and the root-owned `current-version` text pointer atomically replaced. The managed application service restarts and `/api/health` must return both `ok` and the requested version; otherwise the old pointer is restored and the known-good service is health checked. Configuration, SQLite data, artwork, music, queue state and browser preferences remain outside release directories.
 
-The existing graphical-session startup retains ownership of Chromium kiosk launch but no longer launches FastAPI or Vite. A fixed system service owns the application lifecycle and serves both API and prebuilt frontend on the kiosk's existing production origin, `http://127.0.0.1:5173`, allowing the updater to restart it safely while Chromium reconnects without losing origin-scoped display preferences. Windows development remains Vite on 5173 proxying FastAPI on 8000. Installation is opt-in and remains disabled until the documented one-time service migration is completed. Exact operations and recovery are in [Safe software updates](software-updates.md).
+The existing graphical-session startup retains ownership of Chromium kiosk launch but no longer launches FastAPI or Vite. A fixed system service owns the application lifecycle and serves both API and prebuilt frontend on the kiosk's existing production origin, `http://127.0.0.1:5173`, allowing the updater to restart it safely while Chromium reconnects without losing origin-scoped display preferences. Windows development remains Vite on 5173 proxying FastAPI on 8000. Bluetooth has a second fixed unprivileged service whose `PartOf` relationship restarts it against the same active immutable version on update or rollback; it does not own Chromium or PipeWire. Exact updater operations are in [Safe software updates](software-updates.md), and the separately privileged Bluetooth migration is in [Bluetooth receiver](bluetooth.md).
 
 ## Future component boundaries
 
@@ -145,4 +152,4 @@ The following frontend feature area remains for later work:
 - There are no accounts, cloud services, or remote control.
 - The labwc kiosk command remains machine-local; reviewed root-owned system services manage the application and updater after the one-time migration.
 - Raspberry Pi codec and performance support must be proven on real target hardware.
-- The Raspberry Pi 5, Touch Display 2 and DAC Pro playback path is operational; the managed update and rollback workflow still requires physical acceptance before release installation is enabled.
+- The Raspberry Pi 5, Touch Display 2, DAC Pro playback path and managed update/rollback workflow are operational. Bluetooth remains a hardware-test candidate until the separate physical checklist passes.

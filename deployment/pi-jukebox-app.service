@@ -1,11 +1,13 @@
 [Unit]
 Description=Pi Jukebox application
-After=network.target local-fs.target
+After=network.target local-fs.target pi-jukebox-bluetooth.service
+Wants=pi-jukebox-bluetooth.service
 
 [Service]
 Type=simple
 User=admin
 Group=admin
+SupplementaryGroups=pi-jukebox-control
 WorkingDirectory=/home/admin
 EnvironmentFile=/home/admin/jukebox-data/jukebox.env
 Environment=GH_CONFIG_DIR=/home/admin/.config/gh

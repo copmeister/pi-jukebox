@@ -7,6 +7,7 @@ import {
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BluetoothStatus } from './api/types'
 import App from './App'
 
 const albums = [
@@ -119,8 +120,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.5.0',
-  latest_version: '0.5.0',
+  installed_version: '0.6.0',
+  latest_version: '0.6.0',
   checking: false,
   installing: false,
   update_available: false,
@@ -134,6 +135,30 @@ const updateStatus = {
   source: 'Authenticated GitHub Releases via the local GitHub CLI',
 }
 
+const bluetoothStatus: BluetoothStatus = {
+  available: false,
+  mode_active: false,
+  state: 'unavailable',
+  adapter_alias: null,
+  discoverable: false,
+  pairable: false,
+  pairing_seconds_remaining: 0,
+  connected_device_id: null,
+  devices: [],
+  pending_pairing: null,
+  message: 'Bluetooth receiver mode is not enabled on this installation.',
+}
+
+const availableBluetoothStatus: BluetoothStatus = {
+  ...bluetoothStatus,
+  available: true,
+  state: 'inactive',
+  adapter_alias: 'Pi Jukebox',
+  message: 'Bluetooth mode is off. Local jukebox playback remains available.',
+}
+
+let currentBluetoothStatus: BluetoothStatus = bluetoothStatus
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -144,6 +169,7 @@ function jsonResponse(payload: unknown, status = 200): Response {
 describe('App catalogue interface', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    currentBluetoothStatus = bluetoothStatus
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -156,6 +182,22 @@ describe('App catalogue interface', () => {
         if (url.endsWith('/api/cd/status')) return jsonResponse(cdStatus)
         if (url.endsWith('/api/system/updates'))
           return jsonResponse(updateStatus)
+        if (url.endsWith('/api/bluetooth/status'))
+          return jsonResponse(currentBluetoothStatus)
+        if (url.endsWith('/api/bluetooth/activate')) {
+          currentBluetoothStatus = {
+            ...availableBluetoothStatus,
+            mode_active: true,
+            state: 'not_connected',
+            message:
+              'Bluetooth mode is ready. Connect a trusted phone or pair a new one.',
+          }
+          return jsonResponse(currentBluetoothStatus)
+        }
+        if (url.endsWith('/api/bluetooth/deactivate')) {
+          currentBluetoothStatus = availableBluetoothStatus
+          return jsonResponse(currentBluetoothStatus)
+        }
         if (url.endsWith('/api/albums/7')) return jsonResponse(albumDetail)
         if (url.endsWith('/api/queue/tracks/11/play-now'))
           return jsonResponse(playingQueue)
@@ -204,7 +246,7 @@ describe('App catalogue interface', () => {
       name: 'Primary navigation',
     })
     expect(navigation).toBeInTheDocument()
-    expect(within(navigation).getAllByRole('button')).toHaveLength(7)
+    expect(within(navigation).getAllByRole('button')).toHaveLength(8)
     expect(document.querySelector('.main-content')).toHaveAttribute(
       'data-scroll-region',
       'vertical',
@@ -275,7 +317,7 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.5.0')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.0')).toBeInTheDocument()
   })
 
   it('does not create Jukebox effects while navigating other screens', async () => {
@@ -290,6 +332,7 @@ describe('App catalogue interface', () => {
       'Search',
       'Queue',
       'CD',
+      'Bluetooth',
       'Now Playing',
       'Settings',
     ]) {
@@ -297,6 +340,48 @@ describe('App catalogue interface', () => {
     }
 
     expect(audioContext).not.toHaveBeenCalled()
+  })
+
+  it('pauses local playback for Bluetooth and keeps the local queue item paused', async () => {
+    currentBluetoothStatus = availableBluetoothStatus
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+
+    await user.click(screen.getByRole('button', { name: 'Library' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Open Night Drive by The House Band',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Queue actions for Northern Lights' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Play Now' }))
+    expect(screen.getAllByText('Northern Lights')).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: 'Bluetooth' }))
+    await user.click(screen.getByRole('button', { name: 'Use Bluetooth' }))
+    expect(await screen.findAllByText(/Bluetooth mode is ready/)).toHaveLength(
+      2,
+    )
+    expect(
+      within(screen.getByRole('region', { name: 'Mini player' })).getByText(
+        'Waiting for a phone',
+      ),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Return to Jukebox' }))
+    expect(
+      within(screen.getByRole('region', { name: 'Mini player' })).getByText(
+        'Northern Lights',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'Mini player' })).getByText(
+        'paused',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('shows a clear backend-unavailable state for network failures', async () => {

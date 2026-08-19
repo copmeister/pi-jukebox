@@ -199,6 +199,18 @@ input[type='range'] {
   font-weight: 800;
   cursor: pointer;
 }
+.bluetooth-status-pill {
+  min-height: var(--ui-touch-target);
+  padding: 0 14px;
+  border: 1px solid rgba(106, 181, 255, 0.35);
+  border-radius: 99px;
+  color: #b9dcff;
+  background: rgba(70, 147, 225, 0.14);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: capitalize;
+  cursor: pointer;
+}
 
 .main-content {
   min-height: 0;
@@ -1708,13 +1720,149 @@ h2 {
   color: #17120a;
   background: var(--accent);
 }
+.mini-player.is-bluetooth {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.bluetooth-mark {
+  color: #b9dcff;
+  background: #182838;
+  font-weight: 800;
+}
 
 .navigation {
   min-height: var(--ui-navigation-height);
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   border-top: 1px solid var(--border);
   background: #0e141a;
+}
+
+.bluetooth-screen {
+  min-height: 100%;
+}
+.bluetooth-header {
+  align-items: center;
+}
+.bluetooth-status-card,
+.bluetooth-card,
+.bluetooth-pairing-confirmation,
+.bluetooth-device {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--panel);
+}
+.bluetooth-status-card {
+  min-height: 68px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.bluetooth-status-card strong {
+  font-size: 0.78rem;
+  text-transform: capitalize;
+}
+.bluetooth-status-card p,
+.bluetooth-card p,
+.bluetooth-pairing-confirmation p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+.bluetooth-state-dot {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border-radius: 50%;
+  background: #788590;
+  box-shadow: 0 0 0 6px rgba(120, 133, 144, 0.12);
+}
+.bluetooth-state-dot.is-audio_playing,
+.bluetooth-state-dot.is-connected {
+  background: #67d58b;
+  box-shadow: 0 0 0 6px rgba(103, 213, 139, 0.12);
+}
+.bluetooth-state-dot.is-pairing {
+  background: #6ab5ff;
+  box-shadow: 0 0 0 6px rgba(106, 181, 255, 0.13);
+}
+.bluetooth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.bluetooth-card,
+.bluetooth-pairing-confirmation {
+  min-height: 128px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.bluetooth-pairing-confirmation {
+  margin-bottom: 12px;
+  border-color: rgba(106, 181, 255, 0.4);
+  background: rgba(70, 147, 225, 0.1);
+}
+.bluetooth-passkey {
+  display: inline-block;
+  color: #fff;
+  font-size: 1.2rem;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+.bluetooth-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bluetooth-card-actions button {
+  min-width: 110px;
+}
+.bluetooth-error {
+  margin: 0 0 12px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  color: var(--danger);
+  background: rgba(255, 151, 140, 0.08);
+  font-size: 0.72rem;
+}
+.bluetooth-devices {
+  margin-top: 14px;
+}
+.bluetooth-devices > h2 {
+  margin-bottom: 8px;
+}
+.bluetooth-device {
+  min-height: var(--ui-row-height);
+  margin-bottom: 8px;
+  padding: 8px 10px 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bluetooth-device small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.64rem;
+}
+.bluetooth-card-actions .danger-button {
+  color: var(--danger);
+}
+.bluetooth-now-playing__mark {
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  color: #d6ebff;
+  background:
+    radial-gradient(circle, rgba(106, 181, 255, 0.3), transparent 58%), #152331;
+  font-size: clamp(4rem, 12vw, 8rem);
+  font-weight: 800;
 }
 
 .cd-screen,
@@ -2341,6 +2489,15 @@ h2 {
   }
   .cd-ready-layout {
     grid-template-columns: 1fr;
+  }
+  .bluetooth-grid {
+    grid-template-columns: 1fr;
+  }
+  .bluetooth-status-pill {
+    max-width: 160px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .cd-track-progress {
     grid-template-columns: 1fr;

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AudioPlayerProvider } from './audio/AudioPlayerContext'
+import { BluetoothProvider, useBluetooth } from './bluetooth/BluetoothContext'
 import { MiniPlayer } from './components/MiniPlayer'
 import { Navigation } from './components/Navigation'
 import {
@@ -10,6 +11,7 @@ import { useCatalogue } from './hooks/useCatalogue'
 import { useCdStatus } from './hooks/useCdStatus'
 import type { Destination } from './navigation'
 import { AlbumScreen } from './screens/AlbumScreen'
+import { BluetoothScreen } from './screens/BluetoothScreen'
 import { CdScreen } from './screens/CdScreen'
 import { JukeboxScreen } from './screens/JukeboxScreen'
 import { LibraryScreen } from './screens/LibraryScreen'
@@ -27,6 +29,7 @@ function AppContent() {
   const catalogue = useCatalogue()
   const cd = useCdStatus(() => void catalogue.refresh())
   const queue = useQueue()
+  const bluetooth = useBluetooth()
 
   const navigate = (destination: Destination) => {
     setSelectedAlbumId(null)
@@ -74,8 +77,10 @@ function AppContent() {
     content = <QueueScreen onBrowse={() => navigate('Library')} />
   } else if (activeDestination === 'CD') {
     content = <CdScreen cd={cd} />
+  } else if (activeDestination === 'Bluetooth') {
+    content = <BluetoothScreen />
   } else if (activeDestination === 'Now Playing') {
-    content = <NowPlayingScreen />
+    content = <NowPlayingScreen onOpenBluetooth={() => navigate('Bluetooth')} />
   } else {
     content = <SettingsScreen />
   }
@@ -96,6 +101,16 @@ function AppContent() {
           <span>Pi Jukebox</span>
         </button>
         <div className="top-statuses">
+          {bluetooth.status.mode_active ? (
+            <button
+              type="button"
+              className="bluetooth-status-pill"
+              onClick={() => navigate('Bluetooth')}
+              aria-label="Open Bluetooth receiver controls"
+            >
+              Bluetooth · {bluetooth.status.state.replaceAll('_', ' ')}
+            </button>
+          ) : null}
           {cd.status?.active && cd.status.latest_job ? (
             <button
               type="button"
@@ -135,7 +150,7 @@ function AppContent() {
         {content}
       </main>
 
-      <MiniPlayer />
+      <MiniPlayer onOpenBluetooth={() => navigate('Bluetooth')} />
       <Navigation active={activeDestination} onNavigate={navigate} />
     </div>
   )
@@ -144,11 +159,13 @@ function AppContent() {
 export default function App() {
   return (
     <DisplaySizeProvider>
-      <QueueProvider>
-        <AudioPlayerProvider>
-          <AppContent />
-        </AudioPlayerProvider>
-      </QueueProvider>
+      <BluetoothProvider>
+        <QueueProvider>
+          <AudioPlayerProvider>
+            <AppContent />
+          </AudioPlayerProvider>
+        </QueueProvider>
+      </BluetoothProvider>
     </DisplaySizeProvider>
   )
 }
