@@ -27,6 +27,7 @@ from pi_jukebox.updates.installer import (
     normalized_version,
 )
 from pi_jukebox.updates.service import GitHubCliReleaseSource, ReleaseInfo, UpdateService
+from pi_jukebox.version import __version__
 
 
 def release_info(version: str, *, assets: bool = True) -> ReleaseInfo:
@@ -79,12 +80,12 @@ def test_strict_semantic_version_comparison(candidate, installed, available) -> 
 
 
 def test_update_check_current_and_newer_release() -> None:
-    current = UpdateService(Settings(_env_file=None), Source(release_info("0.5.0")))
+    current = UpdateService(Settings(_env_file=None), Source(release_info(__version__)))
     assert current.check()
     wait_until(lambda: not current.status()["checking"])
     assert current.status()["update_available"] is False
 
-    newer = UpdateService(Settings(_env_file=None), Source(release_info("0.5.1")))
+    newer = UpdateService(Settings(_env_file=None), Source(release_info("0.5.2")))
     assert newer.check()
     wait_until(lambda: not newer.status()["checking"])
     assert newer.status()["update_available"] is True
@@ -96,7 +97,7 @@ def test_update_check_offline_is_nonfatal() -> None:
     wait_until(lambda: not service.status()["checking"])
     status = service.status()
     assert status["last_error"]
-    assert status["installed_version"] == "0.5.0"
+    assert status["installed_version"] == __version__
 
 
 def test_release_without_required_assets_is_visible_but_not_installable(tmp_path: Path) -> None:
@@ -106,7 +107,7 @@ def test_release_without_required_assets_is_visible_but_not_installable(tmp_path
         update_request_path=(tmp_path / "request.json").resolve(),
         update_status_path=(tmp_path / "status.json").resolve(),
     )
-    service = UpdateService(settings, Source(release_info("0.5.1", assets=False)))
+    service = UpdateService(settings, Source(release_info("0.5.2", assets=False)))
     service.check()
     wait_until(lambda: not service.status()["checking"])
     assert service.status()["update_available"] is True
@@ -390,7 +391,7 @@ def test_install_request_is_narrow_and_concurrent_requests_are_rejected(tmp_path
         update_request_path=state / "request.json",
         update_status_path=state / "status.json",
     )
-    service = UpdateService(settings, Source(release_info("0.5.1")))
+    service = UpdateService(settings, Source(release_info("0.5.2")))
     service.check()
     wait_until(lambda: not service.status()["checking"])
     assert service.request_install()
@@ -400,7 +401,7 @@ def test_install_request_is_narrow_and_concurrent_requests_are_rejected(tmp_path
     assert service.status()["stage"] == "queued"
     request = json.loads((state / "request.json").read_text())
     assert set(request) == {"format_version", "version", "installed_version", "requested_at"}
-    assert request["version"] == "0.5.1"
+    assert request["version"] == "0.5.2"
     assert all("token" not in str(value).casefold() for value in request.values())
 
 
@@ -500,6 +501,7 @@ def write_request(config: HelperConfig, version="0.5.1") -> None:
 
 def test_helper_persists_success_and_rollback_outcomes(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("pi_jukebox.updates.helper.platform.machine", lambda: "aarch64")
+    monkeypatch.setattr("pi_jukebox.updates.helper.__version__", "0.5.0")
     archive, manifest = make_release(tmp_path / "package")
 
     success_config = helper_config(tmp_path / "success")

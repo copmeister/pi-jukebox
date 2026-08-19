@@ -4,6 +4,7 @@ from pathlib import Path
 import httpx
 from pi_jukebox.config import Settings
 from pi_jukebox.main import app, create_app
+from pi_jukebox.version import __version__
 
 
 def test_health_check_reports_ready_service() -> None:
@@ -19,7 +20,7 @@ def test_health_check_reports_ready_service() -> None:
     assert payload["status"] == "ok"
     assert payload["application"]
     assert payload["environment"] in {"development", "test", "production"}
-    assert payload["version"] == "0.5.0"
+    assert payload["version"] == __version__
 
 
 def test_production_frontend_is_served_without_vite(tmp_path: Path) -> None:
