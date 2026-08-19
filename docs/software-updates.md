@@ -79,7 +79,7 @@ The external manifest format is:
   },
   "compatibility": {
     "architecture": "aarch64",
-    "python": "3.11"
+    "python": "3.13"
   },
   "files": {
     "app/pi_jukebox-0.5.1-py3-none-any.whl": "sha256",
@@ -450,7 +450,7 @@ mkdir -p "$release_build/app" "$release_build/wheelhouse" \
   --wheelhouse "$release_build/wheelhouse" \
   --frontend-dist frontend/dist \
   --output-directory "$release_build/assets" \
-  --architecture aarch64 --python-version 3.11
+  --architecture aarch64 --python-version 3.13
 
 "$release_tools/bin/python" -m pytest
 "$release_tools/bin/python" -m ruff check .

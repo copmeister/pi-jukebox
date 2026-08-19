@@ -116,7 +116,7 @@ def main() -> int:
     parser.add_argument("--frontend-dist", required=True, type=Path)
     parser.add_argument("--output-directory", required=True, type=Path)
     parser.add_argument("--architecture", default="aarch64")
-    parser.add_argument("--python-version", default="3.11")
+    parser.add_argument("--python-version", default="3.13")
     args = parser.parse_args()
     archive, manifest = build(
         version=args.version,
