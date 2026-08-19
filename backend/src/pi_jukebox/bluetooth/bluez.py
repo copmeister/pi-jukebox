@@ -49,7 +49,7 @@ class PiJukeboxAgent(ServiceInterface):
         self.authorize = authorize
 
     @dbus_method(name="Release")
-    def release(self) -> None:
+    def release(self):
         return None
 
     @dbus_method(name="RequestPinCode")
@@ -60,7 +60,7 @@ class PiJukeboxAgent(ServiceInterface):
         )
 
     @dbus_method(name="DisplayPinCode")
-    def display_pin_code(self, _device: DBusObjectPath, _pin_code: DBusStr) -> None:
+    def display_pin_code(self, _device: DBusObjectPath, _pin_code: DBusStr):
         raise DBusError(
             "org.bluez.Error.Rejected",
             "Legacy PIN display is not supported by the touchscreen pairing flow.",
@@ -79,26 +79,26 @@ class PiJukeboxAgent(ServiceInterface):
         _device: DBusObjectPath,
         _passkey: DBusUInt32,
         _entered: DBusUInt16,
-    ) -> None:
+    ):
         raise DBusError(
             "org.bluez.Error.Rejected",
             "Passkey display is not supported by the touchscreen pairing flow.",
         )
 
     @dbus_method(name="RequestConfirmation")
-    async def request_confirmation(self, device: DBusObjectPath, passkey: DBusUInt32) -> None:
+    async def request_confirmation(self, device: DBusObjectPath, passkey: DBusUInt32):
         accepted = await self.authorize(str(device), "confirm", f"{int(passkey):06d}")
         if not accepted:
             raise DBusError("org.bluez.Error.Rejected", "Pairing was rejected.")
 
     @dbus_method(name="RequestAuthorization")
-    async def request_authorization(self, device: DBusObjectPath) -> None:
+    async def request_authorization(self, device: DBusObjectPath):
         accepted = await self.authorize(str(device), "authorize", None)
         if not accepted:
             raise DBusError("org.bluez.Error.Rejected", "Pairing was rejected.")
 
     @dbus_method(name="AuthorizeService")
-    async def authorize_service(self, device: DBusObjectPath, uuid: DBusStr) -> None:
+    async def authorize_service(self, device: DBusObjectPath, uuid: DBusStr):
         if str(uuid).lower() not in A2DP_SERVICE_UUIDS:
             raise DBusError("org.bluez.Error.Rejected", "That Bluetooth service is not allowed.")
         accepted = await self.authorize(str(device), "authorize", None)
@@ -106,7 +106,7 @@ class PiJukeboxAgent(ServiceInterface):
             raise DBusError("org.bluez.Error.Rejected", "Bluetooth audio was rejected.")
 
     @dbus_method(name="Cancel")
-    def cancel(self) -> None:
+    def cancel(self):
         return None
 
 

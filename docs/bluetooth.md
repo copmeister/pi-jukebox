@@ -6,6 +6,8 @@ Pro. This is a hardware-test candidate until the migration and physical checks
 in this document pass. Windows development deliberately reports Bluetooth as
 unavailable.
 
+Version 0.6.1 corrects native dbus-fast agent signatures and documents the narrow helper release-path traversal ACL.
+
 ## Boundaries and audio route
 
 ```text
@@ -57,7 +59,7 @@ test "$(uname -m)" = aarch64
 test "$(id -u admin)" = 1000
 test "$(cat /home/admin/pi-jukebox-releases/current-version)" = 0.5.0
 systemctl is-active --quiet bluetooth.service
-dpkg-query -W bluez pipewire pipewire-pulse wireplumber libspa-0.2-bluetooth
+dpkg-query -W acl bluez pipewire pipewire-pulse wireplumber libspa-0.2-bluetooth
 sudo -u admin env XDG_RUNTIME_DIR=/run/user/1000 \
   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
   wpctl inspect @DEFAULT_AUDIO_SINK@ | grep -F 'RPi DAC Pro'
@@ -89,6 +91,7 @@ yet**. The active v0.5.0 release does not contain its Python module.
 
 ```bash
 required_packages=(
+  acl
   bluez pipewire pipewire-pulse wireplumber libspa-0.2-bluetooth
 )
 missing_packages=()
@@ -111,6 +114,14 @@ if ! getent passwd pi-jukebox-bt >/dev/null; then
     --groups bluetooth pi-jukebox-bt
 fi
 id pi-jukebox-bt
+sudo test ! -e /home/admin/jukebox-data/home-admin.pre-bluetooth.acl
+sudo getfacl -p /home/admin | sudo tee /home/admin/jukebox-data/home-admin.pre-bluetooth.acl >/dev/null
+sudo chown root:root /home/admin/jukebox-data/home-admin.pre-bluetooth.acl
+sudo chmod 0600 /home/admin/jukebox-data/home-admin.pre-bluetooth.acl
+sudo setfacl -m u:pi-jukebox-bt:--x /home/admin
+sudo -u pi-jukebox-bt test -x /home/admin
+sudo -u pi-jukebox-bt test ! -r /home/admin
+sudo -u pi-jukebox-bt cat /home/admin/pi-jukebox-releases/current-version
 sudo -u pi-jukebox-bt busctl --system get-property \
   org.bluez /org/bluez/hci0 org.bluez.Adapter1 Alias
 
@@ -225,6 +236,7 @@ keys intact, turn off the feature and restore only the prior service/routing:
 
 ```bash
 sudo systemctl disable --now pi-jukebox-bluetooth.service
+sudo setfacl --restore=/home/admin/jukebox-data/home-admin.pre-bluetooth.acl
 sudo bluetoothctl discoverable off
 sudo bluetoothctl pairable off
 sudoedit /home/admin/jukebox-data/jukebox.env
