@@ -1737,6 +1737,45 @@ h2 {
   background: #0e141a;
 }
 
+.sleep-button {
+  min-height: var(--ui-touch-target);
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  color: #b7c0c8;
+  background: #151d24;
+  font-size: 0.68rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+.sleep-screen {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  display: grid;
+  place-content: center;
+  gap: 28px;
+  border: 0;
+  color: #777;
+  background: #000;
+  text-align: center;
+  cursor: pointer;
+}
+.sleep-screen time {
+  color: #aaa;
+  font-size: clamp(5rem, 18vw, 10rem);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.sleep-screen span {
+  font-size: clamp(1rem, 2vw, 1.35rem);
+}
+
 .bluetooth-screen {
   min-height: 100%;
 }

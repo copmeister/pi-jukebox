@@ -94,6 +94,19 @@ const cancelledJob: CdRipJob = {
   ],
 }
 
+const completedJob: CdRipJob = {
+  ...cancelledJob,
+  status: 'completed',
+  completed_tracks: 2,
+  cancel_requested: false,
+  message: 'Rip completed successfully.',
+  tracks: cancelledJob.tracks.map((track) => ({
+    ...track,
+    state: 'ready',
+    final_relative_path: `Example Artist/Album/${track.track_number}.flac`,
+  })),
+}
+
 function state(status: CdStatus): CdState {
   return {
     status,
@@ -206,6 +219,51 @@ describe('CD touchscreen screen', () => {
     expect(screen.getByText(/keep 1 verified track/i)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Resume Rip' }))
     expect(cd.startRip).toHaveBeenCalledWith('release-1')
+  })
+
+  it('labels a successful inserted-disc job as complete', () => {
+    render(
+      <CdScreen
+        cd={state({
+          ...ready,
+          latest_job: completedJob,
+          rip_action: {
+            action: 'complete',
+            message: 'This release is already complete in the library.',
+            source_job_id: completedJob.id,
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Rip complete')).toBeInTheDocument()
+    expect(screen.getAllByText('Complete')).toHaveLength(2)
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument()
+  })
+
+  it('clears completed release and track state after physical eject', () => {
+    render(
+      <CdScreen
+        cd={state({
+          ...ready,
+          drive: { ...ready.drive, disc_present: false, disc: null },
+          release_candidates: [],
+          selected_release_id: null,
+          latest_job: completedJob,
+          rip_action: {
+            action: 'unavailable',
+            message: 'Insert an audio CD first.',
+            source_job_id: null,
+          },
+        })}
+      />,
+    )
+
+    expect(
+      screen.getByRole('heading', { name: 'Insert an audio CD' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Rip complete')).not.toBeInTheDocument()
+    expect(screen.queryByText(release.title)).not.toBeInTheDocument()
   })
 
   it('shows a safe conflict and never offers an enabled rip action', () => {

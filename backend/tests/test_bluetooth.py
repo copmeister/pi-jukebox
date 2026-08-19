@@ -61,6 +61,7 @@ class FakeAdapter:
         self.authorize = None
         self.pairing_changes: list[bool] = []
         self.connected: list[str] = []
+        self.transport_waits: list[str] = []
         self.disconnected: list[str] = []
         self.trusted: list[str] = []
         self.forgotten: list[str] = []
@@ -106,6 +107,10 @@ class FakeAdapter:
         self.devices = [
             replace(item, connected=True) if item.path == path else item for item in self.devices
         ]
+
+    async def wait_for_audio_transport(self, path: str) -> bool:
+        self.transport_waits.append(path)
+        return True
 
     async def disconnect(self, path: str) -> None:
         self.disconnected.append(path)
@@ -247,10 +252,34 @@ def test_connect_switches_one_trusted_phone_and_deactivate_disconnects_it() -> N
         assert status.mode_active
         assert status.connected_device_id == public_device_id(second_path)
         assert adapter.connected == [second_path]
+        assert adapter.transport_waits == [second_path]
 
         stopped = await broker.deactivate()
         assert stopped.state is BluetoothPlaybackState.INACTIVE
         assert second_path in adapter.disconnected
+        await broker.close()
+
+    run(scenario())
+
+
+def test_first_pair_reconnects_profile_and_waits_for_a2dp_transport() -> None:
+    async def scenario() -> None:
+        path = "/org/bluez/hci0/dev_12_34_56_78_90_AB"
+        adapter = FakeAdapter(
+            [device(path, "New Phone", paired=False, trusted=False, connected=True)]
+        )
+        broker = BluetoothBroker(adapter)
+        await broker.start()
+        await broker.activate()
+        broker.approved_paths.add(path)
+
+        adapter.devices = [replace(adapter.devices[0], paired=True, connected=True)]
+        status = await broker.status()
+
+        assert adapter.trusted == [path]
+        assert adapter.connected == [path]
+        assert adapter.transport_waits == [path]
+        assert status.connected_device_id == public_device_id(path)
         await broker.close()
 
     run(scenario())

@@ -62,11 +62,12 @@ function RipProgress({ job }: { job: CdRipJob }) {
   const current = job.tracks.find((track) =>
     ['reading', 'encoding', 'tagging'].includes(track.state),
   )
+  const complete = job.status === 'completed'
   return (
     <section className="cd-rip-progress" aria-label="CD rip progress">
       <header>
         <div>
-          <p className="eyebrow">{job.status}</p>
+          <p className="eyebrow">{complete ? 'Rip complete' : job.status}</p>
           <h2>{job.album_title}</h2>
           <p>{job.album_artist}</p>
           {current ? (
@@ -94,7 +95,9 @@ function RipProgress({ job }: { job: CdRipJob }) {
             <strong>{track.title}</strong>
             <small>
               {track.error_message ??
-                track.state.charAt(0).toUpperCase() + track.state.slice(1)}
+                (complete && track.state === 'ready'
+                  ? 'Complete'
+                  : track.state.charAt(0).toUpperCase() + track.state.slice(1))}
             </small>
           </li>
         ))}
@@ -139,7 +142,7 @@ export function CdScreen({ cd }: CdScreenProps) {
   const terminalJob =
     job &&
     !['queued', 'ripping'].includes(job.status) &&
-    (!status.drive.disc || status.drive.disc.disc_id === job.disc_id)
+    status.drive.disc?.disc_id === job.disc_id
   const ripAction = status.rip_action
   const ripButtonLabel =
     ripAction.action === 'resume'
