@@ -121,8 +121,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.5',
-  latest_version: '0.6.5',
+  installed_version: '0.6.6',
+  latest_version: '0.6.6',
   checking: false,
   installing: false,
   update_available: false,
@@ -272,7 +272,7 @@ describe('App catalogue interface', () => {
       name: 'Primary navigation',
     })
     expect(navigation).toBeInTheDocument()
-    expect(within(navigation).getAllByRole('button')).toHaveLength(8)
+    expect(within(navigation).getAllByRole('button')).toHaveLength(9)
     expect(document.querySelector('.main-content')).toHaveAttribute(
       'data-scroll-region',
       'vertical',
@@ -343,7 +343,7 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.5')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.6')).toBeInTheDocument()
   })
 
   it('shows local metadata and keeps unavailable status nonvisual in Spectrum', async () => {
@@ -442,6 +442,80 @@ describe('App catalogue interface', () => {
     expect(screen.queryByText('Unknown Artist')).not.toBeInTheDocument()
   })
 
+  it('plays, switches, stops, and visualises radio without queue mutations', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+
+    await user.click(screen.getByRole('button', { name: 'Radio' }))
+    expect(screen.getByRole('heading', { name: 'Radio' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Play Classic FM' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Play Classic FM' }))
+    expect(
+      screen.getByRole('heading', { name: 'Classic FM' }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText('Live Radio')).not.toHaveLength(0)
+    expect(document.querySelectorAll('audio')).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: 'Play Smooth Radio' }))
+    expect(
+      screen.getByRole('heading', { name: 'Smooth Radio' }),
+    ).toBeInTheDocument()
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(
+          ([input, init]) =>
+            String(input).includes('/api/queue') && Boolean(init?.method),
+        ),
+    ).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: 'Open Spectrum' }))
+    expect(
+      screen.getByRole('heading', { name: 'Smooth Radio' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Live Radio')).toBeInTheDocument()
+    expect(FakeEventSource.instances.at(-1)?.url).toMatch(
+      /\/api\/visualiser\/stream$/,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Exit Spectrum' }))
+    await user.click(
+      within(
+        screen.getByRole('region', { name: 'Live radio controls' }),
+      ).getByRole('button', { name: 'Stop' }),
+    )
+    expect(
+      screen.queryByRole('region', { name: 'Live radio controls' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('deactivates Bluetooth before starting radio', async () => {
+    currentBluetoothStatus = {
+      ...availableBluetoothStatus,
+      mode_active: true,
+      state: 'not_connected',
+    }
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+    await user.click(screen.getByRole('button', { name: 'Radio' }))
+    await user.click(screen.getByRole('button', { name: 'Play LBC' }))
+
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) =>
+          String(input).endsWith('/api/bluetooth/deactivate'),
+        ),
+    ).toBe(true)
+    expect(screen.getByRole('heading', { name: 'LBC' })).toBeInTheDocument()
+  })
+
   it('does not create Jukebox effects while navigating other screens', async () => {
     const audioContext = vi.fn()
     vi.stubGlobal('AudioContext', audioContext)
@@ -453,6 +527,7 @@ describe('App catalogue interface', () => {
       'Library',
       'Search',
       'Queue',
+      'Radio',
       'CD',
       'Bluetooth',
       'Now Playing',

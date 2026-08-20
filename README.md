@@ -8,6 +8,8 @@ Version 0.6.3 improves Sleep with dynamically discovered Touch Display 2 backlig
 
 Version 0.6.5 gives the real-time Spectrum a near-edge-to-edge, label-free touchscreen layout with compact metadata and exit overlays while preserving the v0.6.4 analyser, audio routing and all existing jukebox behaviour.
 
+Version 0.6.6 adds a curated Internet Radio screen using the existing persistent Chromium player and final DAC output path. Radio can be opened from navigation, Now Playing or the mini-player, switches safely with Bluetooth, leaves the queue untouched and feeds the existing Spectrum visualiser.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows

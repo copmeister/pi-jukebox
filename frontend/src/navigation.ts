@@ -3,6 +3,7 @@ export const destinations = [
   'Library',
   'Search',
   'Queue',
+  'Radio',
   'CD',
   'Bluetooth',
   'Now Playing',

@@ -2,30 +2,38 @@ import { useEffect, useRef } from 'react'
 import type { SpectrumFrame } from '../api/types'
 import {
   aggregateBands,
-  blockColour,
+  blockColourPalette,
   calculateMatrixLayout,
   stepDisplayedLevels,
+  type SpectrumColourScheme,
 } from './spectrum'
 
 interface SpectrumCanvasProps {
   frame: SpectrumFrame | null
   riseRate?: number
   fallRate?: number
+  colourScheme: SpectrumColourScheme
 }
 
 export function SpectrumCanvas({
   frame,
   riseRate,
   fallRate,
+  colourScheme,
 }: SpectrumCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const frameRef = useRef(frame)
   const displayedRef = useRef<number[]>([])
   const creditRef = useRef<number[]>([])
+  const colourSchemeRef = useRef(colourScheme)
 
   useEffect(() => {
     frameRef.current = frame
   }, [frame])
+
+  useEffect(() => {
+    colourSchemeRef.current = colourScheme
+  }, [colourScheme])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -76,7 +84,12 @@ export function SpectrumCanvas({
             fallRate,
             creditRef.current,
           )
-          drawMatrix(context, layout, displayedRef.current)
+          drawMatrix(
+            context,
+            layout,
+            displayedRef.current,
+            colourSchemeRef.current,
+          )
         }
       }
       previousTime = time
@@ -95,7 +108,7 @@ export function SpectrumCanvas({
       ref={canvasRef}
       className="spectrum-canvas"
       role="img"
-      aria-label="Real-time audio spectrum"
+      aria-label={`Real-time audio spectrum, ${colourScheme} colours`}
     />
   )
 }
@@ -104,7 +117,9 @@ function drawMatrix(
   context: CanvasRenderingContext2D,
   layout: ReturnType<typeof calculateMatrixLayout>,
   levels: readonly number[],
+  colourScheme: SpectrumColourScheme,
 ) {
+  const colours = blockColourPalette(layout.levels, colourScheme)
   for (let column = 0; column < levels.length; column += 1) {
     const height = Math.min(layout.levels, Math.max(0, levels[column]))
     const x = layout.matrixX + column * (layout.cellSize + layout.gap)
@@ -114,7 +129,7 @@ function drawMatrix(
         layout.matrixHeight -
         layout.cellSize -
         row * (layout.cellSize + layout.gap)
-      context.fillStyle = blockColour(height - row - 1, layout.levels)
+      context.fillStyle = colours[height - row - 1]
       // Both dimensions deliberately use the one integer cellSize.
       context.fillRect(x, y, layout.cellSize, layout.cellSize)
     }

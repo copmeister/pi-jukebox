@@ -16,17 +16,22 @@ import {
   useJukeboxSounds,
 } from '../jukebox/sounds'
 import { useQueue } from '../queue/QueueContext'
+import type { RadioStation } from '../radio/stations'
 
 /* Context and provider intentionally share this module so consumers have one audio API. */
 /* eslint-disable react-refresh/only-export-components */
 
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error'
 export type PlaybackPresentation = 'modern' | 'jukebox'
+export type PlaybackSource = 'local' | 'radio'
 
 export const JUKEBOX_LOADING_DELAY_MS = 900
+export const RADIO_RETRY_DELAY_MS = 4_000
 
 interface AudioPlayerValue {
   currentTrack: PlayerTrack | null
+  source: PlaybackSource
+  radioStation: RadioStation | null
   status: PlaybackStatus
   error: string | null
   currentTime: number
@@ -42,6 +47,8 @@ interface AudioPlayerValue {
   playJukebox: (track: Track, code: string) => Promise<boolean>
   acceptQueuedJukeboxSelection: () => void
   playAlbum: (albumId: number) => Promise<boolean>
+  playRadio: (station: RadioStation) => Promise<boolean>
+  stopRadio: () => void
   stopAndClear: () => Promise<boolean>
   togglePlayback: () => void
   previous: () => void
@@ -62,6 +69,10 @@ function playbackError(error: unknown): string {
     return 'Playback needs a tap. Choose Play to let the browser start audio.'
   }
   return 'This track could not be played. It will be skipped if another item is queued.'
+}
+
+function radioPlaybackError(station: RadioStation): string {
+  return `${station.name} is unavailable. Reconnecting shortly…`
 }
 
 function queueItemTrack(item: QueueItem): PlayerTrack {
@@ -86,6 +97,7 @@ interface AudioPlayerProviderProps {
   children: ReactNode
   soundController?: JukeboxSoundController
   jukeboxLoadingDelayMs?: number
+  radioRetryDelayMs?: number
   sleeping?: boolean
 }
 
@@ -93,6 +105,7 @@ export function AudioPlayerProvider({
   children,
   soundController,
   jukeboxLoadingDelayMs = JUKEBOX_LOADING_DELAY_MS,
+  radioRetryDelayMs = RADIO_RETRY_DELAY_MS,
   sleeping = false,
 }: AudioPlayerProviderProps) {
   const queue = useQueue()
@@ -102,6 +115,10 @@ export function AudioPlayerProvider({
   const soundsRef = useRef(jukeboxSounds)
   const audioRef = useRef<HTMLAudioElement>(null)
   const currentItemRef = useRef<QueueItem | null>(null)
+  const sourceRef = useRef<PlaybackSource>('local')
+  const radioStationRef = useRef<RadioStation | null>(null)
+  const radioRetryTimerRef = useRef<number | null>(null)
+  const retryRadioRef = useRef<() => void>(() => undefined)
   const historyRef = useRef<number[]>([])
   const advancingRef = useRef(false)
   const pendingAdvanceRef = useRef<boolean | null>(null)
@@ -109,6 +126,8 @@ export function AudioPlayerProvider({
   const presentationRef = useRef<PlaybackPresentation>('modern')
   const pendingJukeboxStartRef = useRef<PendingJukeboxStart | null>(null)
   const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null)
+  const [source, setSource] = useState<PlaybackSource>('local')
+  const [radioStation, setRadioStation] = useState<RadioStation | null>(null)
   const [status, setStatus] = useState<PlaybackStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(0)
@@ -141,12 +160,90 @@ export function AudioPlayerProvider({
     setPresentationMessage(null)
   }, [])
 
+  const clearRadioRetry = useCallback(() => {
+    if (radioRetryTimerRef.current === null) return
+    window.clearTimeout(radioRetryTimerRef.current)
+    radioRetryTimerRef.current = null
+  }, [])
+
+  const selectLocalSource = useCallback(() => {
+    clearRadioRetry()
+    sourceRef.current = 'local'
+    radioStationRef.current = null
+    setSource('local')
+    setRadioStation(null)
+  }, [clearRadioRetry])
+
+  const selectRadioSource = useCallback(
+    (station: RadioStation) => {
+      clearRadioRetry()
+      sourceRef.current = 'radio'
+      radioStationRef.current = station
+      setSource('radio')
+      setRadioStation(station)
+    },
+    [clearRadioRetry],
+  )
+
+  const scheduleRadioRetry = useCallback(() => {
+    clearRadioRetry()
+    radioRetryTimerRef.current = window.setTimeout(() => {
+      radioRetryTimerRef.current = null
+      retryRadioRef.current()
+    }, radioRetryDelayMs)
+  }, [clearRadioRetry, radioRetryDelayMs])
+
+  const attemptRadioPlayback = useCallback(
+    (station: RadioStation, reconnecting = false) => {
+      const audio = audioRef.current
+      if (!audio) return
+      cancelPendingJukeboxStart()
+      selectRadioSource(station)
+      restoringRef.current = false
+      audio.pause()
+      setCurrentTime(0)
+      setDuration(0)
+      setStatus('loading')
+      setError(reconnecting ? `Reconnecting to ${station.name}…` : null)
+      audio.src = station.streamUrl
+      audio.load()
+      void audio.play().catch(() => {
+        if (
+          sourceRef.current !== 'radio' ||
+          radioStationRef.current?.id !== station.id
+        )
+          return
+        setStatus('error')
+        setError(radioPlaybackError(station))
+        scheduleRadioRetry()
+      })
+    },
+    [cancelPendingJukeboxStart, scheduleRadioRetry, selectRadioSource],
+  )
+
+  useEffect(() => {
+    retryRadioRef.current = () => {
+      const station = radioStationRef.current
+      if (sourceRef.current === 'radio' && station)
+        attemptRadioPlayback(station, true)
+    }
+  }, [attemptRadioPlayback])
+
+  const markRadioUnavailable = useCallback(() => {
+    const station = radioStationRef.current
+    if (sourceRef.current !== 'radio' || !station) return
+    setStatus('error')
+    setError(radioPlaybackError(station))
+    scheduleRadioRetry()
+  }, [scheduleRadioRetry])
+
   useEffect(() => {
     if (!bluetooth) return
     bluetooth.registerLocalPause(() => {
       cancelPendingJukeboxStart()
       audioRef.current?.pause()
-      if (currentItemRef.current) setStatus('paused')
+      if (currentItemRef.current || sourceRef.current === 'radio')
+        setStatus('paused')
     })
     return () => bluetooth.registerLocalPause(null)
   }, [bluetooth, cancelPendingJukeboxStart])
@@ -158,6 +255,7 @@ export function AudioPlayerProvider({
 
   const stopAudio = useCallback(() => {
     cancelPendingJukeboxStart()
+    selectLocalSource()
     const audio = audioRef.current
     currentItemRef.current = null
     restoringRef.current = false
@@ -170,8 +268,9 @@ export function AudioPlayerProvider({
     setCurrentTime(0)
     setDuration(0)
     setStatus('idle')
+    setError(null)
     setPresentationMode('modern')
-  }, [cancelPendingJukeboxStart, setPresentationMode])
+  }, [cancelPendingJukeboxStart, selectLocalSource, setPresentationMode])
 
   const setCurrentItem = useCallback(
     (item: QueueItem, rememberCurrent = true) => {
@@ -195,6 +294,7 @@ export function AudioPlayerProvider({
       const audio = audioRef.current
       if (!audio) return
       cancelPendingJukeboxStart()
+      selectLocalSource()
       setCurrentItem(item, rememberCurrent)
       setStatus('loading')
       audio.src = mediaUrl(item.track_id)
@@ -205,7 +305,7 @@ export function AudioPlayerProvider({
         setError(playbackError(playError))
       })
     },
-    [cancelPendingJukeboxStart, setCurrentItem],
+    [cancelPendingJukeboxStart, selectLocalSource, setCurrentItem],
   )
 
   const shouldUseJukeboxPause = useCallback(() => {
@@ -219,6 +319,7 @@ export function AudioPlayerProvider({
       if (!audio) return
       audio.pause()
       cancelPendingJukeboxStart()
+      selectLocalSource()
       setCurrentItem(item, rememberCurrent)
       setStatus('loading')
       setPresentationMessage(message)
@@ -247,24 +348,52 @@ export function AudioPlayerProvider({
       }, jukeboxLoadingDelayMs)
       pendingJukeboxStartRef.current = { itemId: item.id, timer, cancelSound }
     },
-    [cancelPendingJukeboxStart, jukeboxLoadingDelayMs, setCurrentItem],
+    [
+      cancelPendingJukeboxStart,
+      jukeboxLoadingDelayMs,
+      selectLocalSource,
+      setCurrentItem,
+    ],
   )
 
-  const restoreItem = useCallback((item: QueueItem) => {
-    const audio = audioRef.current
-    if (!audio) return
-    currentItemRef.current = item
-    restoringRef.current = true
-    audio.pause()
-    audio.src = mediaUrl(item.track_id)
-    audio.currentTime = 0
-    audio.load()
-    setCurrentTrack(queueItemTrack(item))
-    setCurrentTime(0)
-    setDuration(item.duration_seconds ?? 0)
-    setStatus('paused')
-    setError(null)
-  }, [])
+  const restoreItem = useCallback(
+    (item: QueueItem) => {
+      const audio = audioRef.current
+      if (!audio) return
+      selectLocalSource()
+      currentItemRef.current = item
+      restoringRef.current = true
+      audio.pause()
+      audio.src = mediaUrl(item.track_id)
+      audio.currentTime = 0
+      audio.load()
+      setCurrentTrack(queueItemTrack(item))
+      setCurrentTime(0)
+      setDuration(item.duration_seconds ?? 0)
+      setStatus('paused')
+      setError(null)
+    },
+    [selectLocalSource],
+  )
+
+  const playRadio = useCallback(
+    async (station: RadioStation) => {
+      if (bluetooth && !(await bluetooth.prepareLocalPlayback())) return false
+      attemptRadioPlayback(station)
+      return true
+    },
+    [attemptRadioPlayback, bluetooth],
+  )
+
+  const stopRadio = useCallback(() => {
+    if (sourceRef.current !== 'radio') return
+    const localItem = currentItemRef.current
+    if (localItem) {
+      restoreItem(localItem)
+      return
+    }
+    stopAudio()
+  }, [restoreItem, stopAudio])
 
   const finishAdvance = useCallback(
     (snapshot: Awaited<ReturnType<typeof queue.advance>>, failed: boolean) => {
@@ -356,6 +485,8 @@ export function AudioPlayerProvider({
 
   useEffect(
     () => () => {
+      if (radioRetryTimerRef.current !== null)
+        window.clearTimeout(radioRetryTimerRef.current)
       const pending = pendingJukeboxStartRef.current
       if (!pending) return
       window.clearTimeout(pending.timer)
@@ -474,6 +605,19 @@ export function AudioPlayerProvider({
   }, [cancelPendingJukeboxStart, startItem])
 
   const togglePlayback = useCallback(() => {
+    const station = radioStationRef.current
+    if (sourceRef.current === 'radio' && station) {
+      if (bluetooth?.status.mode_active) {
+        void bluetooth.prepareLocalPlayback().then((ready) => {
+          if (ready) attemptRadioPlayback(station, true)
+        })
+      } else if (audioRef.current?.paused) {
+        attemptRadioPlayback(station, true)
+      } else {
+        audioRef.current?.pause()
+      }
+      return
+    }
     if (bluetooth?.status.mode_active) {
       void bluetooth.prepareLocalPlayback().then((ready) => {
         if (ready) toggleLocalPlayback()
@@ -481,7 +625,7 @@ export function AudioPlayerProvider({
       return
     }
     toggleLocalPlayback()
-  }, [bluetooth, toggleLocalPlayback])
+  }, [attemptRadioPlayback, bluetooth, toggleLocalPlayback])
 
   const previous = useCallback(() => {
     const audio = audioRef.current
@@ -543,6 +687,8 @@ export function AudioPlayerProvider({
   const value = useMemo<AudioPlayerValue>(
     () => ({
       currentTrack,
+      source,
+      radioStation,
       status,
       error,
       currentTime,
@@ -552,12 +698,15 @@ export function AudioPlayerProvider({
       presentation,
       presentationMessage,
       jukeboxSounds,
-      canGoPrevious: historyCount > 0 || currentTime > 3,
-      canGoNext: Boolean(queue.snapshot?.upcoming.length),
+      canGoPrevious:
+        source === 'local' && (historyCount > 0 || currentTime > 3),
+      canGoNext: source === 'local' && Boolean(queue.snapshot?.upcoming.length),
       playNow,
       playJukebox,
       acceptQueuedJukeboxSelection,
       playAlbum,
+      playRadio,
+      stopRadio,
       stopAndClear,
       togglePlayback,
       previous,
@@ -578,13 +727,17 @@ export function AudioPlayerProvider({
       playAlbum,
       playJukebox,
       playNow,
+      playRadio,
       presentation,
       presentationMessage,
       previous,
       queue.snapshot?.upcoming.length,
+      radioStation,
       seek,
       setVolume,
+      source,
       status,
+      stopRadio,
       stopAndClear,
       toggleMute,
       togglePlayback,
@@ -599,18 +752,24 @@ export function AudioPlayerProvider({
       <audio
         ref={audioRef}
         preload="metadata"
-        crossOrigin="anonymous"
         onLoadStart={() =>
           setStatus(restoringRef.current ? 'paused' : 'loading')
         }
         onPlaying={() => {
           restoringRef.current = false
+          if (sourceRef.current === 'radio') clearRadioRetry()
           setStatus('playing')
           setError(null)
         }}
         onPause={() => {
           if (pendingJukeboxStartRef.current) {
             setStatus('loading')
+            return
+          }
+          if (sourceRef.current === 'radio' && radioStationRef.current) {
+            setStatus((currentStatus) =>
+              currentStatus === 'error' ? currentStatus : 'paused',
+            )
             return
           }
           if (currentItemRef.current && !restoringRef.current) {
@@ -635,8 +794,18 @@ export function AudioPlayerProvider({
           setVolumeState(event.currentTarget.volume)
           setMuted(event.currentTarget.muted)
         }}
-        onEnded={() => void advanceCurrent(false)}
+        onEnded={() => {
+          if (sourceRef.current === 'radio') {
+            markRadioUnavailable()
+            return
+          }
+          void advanceCurrent(false)
+        }}
         onError={() => {
+          if (sourceRef.current === 'radio') {
+            markRadioUnavailable()
+            return
+          }
           if (!currentItemRef.current) return
           setStatus('error')
           setError(
