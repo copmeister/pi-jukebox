@@ -60,6 +60,8 @@ No CD endpoint accepts a device path, output path, executable, command or arbitr
 - `GET /api/system/updates` â€” installed/latest version, availability, helper stage, requested/previous versions and persisted success/rollback/failure outcome
 - `POST /api/system/updates/check` â€” start one asynchronous published-stable-release check
 - `POST /api/system/updates/install` â€” create a fixed-schema request for the already discovered version and trigger the fixed root-owned systemd helper when explicitly configured; the jukebox client supplies the fixed `X-Pi-Jukebox-Action` header so foreign browser origins must pass CORS preflight
+- `POST /api/system/display/sleep` â€” dynamically discover and dim the DSI backlight, preserving its exact current level
+- `POST /api/system/display/wake` â€” restore the exact brightness saved by the preceding Sleep action
 
 The browser never receives GitHub credentials, release URLs, filesystem destinations or command arguments. Duplicate or unsafe install requests return a conflict instead of starting another helper.
 
