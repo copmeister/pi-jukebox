@@ -10,6 +10,8 @@ Version 0.6.5 gives the real-time Spectrum a near-edge-to-edge, label-free touch
 
 Version 0.6.6 adds a curated Internet Radio screen using the existing persistent Chromium player and final DAC output path. Radio can be opened from navigation, Now Playing or the mini-player, switches safely with Bluetooth, leaves the queue untouched and feeds the existing Spectrum visualiser.
 
+Version 0.6.7 adds Golden Ratio, Particle Galaxy and Water to the existing fullscreen visualiser pipeline, with swipe rotation and persistent Settings controls for enabling the preferred modes.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows

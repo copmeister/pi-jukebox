@@ -75,6 +75,7 @@ The frontend is a React single-page application written in TypeScript and built 
 - Chromium will perform audio decoding and playback.
 - The demand-driven spectrum visualiser captures the dynamically resolved DAC/default-sink monitor in the `admin` PipeWire graph. It resolves the stable sink name with WirePlumber and uses PipeWire's sink-monitor capture property rather than a numeric node ID. This common digital-output point covers local browser and Bluetooth audio, and can cover later sources routed to the same sink; it does not measure analogue amplifier or speaker behavior.
 - FFT analysis runs in an isolated daemon thread only while a browser subscribes. It reuses its NumPy window and logarithmic band mapping, publishes only bounded LED targets over a server-sent event stream, and treats capture/analysis failure as a visualiser-only unavailable state.
+- Spectrum, Golden Ratio, Particle Galaxy and Water share that single stream. A frontend registry mounts only the selected canvas renderer and logarithmically aggregates the existing analyser centres to each renderer's required band count.
 - During development, Vite proxies `/api` requests to FastAPI on port 8000.
 - A small typed client validates important response fields at runtime and converts network or invalid-response failures into safe user-facing messages.
 - Catalogue summary state is shared with Library. The Jukebox selector independently requests complete track metadata when mounted. Scan status is polled only while a scan is active, then albums are refreshed.

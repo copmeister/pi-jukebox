@@ -1,4 +1,4 @@
-# Real-time spectrum visualiser
+# Real-time visualiser system
 
 ## Runtime path
 
@@ -12,7 +12,7 @@ Bluetooth A2DP ───┘                  │
                                             │
                                   small SSE level frames
                                             │
-                                      canvas LEDs
+                              active browser canvas renderer
 ```
 
 The backend runs as `admin`, the same user that owns the established PipeWire
@@ -22,10 +22,10 @@ graph. If systemd did not supply `XDG_RUNTIME_DIR`, capture derives
 `pw-record` targets that name with `stream.capture.sink=true`. Numeric object
 IDs, a PulseAudio monitor alias and the observed DAC model are never hard-coded.
 
-Capture is passive and demand-driven. The first Spectrum subscriber starts one
+Capture is passive and demand-driven. The first fullscreen visualiser subscriber starts one
 daemon analysis thread; the last disconnect stops its `pw-record` child.
 Capture or FFT exceptions are contained at that thread boundary. No visualiser
-code owns or controls the HTML audio element, queue, Bluetooth helper, DAC
+renderer owns or controls the HTML audio element, queue, Bluetooth helper, DAC
 default, CD service or updater.
 
 ## Tuning
@@ -59,6 +59,41 @@ every canvas `fillRect`; layout is centred and derives its display-column count
 from the live canvas aspect ratio. Spectrum uses the full kiosk viewport behind
 compact metadata and Exit overlays, with no reserved header, footer or frequency
 axis.
+
+## Frontend renderers and controls
+
+All four modes reuse the same compact SSE frame. Spectrum uses the analyser
+bands directly and may interpolate additional square columns for the live
+viewport. Golden Ratio maps the supplied frequency centres into eight
+logarithmic regions. Particle Galaxy and Water each map them into six broad
+musical regions using logarithmic overlap weighting, including the lowest and
+highest supplied frequencies. No renderer performs an FFT or receives PCM.
+
+- **Spectrum** retains the 16-level square LED matrix and persisted Smooth or
+  Classic colour palette.
+- **Golden Ratio** draws eight genuine recursively divided golden squares with
+  fixed-per-mount saturated colours, true black at low activity, fast attack
+  and slower glow release.
+- **Particle Galaxy** uses six bounded, pooled particle classes, a static
+  starfield and at most eight layered sub-bass shockwaves. The live-particle cap
+  is lower than the Python reference to protect the appliance.
+- **Water** uses at most 28 vector ripple events with frequency-dependent size,
+  speed and decay, transparent overlap, clipped mirror-source reflections and
+  a cheap animated surface texture. It deliberately does not recreate the
+  reference prototype's numerical 160×90 wave field.
+
+A predominantly horizontal swipe rotates through enabled renderers and wraps.
+The opposite direction moves backwards. A predominantly vertical swipe toggles
+Spectrum's Smooth/Classic palette; other renderers ignore it. Short or diagonal
+gestures and gestures beginning on Exit Spectrum do nothing. Settings stores
+the enabled stable renderer IDs and current renderer locally, prevents an empty
+enabled set, and repairs a disabled current selection by moving forward to the
+next enabled renderer.
+
+Only the active renderer is mounted. Each canvas owns one animation frame loop,
+resizes from its live bounds, catches drawing failures, and cancels its loop and
+listeners when switched or exited. Galaxy targets 45 fps and Water 40 fps;
+smooth stable Pi rendering takes priority over forcing 60 fps.
 
 ## Physical Pi acceptance
 
