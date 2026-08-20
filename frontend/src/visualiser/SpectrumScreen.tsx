@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -8,14 +9,21 @@ import { visualiserStreamUrl } from '../api/client'
 import type { SpectrumFrame } from '../api/types'
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
 import { useBluetooth } from '../bluetooth/BluetoothContext'
-import { SpectrumCanvas } from './SpectrumCanvas'
 import {
   cycleSpectrumColourScheme,
   horizontalSwipeDirection,
   loadSpectrumColourScheme,
   parseSpectrumFrame,
   saveSpectrumColourScheme,
+  verticalSwipeDirection,
 } from './spectrum'
+import { VisualiserErrorBoundary } from './VisualiserErrorBoundary'
+import { visualiserDefinition } from './visualiserRegistry'
+import {
+  cycleVisualiser,
+  loadVisualiserPreferences,
+  saveVisualiserPreferences,
+} from './visualiserPreferences'
 
 const SPECTRUM_SWIPE_THRESHOLD = 72
 
@@ -27,6 +35,9 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
     'Connecting to the jukebox audio output.',
   )
   const [colourScheme, setColourScheme] = useState(loadSpectrumColourScheme)
+  const [visualiserPreferences, setVisualiserPreferences] = useState(
+    loadVisualiserPreferences,
+  )
   const pointerStart = useRef<{ id: number; x: number; y: number } | null>(null)
 
   useEffect(() => {
@@ -65,6 +76,16 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
     saveSpectrumColourScheme(colourScheme)
   }, [colourScheme])
 
+  useEffect(() => {
+    saveVisualiserPreferences(visualiserPreferences)
+  }, [visualiserPreferences])
+
+  const onRendererFailure = useCallback(() => {
+    setConnectionMessage(
+      'This visualiser is unavailable. Playback and other visualisers are unaffected.',
+    )
+  }, [])
+
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (
       event.target instanceof Element &&
@@ -88,8 +109,30 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
       event.clientY - start.y,
       SPECTRUM_SWIPE_THRESHOLD,
     )
-    if (!direction) return
-    setColourScheme((current) => cycleSpectrumColourScheme(current, direction))
+    if (direction) {
+      setVisualiserPreferences((current) => ({
+        ...current,
+        current: cycleVisualiser(
+          current.current,
+          current.enabled,
+          direction === 'left' ? 'next' : 'previous',
+        ),
+      }))
+      return
+    }
+    if (visualiserPreferences.current !== 'spectrum') return
+    const verticalDirection = verticalSwipeDirection(
+      event.clientX - start.x,
+      event.clientY - start.y,
+      SPECTRUM_SWIPE_THRESHOLD,
+    )
+    if (!verticalDirection) return
+    setColourScheme((current) =>
+      cycleSpectrumColourScheme(
+        current,
+        verticalDirection === 'up' ? 'left' : 'right',
+      ),
+    )
   }
 
   const onPointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -115,6 +158,8 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
     : player.source === 'radio' && player.radioStation
       ? 'Live Radio'
       : localDetails
+  const definition = visualiserDefinition(visualiserPreferences.current)
+  const Renderer = definition.Renderer
   return (
     <div className="screen spectrum-screen">
       <div
@@ -123,12 +168,18 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
       >
-        <SpectrumCanvas
-          frame={frame}
-          riseRate={frame?.rise_rate}
-          fallRate={frame?.fall_rate}
-          colourScheme={colourScheme}
-        />
+        <VisualiserErrorBoundary
+          key={definition.id}
+          onFailure={onRendererFailure}
+        >
+          <Renderer
+            frame={frame}
+            riseRate={frame?.rise_rate}
+            fallRate={frame?.fall_rate}
+            colourScheme={colourScheme}
+            onFailure={onRendererFailure}
+          />
+        </VisualiserErrorBoundary>
         <div className="spectrum-track-overlay">
           <h1>{title}</h1>
           <p>{details}</p>
@@ -139,9 +190,11 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
         <p className="visually-hidden" role="status" aria-live="polite">
           {connectionMessage}
         </p>
-        <p className="visually-hidden" role="status" aria-live="polite">
-          Spectrum colours: {colourScheme}
-        </p>
+        {definition.id === 'spectrum' ? (
+          <p className="visually-hidden" role="status" aria-live="polite">
+            Spectrum colours: {colourScheme}
+          </p>
+        ) : null}
       </div>
     </div>
   )

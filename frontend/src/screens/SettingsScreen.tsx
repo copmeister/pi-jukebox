@@ -16,6 +16,12 @@ import {
   UPDATE_RELOAD_STORAGE_KEY,
   updateOutcomeNeedsReload,
 } from '../update/updateReload'
+import { VISUALISER_REGISTRY } from '../visualiser/visualiserRegistry'
+import {
+  loadVisualiserPreferences,
+  saveVisualiserPreferences,
+  setVisualiserEnabled,
+} from '../visualiser/visualiserPreferences'
 
 function errorMessage(error: unknown): string {
   return error instanceof ApiError
@@ -40,6 +46,9 @@ export function SettingsScreen({ sleeping = false }: { sleeping?: boolean }) {
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [visualiserPreferences, setVisualiserPreferences] = useState(
+    loadVisualiserPreferences,
+  )
   const updateStage = status
     ? (UPDATE_STAGE_LABELS[status.stage] ?? 'Working')
     : 'Ready'
@@ -95,6 +104,16 @@ export function SettingsScreen({ sleeping = false }: { sleeping?: boolean }) {
     }
   }
 
+  const toggleVisualiser = (id: (typeof VISUALISER_REGISTRY)[number]['id']) => {
+    const next = setVisualiserEnabled(
+      visualiserPreferences,
+      id,
+      !visualiserPreferences.enabled.includes(id),
+    )
+    setVisualiserPreferences(next)
+    saveVisualiserPreferences(next)
+  }
+
   return (
     <div className="screen settings-screen">
       <header className="screen-header">
@@ -146,6 +165,48 @@ export function SettingsScreen({ sleeping = false }: { sleeping?: boolean }) {
         <p className="settings-note">
           Large and Extra Large show three selector panels with six songs per
           panel for easier touch selection.
+        </p>
+      </section>
+
+      <section
+        className="visualiser-settings-card"
+        aria-labelledby="visualisers-title"
+      >
+        <header>
+          <div>
+            <p className="eyebrow">Fullscreen display</p>
+            <h2 id="visualisers-title">Visualisers</h2>
+          </div>
+        </header>
+        <p>
+          Choose which visualisers appear when swiping across the fullscreen
+          display.
+        </p>
+        <div className="visualiser-settings-list">
+          {VISUALISER_REGISTRY.map((definition) => {
+            const enabled = visualiserPreferences.enabled.includes(
+              definition.id,
+            )
+            const lastEnabled =
+              enabled && visualiserPreferences.enabled.length === 1
+            return (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={enabled}
+                disabled={lastEnabled}
+                onClick={() => toggleVisualiser(definition.id)}
+                key={definition.id}
+              >
+                <strong>{definition.name}</strong>
+                <span aria-hidden="true">{enabled ? 'On' : 'Off'}</span>
+              </button>
+            )
+          })}
+        </div>
+        <p className="settings-note">
+          At least one visualiser must remain enabled. Choices are stored on
+          this touchscreen.
         </p>
       </section>
 

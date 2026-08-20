@@ -2336,6 +2336,66 @@ h2 {
   border-radius: 18px;
   background: var(--panel);
 }
+.visualiser-settings-card {
+  max-width: 980px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--panel);
+}
+.visualiser-settings-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.visualiser-settings-card > p {
+  margin: 7px 0 10px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.visualiser-settings-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.visualiser-settings-list button {
+  display: flex;
+  min-width: 0;
+  min-height: var(--ui-control-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-strong);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.visualiser-settings-list button[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.visualiser-settings-list button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+.visualiser-settings-list strong {
+  overflow: hidden;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.visualiser-settings-list span {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
 .display-size-card > header {
   display: flex;
   align-items: center;

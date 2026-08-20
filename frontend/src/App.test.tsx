@@ -1,6 +1,7 @@
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -121,8 +122,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.6',
-  latest_version: '0.6.6',
+  installed_version: '0.6.7',
+  latest_version: '0.6.7',
   checking: false,
   installing: false,
   update_available: false,
@@ -343,7 +344,7 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.6')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.7')).toBeInTheDocument()
   })
 
   it('shows local metadata and keeps unavailable status nonvisual in Spectrum', async () => {
@@ -398,7 +399,74 @@ describe('App catalogue interface', () => {
       document.querySelector('.spectrum-screen [role="status"]'),
     ).toHaveClass('visually-hidden')
 
-    await user.click(screen.getByRole('button', { name: 'Exit Spectrum' }))
+    const stage = document.querySelector('.spectrum-stage')
+    expect(stage).not.toBeNull()
+    const swipe = (horizontal: number, vertical: number, pointerId: number) => {
+      fireEvent.pointerDown(stage as Element, {
+        pointerId,
+        clientX: 500,
+        clientY: 400,
+      })
+      fireEvent.pointerUp(stage as Element, {
+        pointerId,
+        clientX: 500 + horizontal,
+        clientY: 400 + vertical,
+      })
+    }
+
+    expect(
+      screen.getByRole('img', {
+        name: 'Real-time audio spectrum, smooth colours',
+      }),
+    ).toBeInTheDocument()
+    swipe(-100, 4, 1)
+    expect(
+      screen.getByRole('img', { name: 'Golden Ratio audio visualiser' }),
+    ).toBeInTheDocument()
+    swipe(30, 2, 2)
+    swipe(5, -100, 3)
+    expect(
+      screen.getByRole('img', { name: 'Golden Ratio audio visualiser' }),
+    ).toBeInTheDocument()
+    swipe(-100, 3, 4)
+    expect(
+      screen.getByRole('img', { name: 'Particle Galaxy audio visualiser' }),
+    ).toBeInTheDocument()
+    swipe(-100, 3, 5)
+    expect(
+      screen.getByRole('img', { name: 'Water audio visualiser' }),
+    ).toBeInTheDocument()
+    swipe(-100, 3, 6)
+    expect(
+      screen.getByRole('img', {
+        name: 'Real-time audio spectrum, smooth colours',
+      }),
+    ).toBeInTheDocument()
+    swipe(4, -100, 7)
+    expect(
+      screen.getByRole('img', {
+        name: 'Real-time audio spectrum, classic colours',
+      }),
+    ).toBeInTheDocument()
+
+    const exitButton = screen.getByRole('button', { name: 'Exit Spectrum' })
+    fireEvent.pointerDown(exitButton, {
+      pointerId: 8,
+      clientX: 900,
+      clientY: 40,
+    })
+    fireEvent.pointerUp(exitButton, {
+      pointerId: 8,
+      clientX: 700,
+      clientY: 42,
+    })
+    expect(
+      screen.getByRole('img', {
+        name: 'Real-time audio spectrum, classic colours',
+      }),
+    ).toBeInTheDocument()
+
+    await user.click(exitButton)
     expect(source?.close).toHaveBeenCalledOnce()
     expect(
       screen.getByRole('button', { name: 'Open Spectrum' }),

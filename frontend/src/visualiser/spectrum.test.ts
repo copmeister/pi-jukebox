@@ -11,6 +11,7 @@ import {
   saveSpectrumColourScheme,
   SPECTRUM_COLOUR_SCHEME_STORAGE_KEY,
   stepDisplayedLevels,
+  verticalSwipeDirection,
 } from './spectrum'
 
 describe('spectrum geometry and motion', () => {
@@ -124,7 +125,7 @@ describe('spectrum geometry and motion', () => {
     expect(colours[0]).toBe('#ff3b30')
   })
 
-  it('cycles either swipe direction and rejects short or vertical gestures', () => {
+  it('cycles palette variants and distinguishes horizontal from vertical swipes', () => {
     expect(cycleSpectrumColourScheme('classic', 'left')).toBe('smooth')
     expect(cycleSpectrumColourScheme('smooth', 'left')).toBe('classic')
     expect(cycleSpectrumColourScheme('classic', 'right')).toBe('smooth')
@@ -133,6 +134,9 @@ describe('spectrum geometry and motion', () => {
     expect(horizontalSwipeDirection(80, 5, 72)).toBe('right')
     expect(horizontalSwipeDirection(60, 2, 72)).toBeNull()
     expect(horizontalSwipeDirection(80, 75, 72)).toBeNull()
+    expect(verticalSwipeDirection(3, -80, 72)).toBe('up')
+    expect(verticalSwipeDirection(3, 80, 72)).toBe('down')
+    expect(verticalSwipeDirection(75, 80, 72)).toBeNull()
   })
 
   it('persists a valid scheme and safely falls back for invalid storage', () => {

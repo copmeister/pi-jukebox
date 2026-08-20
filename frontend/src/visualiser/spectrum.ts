@@ -208,6 +208,7 @@ interface ColourStop {
 
 export type SpectrumColourScheme = 'classic' | 'smooth'
 export type SwipeDirection = 'left' | 'right'
+export type VerticalSwipeDirection = 'up' | 'down'
 
 export const DEFAULT_SPECTRUM_COLOUR_SCHEME: SpectrumColourScheme = 'smooth'
 export const SPECTRUM_COLOUR_SCHEME_STORAGE_KEY =
@@ -280,6 +281,20 @@ export function horizontalSwipeDirection(
     return null
   }
   return horizontal < 0 ? 'left' : 'right'
+}
+
+export function verticalSwipeDirection(
+  horizontal: number,
+  vertical: number,
+  threshold: number,
+): VerticalSwipeDirection | null {
+  if (
+    Math.abs(vertical) < threshold ||
+    Math.abs(vertical) <= Math.abs(horizontal) * 1.2
+  ) {
+    return null
+  }
+  return vertical < 0 ? 'up' : 'down'
 }
 
 export function loadSpectrumColourScheme(

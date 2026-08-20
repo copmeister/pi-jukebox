@@ -9,6 +9,7 @@ import {
   UPDATE_RELOAD_STORAGE_KEY,
   updateOutcomeNeedsReload,
 } from '../update/updateReload'
+import { VISUALISER_PREFERENCES_STORAGE_KEY } from '../visualiser/visualiserPreferences'
 import { SettingsScreen } from './SettingsScreen'
 
 function response(payload: unknown): Response {
@@ -104,6 +105,52 @@ describe('Settings software updates', () => {
     expect(
       await screen.findByRole('radio', { name: /Extra Large/i }),
     ).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('manages persistent visualisers while keeping at least one enabled', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(status)),
+    )
+    const user = userEvent.setup()
+    const first = render(
+      <DisplaySizeProvider>
+        <SettingsScreen />
+      </DisplaySizeProvider>,
+    )
+
+    const switches = await screen.findAllByRole('switch')
+    expect(switches).toHaveLength(4)
+    expect(
+      switches.every(
+        (control) => control.getAttribute('aria-checked') === 'true',
+      ),
+    ).toBe(true)
+    await user.click(screen.getByRole('switch', { name: /Golden Ratio/i }))
+    expect(
+      screen.getByRole('switch', { name: /Golden Ratio/i }),
+    ).toHaveAttribute('aria-checked', 'false')
+    expect(
+      JSON.parse(
+        window.localStorage.getItem(VISUALISER_PREFERENCES_STORAGE_KEY) ?? '{}',
+      ).enabled,
+    ).not.toContain('golden-ratio')
+
+    first.unmount()
+    render(
+      <DisplaySizeProvider>
+        <SettingsScreen />
+      </DisplaySizeProvider>,
+    )
+    expect(
+      await screen.findByRole('switch', { name: /Golden Ratio/i }),
+    ).toHaveAttribute('aria-checked', 'false')
+
+    await user.click(screen.getByRole('switch', { name: /^Spectrum/i }))
+    await user.click(screen.getByRole('switch', { name: /Particle Galaxy/i }))
+    const water = screen.getByRole('switch', { name: /^Water/i })
+    expect(water).toBeDisabled()
+    expect(water).toHaveAttribute('aria-checked', 'true')
   })
 
   it('starts an installable stable update and reports real installation stages', async () => {
