@@ -13,6 +13,7 @@ describe('spectrum geometry and motion', () => {
       [1100, 390],
       [720, 300],
       [320, 250],
+      [1280, 720],
     ]) {
       const layout = calculateMatrixLayout(width, height, 24, 16)
       expect(layout.cellSize).toBeGreaterThan(0)
@@ -27,6 +28,23 @@ describe('spectrum geometry and motion', () => {
       expect(layout.matrixWidth).toBeLessThanOrEqual(width)
       expect(layout.matrixHeight).toBeLessThanOrEqual(height)
     }
+  })
+
+  it('uses extra fullscreen width for additional square display columns', () => {
+    const layout = calculateMatrixLayout(1268, 708, 24, 16)
+    expect(layout.bandCount).toBeGreaterThan(24)
+    expect(layout.matrixX).toBeLessThanOrEqual(layout.cellSize + layout.gap)
+    expect(layout.matrixY).toBeLessThanOrEqual(layout.cellSize + layout.gap)
+
+    const expanded = aggregateBands(
+      Array.from({ length: 24 }, (_, index) => index % 17),
+      Array.from({ length: 24 }, (_, index) => 45 * 1.25 ** index),
+      layout.bandCount,
+    )
+    expect(expanded.levels).toHaveLength(layout.bandCount)
+    expect(expanded.frequencies).toHaveLength(layout.bandCount)
+    expect(expanded.levels[0]).toBe(0)
+    expect(expanded.levels.at(-1)).toBe(6)
   })
 
   it('reduces and aggregates bands on constrained viewports', () => {

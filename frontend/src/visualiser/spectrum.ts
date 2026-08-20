@@ -13,7 +13,6 @@ export interface MatrixLayout {
   matrixY: number
   matrixWidth: number
   matrixHeight: number
-  labelY: number
 }
 
 function finiteNumber(value: unknown): value is number {
@@ -61,23 +60,20 @@ export function calculateMatrixLayout(
   const safeWidth = Math.max(1, Math.floor(width))
   const safeHeight = Math.max(1, Math.floor(height))
   const safeLevels = Math.max(2, Math.floor(levels))
-  const maximumBands = Math.max(4, Math.floor(requestedBands))
-  const labelHeight = Math.min(26, Math.max(16, Math.floor(safeHeight * 0.09)))
-  const availableHeight = Math.max(1, safeHeight - labelHeight)
-  let chosen = matrixDimensions(
-    safeWidth,
-    availableHeight,
-    maximumBands,
-    safeLevels,
+  const sourceBands = Math.max(4, Math.floor(requestedBands))
+  const desiredBands = Math.min(
+    sourceBands * 2,
+    Math.max(4, Math.round((safeWidth / safeHeight) * safeLevels)),
   )
+  let chosen = matrixDimensions(safeWidth, safeHeight, desiredBands, safeLevels)
 
   for (
-    let bands = maximumBands - 1;
-    bands >= Math.min(12, maximumBands);
+    let bands = desiredBands - 1;
+    bands >= Math.min(12, sourceBands);
     bands -= 1
   ) {
     if (chosen.cellSize >= MIN_COMFORTABLE_CELL_SIZE) break
-    chosen = matrixDimensions(safeWidth, availableHeight, bands, safeLevels)
+    chosen = matrixDimensions(safeWidth, safeHeight, bands, safeLevels)
   }
 
   return {
@@ -86,13 +82,9 @@ export function calculateMatrixLayout(
     cellSize: chosen.cellSize,
     gap: chosen.gap,
     matrixX: Math.floor((safeWidth - chosen.matrixWidth) / 2),
-    matrixY: Math.max(
-      0,
-      Math.floor((availableHeight - chosen.matrixHeight) / 2),
-    ),
+    matrixY: Math.max(0, Math.floor((safeHeight - chosen.matrixHeight) / 2)),
     matrixWidth: chosen.matrixWidth,
     matrixHeight: chosen.matrixHeight,
-    labelY: safeHeight - 5,
   }
 }
 
@@ -103,16 +95,19 @@ function matrixDimensions(
   levels: number,
 ) {
   let gap = 2
-  let cellSize = Math.max(
-    1,
-    Math.floor(
-      Math.min(
-        (width - gap * (bandCount - 1)) / bandCount,
-        (height - gap * (levels - 1)) / levels,
+  let cellSize: number
+  for (let pass = 0; pass < 3; pass += 1) {
+    cellSize = Math.max(
+      1,
+      Math.floor(
+        Math.min(
+          (width - gap * (bandCount - 1)) / bandCount,
+          (height - gap * (levels - 1)) / levels,
+        ),
       ),
-    ),
-  )
-  gap = Math.max(2, Math.floor(cellSize * 0.28))
+    )
+    gap = Math.max(2, Math.floor(cellSize * 0.28))
+  }
   cellSize = Math.max(
     1,
     Math.floor(
@@ -136,8 +131,29 @@ export function aggregateBands(
   frequencies: readonly number[],
   outputCount: number,
 ): { levels: number[]; frequencies: number[] } {
-  if (outputCount >= levels.length)
+  if (outputCount === levels.length)
     return { levels: [...levels], frequencies: [...frequencies] }
+  if (outputCount > levels.length) {
+    const outputLevels: number[] = []
+    const outputFrequencies: number[] = []
+    for (let output = 0; output < outputCount; output += 1) {
+      const position = (output * (levels.length - 1)) / (outputCount - 1)
+      const left = Math.floor(position)
+      const right = Math.min(levels.length - 1, Math.ceil(position))
+      const fraction = position - left
+      outputLevels.push(
+        Math.round(levels[left] + (levels[right] - levels[left]) * fraction),
+      )
+      outputFrequencies.push(
+        Math.exp(
+          Math.log(frequencies[left]) +
+            (Math.log(frequencies[right]) - Math.log(frequencies[left])) *
+              fraction,
+        ),
+      )
+    }
+    return { levels: outputLevels, frequencies: outputFrequencies }
+  }
   const outputLevels: number[] = []
   const outputFrequencies: number[] = []
   for (let output = 0; output < outputCount; output += 1) {
@@ -205,12 +221,4 @@ export function blockColour(
     Math.ceil(ratio * (TOP_DOWN_COLOURS.length - 1)),
   )
   return TOP_DOWN_COLOURS[index]
-}
-
-export function formatFrequency(frequency: number): string {
-  if (frequency >= 1_000) {
-    const value = frequency / 1_000
-    return `${value >= 10 ? Math.round(value) : value.toFixed(value < 2 ? 1 : 0)}k`
-  }
-  return String(Math.round(frequency / 10) * 10)
 }
