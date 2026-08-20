@@ -1039,67 +1039,62 @@ h2 {
   width: 100%;
   margin-top: 12px;
 }
+.app-shell:has(.spectrum-screen) {
+  grid-template-rows: minmax(0, 1fr);
+}
+.app-shell:has(.spectrum-screen) > .top-bar,
+.app-shell:has(.spectrum-screen) > .mini-player,
+.app-shell:has(.spectrum-screen) > .navigation {
+  display: none;
+}
+:root .app-shell:has(.spectrum-screen) > .main-content {
+  overflow: hidden;
+  padding: clamp(3px, 0.45vw, 6px);
+  touch-action: none;
+}
+.app-shell:has(.spectrum-screen) .queue-feedback {
+  display: none;
+}
 .spectrum-screen {
+  width: 100%;
+  max-width: none;
   height: 100%;
-  min-height: 330px;
-  display: flex;
-  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
-.spectrum-header {
-  min-height: 66px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 18px;
-}
-.spectrum-header .back-button {
-  align-self: center;
-}
-.spectrum-track-copy {
+.spectrum-track-overlay {
+  position: absolute;
+  z-index: 1;
+  top: clamp(12px, 2.2vw, 24px);
+  left: clamp(12px, 2.2vw, 24px);
+  width: min(760px, calc(100% - 210px));
   min-width: 0;
-  text-align: center;
+  pointer-events: none;
+  text-shadow:
+    0 2px 3px #0b1015,
+    0 0 14px #0b1015,
+    0 0 28px #0b1015;
 }
-.spectrum-track-copy h1 {
+.spectrum-track-overlay h1 {
   overflow: hidden;
-  font-size: clamp(1.45rem, 3vw, 2.4rem);
+  font-size: clamp(2rem, 4.2vw, 3.4rem);
   line-height: 1.05;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.spectrum-track-copy p {
-  margin: 5px 0 0;
+.spectrum-track-overlay p {
+  margin: 7px 0 0;
   overflow: hidden;
-  color: var(--muted);
-  font-size: 0.78rem;
+  color: #d3dae0;
+  font-size: clamp(0.86rem, 1.6vw, 1.15rem);
+  font-weight: 650;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.spectrum-time {
-  color: #c4ccd3;
-  font-variant-numeric: tabular-nums;
-}
-.spectrum-status {
-  min-width: 54px;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 99px;
-  color: var(--muted);
-  background: #111820;
-  font-size: 0.66rem;
-  font-weight: 800;
-  text-align: center;
-  text-transform: uppercase;
-}
-.spectrum-status.is-ready {
-  border-color: rgba(85, 214, 107, 0.28);
-  color: #8ce99d;
-  background: rgba(85, 214, 107, 0.08);
-}
 .spectrum-stage {
   position: relative;
-  min-height: 0;
-  flex: 1;
+  width: 100%;
+  height: 100%;
 }
 .spectrum-canvas {
   position: absolute;
@@ -1108,24 +1103,21 @@ h2 {
   height: 100%;
   display: block;
 }
-.spectrum-unavailable {
+.spectrum-exit-button {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  gap: 7px;
-  padding: 24px;
-  color: var(--muted);
-  background: rgba(11, 16, 21, 0.84);
-  text-align: center;
-}
-.spectrum-unavailable strong {
+  z-index: 2;
+  top: clamp(12px, 2.2vw, 24px);
+  right: clamp(12px, 2.2vw, 24px);
+  min-height: max(48px, var(--ui-touch-target));
+  padding: 0 clamp(15px, 2vw, 22px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 14px;
   color: #fff;
-  font-size: 1.05rem;
-}
-.spectrum-unavailable span {
-  max-width: 560px;
-  font-size: 0.76rem;
+  background: rgba(11, 16, 21, 0.78);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
 }
 .playback-controls.is-detailed {
   display: grid;

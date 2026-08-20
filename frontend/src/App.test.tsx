@@ -121,8 +121,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.4',
-  latest_version: '0.6.4',
+  installed_version: '0.6.5',
+  latest_version: '0.6.5',
   checking: false,
   installing: false,
   update_available: false,
@@ -343,10 +343,10 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.4')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.5')).toBeInTheDocument()
   })
 
-  it('shows local metadata and a contained unavailable state in Spectrum', async () => {
+  it('shows local metadata and keeps unavailable status nonvisual in Spectrum', async () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     const user = userEvent.setup()
     render(<App />)
@@ -390,10 +390,15 @@ describe('App catalogue interface', () => {
         }),
       } as MessageEvent<string>)
     })
-    expect(screen.getByText('Spectrum unavailable')).toBeInTheDocument()
-    expect(screen.getByText(/Playback is unaffected/)).toBeInTheDocument()
+    expect(document.querySelector('.spectrum-header')).not.toBeInTheDocument()
+    expect(
+      document.querySelector('.spectrum-unavailable'),
+    ).not.toBeInTheDocument()
+    expect(
+      document.querySelector('.spectrum-screen [role="status"]'),
+    ).toHaveClass('visually-hidden')
 
-    await user.click(screen.getByRole('button', { name: '‹ Now Playing' }))
+    await user.click(screen.getByRole('button', { name: 'Exit Spectrum' }))
     expect(source?.close).toHaveBeenCalledOnce()
     expect(
       screen.getByRole('button', { name: 'Open Spectrum' }),

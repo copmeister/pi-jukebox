@@ -4,7 +4,6 @@ import {
   aggregateBands,
   blockColour,
   calculateMatrixLayout,
-  formatFrequency,
   stepDisplayedLevels,
 } from './spectrum'
 
@@ -77,12 +76,7 @@ export function SpectrumCanvas({
             fallRate,
             creditRef.current,
           )
-          drawMatrix(
-            context,
-            layout,
-            displayedRef.current,
-            aggregated.frequencies,
-          )
+          drawMatrix(context, layout, displayedRef.current)
         }
       }
       previousTime = time
@@ -110,7 +104,6 @@ function drawMatrix(
   context: CanvasRenderingContext2D,
   layout: ReturnType<typeof calculateMatrixLayout>,
   levels: readonly number[],
-  frequencies: readonly number[],
 ) {
   for (let column = 0; column < levels.length; column += 1) {
     const height = Math.min(layout.levels, Math.max(0, levels[column]))
@@ -125,22 +118,5 @@ function drawMatrix(
       // Both dimensions deliberately use the one integer cellSize.
       context.fillRect(x, y, layout.cellSize, layout.cellSize)
     }
-  }
-
-  context.fillStyle = '#7f8b95'
-  context.font = '600 11px Inter, system-ui, sans-serif'
-  context.textAlign = 'center'
-  context.textBaseline = 'alphabetic'
-  const labelCount = Math.min(7, levels.length)
-  const labelled = new Set<number>()
-  for (let label = 0; label < labelCount; label += 1) {
-    labelled.add(Math.round((label * (levels.length - 1)) / (labelCount - 1)))
-  }
-  for (const column of labelled) {
-    const x =
-      layout.matrixX +
-      column * (layout.cellSize + layout.gap) +
-      layout.cellSize / 2
-    context.fillText(formatFrequency(frequencies[column]), x, layout.labelY)
   }
 }

@@ -36,7 +36,7 @@ the physical display.
 
 | Setting suffix | Default | Purpose |
 | --- | ---: | --- |
-| `VISUALISER_BANDS` | 24 | Logarithmic analysis bands; the canvas may aggregate them on narrow viewports. |
+| `VISUALISER_BANDS` | 24 | Logarithmic analysis bands; the canvas aggregates on narrow viewports and interpolates extra display columns when space permits. |
 | `VISUALISER_LEVELS` | 16 | Vertical LED levels. |
 | `VISUALISER_FFT_SIZE` | 4096 | Frequency resolution and analysis window. Must be a power of two. |
 | `VISUALISER_HOP_SIZE` | 1024 | New samples per overlapping FFT. |
@@ -55,8 +55,10 @@ the physical display.
 The browser renders with `requestAnimationFrame`, independently of stream
 frequency. Each column changes by at most one block in a rendered frame. Empty
 cells are never painted. One integer `cellSize` is passed as both dimensions to
-every canvas `fillRect`; layout is centred and reduces the displayed band count
-before allowing uncomfortably small cells.
+every canvas `fillRect`; layout is centred and derives its display-column count
+from the live canvas aspect ratio. Spectrum uses the full kiosk viewport behind
+compact metadata and Exit overlays, with no reserved header, footer or frequency
+axis.
 
 ## Physical Pi acceptance
 
@@ -70,8 +72,8 @@ and Bluetooth audio reach it. Then:
 3. Activate Bluetooth, stream music, open Spectrum and confirm the phone source
    drives the same matrix. v1 shows the phone/source fallback because the
    current Bluetooth API does not expose AVRCP track metadata.
-4. Disconnect/disable the DAC monitor and confirm Spectrum alone shows
-   unavailable while audio controls, navigation, CD and updater remain usable.
+4. Disconnect/disable the DAC monitor and confirm Spectrum remains safely blank,
+   Exit Spectrum still works, and playback is unaffected.
 5. At 1280×720 in Standard, Large and Extra Large display modes, inspect the
    blocks closely: every lit cell must be square, the matrix centred, the top
    block red, and a full column blue-to-red from bottom to top.

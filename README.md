@@ -6,7 +6,7 @@ Version 0.6.1 corrects native D-Bus agent compatibility and documents the narrow
 
 Version 0.6.3 improves Sleep with dynamically discovered Touch Display 2 backlight dimming, a minute-updated bedside clock and playing-track information while keeping audio services active.
 
-Version 0.6.4 adds demand-driven real-time spectrum analysis of the shared final PipeWire/DAC output while preserving the v0.6.3 Sleep, playback, Bluetooth, CD, queue, kiosk and updater paths.
+Version 0.6.5 gives the real-time Spectrum a near-edge-to-edge, label-free touchscreen layout with compact metadata and exit overlays while preserving the v0.6.4 analyser, audio routing and all existing jukebox behaviour.
 
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
