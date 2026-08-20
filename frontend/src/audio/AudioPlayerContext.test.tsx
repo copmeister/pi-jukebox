@@ -5,7 +5,11 @@ import type { QueueItem, QueueSnapshot, Track } from '../api/types'
 import { DEFAULT_JUKEBOX_SOUND_SETTINGS } from '../jukebox/soundSettings'
 import type { JukeboxSoundController } from '../jukebox/sounds'
 import { QueueProvider, useQueue } from '../queue/QueueContext'
+import { radioStationById } from '../radio/stations'
 import { AudioPlayerProvider, useAudioPlayer } from './AudioPlayerContext'
+
+const classicFm = radioStationById('classic-fm')!
+const smoothRadio = radioStationById('smooth-radio')!
 
 const tracks: Track[] = [
   {
@@ -146,6 +150,8 @@ function Harness() {
     <div>
       <p>{player.currentTrack?.title ?? 'No track'}</p>
       <p>{player.status}</p>
+      <p>{player.source}</p>
+      <p>{player.radioStation?.name ?? 'No radio station'}</p>
       {player.error ? <p role="alert">{player.error}</p> : null}
       <button type="button" onClick={() => void player.playNow(tracks[0])}>
         Start
@@ -158,6 +164,15 @@ function Harness() {
       </button>
       <button type="button" onClick={() => void player.playNow(tracks[1])}>
         Start modern second
+      </button>
+      <button type="button" onClick={() => void player.playRadio(classicFm)}>
+        Start Classic FM
+      </button>
+      <button type="button" onClick={() => void player.playRadio(smoothRadio)}>
+        Start Smooth Radio
+      </button>
+      <button type="button" onClick={player.stopRadio}>
+        Stop Radio
       </button>
       <button type="button" onClick={() => void queue.addTrack(tracks[1].id)}>
         Add second
@@ -204,12 +219,17 @@ function soundController(
   }
 }
 
-function renderPlayer(sounds = soundController(), jukeboxLoadingDelayMs = 900) {
+function renderPlayer(
+  sounds = soundController(),
+  jukeboxLoadingDelayMs = 900,
+  radioRetryDelayMs = 4_000,
+) {
   return render(
     <QueueProvider>
       <AudioPlayerProvider
         soundController={sounds}
         jukeboxLoadingDelayMs={jukeboxLoadingDelayMs}
+        radioRetryDelayMs={radioRetryDelayMs}
       >
         <Harness />
       </AudioPlayerProvider>
@@ -264,6 +284,73 @@ describe('AudioPlayerProvider queue integration', () => {
     expect(audio.volume).toBe(0.4)
     await user.click(screen.getByRole('button', { name: 'Mute' }))
     expect(audio.muted).toBe(true)
+  })
+
+  it('plays and switches radio on the single audio element without mutating the queue', async () => {
+    const initial = snapshot(item(tracks[0], 10, 0), [item(tracks[1], 11, 1)])
+    const queueApi = queueFetch(initial)
+    vi.stubGlobal('fetch', queueApi.fetchMock)
+    const user = userEvent.setup()
+    const { container } = renderPlayer()
+    const audio = container.querySelector('audio') as HTMLAudioElement
+    await screen.findByText('First Song')
+
+    await user.click(screen.getByRole('button', { name: 'Start Classic FM' }))
+    expect(screen.getByText('Classic FM')).toBeInTheDocument()
+    expect(screen.getByText('radio')).toBeInTheDocument()
+    expect(screen.getByText('playing')).toBeInTheDocument()
+    expect(audio.src).toBe(classicFm.streamUrl)
+    expect(container.querySelectorAll('audio')).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: 'Start Smooth Radio' }))
+    expect(screen.getByText('Smooth Radio')).toBeInTheDocument()
+    expect(audio.src).toBe(smoothRadio.streamUrl)
+    expect(queueApi.getState()).toEqual(initial)
+    expect(
+      queueApi.fetchMock.mock.calls.filter(([, init]) => init?.method),
+    ).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Stop Radio' }))
+    expect(screen.getByText('local')).toBeInTheDocument()
+    expect(screen.getByText('No radio station')).toBeInTheDocument()
+    expect(screen.getByText('First Song')).toBeInTheDocument()
+    expect(screen.getByText('paused')).toBeInTheDocument()
+    expect(audio.src).toContain('/api/tracks/1/media')
+  })
+
+  it('keeps a failed radio source isolated and retries until it is stopped', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', queueFetch().fetchMock)
+    const playMock = vi.mocked(HTMLMediaElement.prototype.play)
+    playMock.mockClear()
+    playMock
+      .mockRejectedValueOnce(
+        new DOMException('stream failed', 'NotSupportedError'),
+      )
+      .mockRejectedValueOnce(
+        new DOMException('stream failed', 'NotSupportedError'),
+      )
+    const { container } = renderPlayer(soundController(), 900, 25)
+    const audio = container.querySelector('audio') as HTMLAudioElement
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Classic FM' }))
+    await flushAsyncWork()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Classic FM is unavailable. Reconnecting shortly',
+    )
+    expect(screen.getByText('radio')).toBeInTheDocument()
+    expect(playMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => vi.advanceTimersByTime(25))
+    await flushAsyncWork()
+    expect(playMock).toHaveBeenCalledTimes(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop Radio' }))
+    await act(async () => vi.advanceTimersByTime(100))
+    expect(playMock).toHaveBeenCalledTimes(2)
+    expect(audio.hasAttribute('src')).toBe(false)
+    expect(screen.getByText('idle')).toBeInTheDocument()
+    expect(screen.getByText('local')).toBeInTheDocument()
   })
 
   it('holds an idle Jukebox selection for the mechanical loading sequence', async () => {

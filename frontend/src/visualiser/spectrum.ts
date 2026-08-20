@@ -199,26 +199,145 @@ export function stepDisplayedLevels(
   return displayed
 }
 
-const TOP_DOWN_COLOURS = [
-  '#ff3b30',
-  '#ff7a1a',
-  '#ffd43b',
-  '#55d66b',
-  '#25cbe0',
-  '#3187ff',
+interface ColourStop {
+  position: number
+  red: number
+  green: number
+  blue: number
+}
+
+export type SpectrumColourScheme = 'classic' | 'smooth'
+export type SwipeDirection = 'left' | 'right'
+
+export const DEFAULT_SPECTRUM_COLOUR_SCHEME: SpectrumColourScheme = 'smooth'
+export const SPECTRUM_COLOUR_SCHEME_STORAGE_KEY =
+  'pi-jukebox:spectrum-colour-scheme'
+
+const SPECTRUM_COLOUR_SCHEMES: readonly SpectrumColourScheme[] = [
+  'classic',
+  'smooth',
 ]
 
-export function blockColour(
-  depthFromTop: number,
+const TOP_DOWN_COLOUR_STOPS: readonly ColourStop[] = [
+  { position: 0, red: 255, green: 59, blue: 48 },
+  { position: 0.2, red: 255, green: 122, blue: 26 },
+  { position: 0.4, red: 255, green: 212, blue: 59 },
+  { position: 0.6, red: 85, green: 214, blue: 107 },
+  { position: 0.8, red: 37, green: 203, blue: 224 },
+  { position: 1, red: 49, green: 135, blue: 255 },
+]
+
+const CLASSIC_TOP_DOWN_COLOURS = TOP_DOWN_COLOUR_STOPS.map((stop) =>
+  colourHex(stop),
+)
+const colourPaletteCache = new Map<string, readonly string[]>()
+
+export function blockColourPalette(
   maximumLevels: number,
-): string {
-  const ratio = Math.min(
-    1,
-    Math.max(0, depthFromTop / Math.max(1, maximumLevels - 1)),
+  scheme: SpectrumColourScheme = DEFAULT_SPECTRUM_COLOUR_SCHEME,
+): readonly string[] {
+  const safeLevels = Math.max(1, Math.floor(maximumLevels))
+  const cacheKey = `${scheme}:${safeLevels}`
+  const cached = colourPaletteCache.get(cacheKey)
+  if (cached) return cached
+
+  const palette = Array.from({ length: safeLevels }, (_, depthFromTop) => {
+    const position = depthFromTop / Math.max(1, safeLevels - 1)
+    if (scheme === 'classic') {
+      const colourIndex = Math.min(
+        CLASSIC_TOP_DOWN_COLOURS.length - 1,
+        Math.ceil(position * (CLASSIC_TOP_DOWN_COLOURS.length - 1)),
+      )
+      return CLASSIC_TOP_DOWN_COLOURS[colourIndex]
+    }
+    return interpolatedColour(position)
+  })
+  colourPaletteCache.set(cacheKey, palette)
+  return palette
+}
+
+export function cycleSpectrumColourScheme(
+  current: SpectrumColourScheme,
+  direction: SwipeDirection,
+): SpectrumColourScheme {
+  const currentIndex = SPECTRUM_COLOUR_SCHEMES.indexOf(current)
+  const offset = direction === 'left' ? 1 : -1
+  return SPECTRUM_COLOUR_SCHEMES[
+    (currentIndex + offset + SPECTRUM_COLOUR_SCHEMES.length) %
+      SPECTRUM_COLOUR_SCHEMES.length
+  ]
+}
+
+export function horizontalSwipeDirection(
+  horizontal: number,
+  vertical: number,
+  threshold: number,
+): SwipeDirection | null {
+  if (
+    Math.abs(horizontal) < threshold ||
+    Math.abs(horizontal) <= Math.abs(vertical) * 1.2
+  ) {
+    return null
+  }
+  return horizontal < 0 ? 'left' : 'right'
+}
+
+export function loadSpectrumColourScheme(
+  storage?: Pick<Storage, 'getItem'> | null,
+): SpectrumColourScheme {
+  try {
+    const availableStorage =
+      storage === undefined
+        ? typeof window === 'undefined'
+          ? null
+          : window.localStorage
+        : storage
+    const stored = availableStorage?.getItem(SPECTRUM_COLOUR_SCHEME_STORAGE_KEY)
+    return stored === 'classic' || stored === 'smooth'
+      ? stored
+      : DEFAULT_SPECTRUM_COLOUR_SCHEME
+  } catch {
+    return DEFAULT_SPECTRUM_COLOUR_SCHEME
+  }
+}
+
+export function saveSpectrumColourScheme(
+  scheme: SpectrumColourScheme,
+  storage?: Pick<Storage, 'setItem'> | null,
+): void {
+  try {
+    const availableStorage =
+      storage === undefined
+        ? typeof window === 'undefined'
+          ? null
+          : window.localStorage
+        : storage
+    availableStorage?.setItem(SPECTRUM_COLOUR_SCHEME_STORAGE_KEY, scheme)
+  } catch {
+    // The visual preference is optional; storage failure must stay harmless.
+  }
+}
+
+function interpolatedColour(position: number): string {
+  const safePosition = Math.min(1, Math.max(0, position))
+  const upperIndex = TOP_DOWN_COLOUR_STOPS.findIndex(
+    (stop) => stop.position >= safePosition,
   )
-  const index = Math.min(
-    TOP_DOWN_COLOURS.length - 1,
-    Math.ceil(ratio * (TOP_DOWN_COLOURS.length - 1)),
-  )
-  return TOP_DOWN_COLOURS[index]
+  if (upperIndex <= 0) return colourHex(TOP_DOWN_COLOUR_STOPS[0])
+  const upper = TOP_DOWN_COLOUR_STOPS[upperIndex]
+  const lower = TOP_DOWN_COLOUR_STOPS[upperIndex - 1]
+  const fraction =
+    (safePosition - lower.position) / (upper.position - lower.position)
+  return colourHex({
+    position: safePosition,
+    red: lower.red + (upper.red - lower.red) * fraction,
+    green: lower.green + (upper.green - lower.green) * fraction,
+    blue: lower.blue + (upper.blue - lower.blue) * fraction,
+  })
+}
+
+function colourHex(colour: ColourStop): string {
+  return `#${[colour.red, colour.green, colour.blue]
+    .map((channel) => Math.round(channel).toString(16).padStart(2, '0'))
+    .join('')}`
 }

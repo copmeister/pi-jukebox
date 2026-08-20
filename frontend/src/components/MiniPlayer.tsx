@@ -1,13 +1,16 @@
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
 import { useBluetooth } from '../bluetooth/BluetoothContext'
+import { StationMark } from '../radio/StationMark'
 import { formatTrackDuration } from '../utils/format'
 import { Artwork } from './Artwork'
 import { PlaybackControls } from './PlaybackControls'
 
 export function MiniPlayer({
   onOpenBluetooth,
+  onOpenRadio,
 }: {
   onOpenBluetooth: () => void
+  onOpenRadio: () => void
 }) {
   const player = useAudioPlayer()
   const bluetooth = useBluetooth()
@@ -37,6 +40,37 @@ export function MiniPlayer({
         >
           Bluetooth
         </button>
+      </section>
+    )
+  }
+
+  if (player.source === 'radio' && player.radioStation) {
+    return (
+      <section className="mini-player is-radio" aria-label="Mini player">
+        <StationMark station={player.radioStation} compact />
+        <div className="mini-player__details">
+          <p className="eyebrow">Live Radio · {player.status}</p>
+          <p className="mini-player__title">
+            {player.error ?? player.radioStation.name}
+          </p>
+          <small>{player.radioStation.name}</small>
+        </div>
+        <div className="mini-player__radio-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={player.stopRadio}
+          >
+            Stop
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onOpenRadio}
+          >
+            Radio
+          </button>
+        </div>
       </section>
     )
   }

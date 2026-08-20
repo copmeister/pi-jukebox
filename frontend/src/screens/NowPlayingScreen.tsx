@@ -4,12 +4,15 @@ import { useBluetooth } from '../bluetooth/BluetoothContext'
 import { Artwork } from '../components/Artwork'
 import { PlaybackControls } from '../components/PlaybackControls'
 import { ScreenState } from '../components/ScreenState'
+import { StationMark } from '../radio/StationMark'
 import { SpectrumScreen } from '../visualiser/SpectrumScreen'
 
 export function NowPlayingScreen({
   onOpenBluetooth,
+  onOpenRadio,
 }: {
   onOpenBluetooth: () => void
+  onOpenRadio: () => void
 }) {
   const player = useAudioPlayer()
   const bluetooth = useBluetooth()
@@ -46,6 +49,46 @@ export function NowPlayingScreen({
                 onClick={onOpenBluetooth}
               >
                 Open Bluetooth Controls
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setShowSpectrum(true)}
+              >
+                Open Spectrum
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  if (player.source === 'radio' && player.radioStation) {
+    return (
+      <div className="screen now-playing-screen">
+        <section className="now-playing-card radio-now-playing">
+          <StationMark station={player.radioStation} />
+          <div className="now-playing-copy">
+            <p className="eyebrow">Live Radio · {player.status}</p>
+            <h1>{player.radioStation.name}</h1>
+            <p className="now-playing-artist">
+              {player.error ?? 'Streaming through the jukebox output.'}
+            </p>
+            <div className="now-playing-actions">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={onOpenRadio}
+              >
+                Open Radio
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={player.stopRadio}
+              >
+                Stop
               </button>
               <button
                 type="button"

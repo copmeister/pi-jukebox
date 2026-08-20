@@ -18,6 +18,7 @@ import { CdScreen } from './screens/CdScreen'
 import { JukeboxScreen } from './screens/JukeboxScreen'
 import { LibraryScreen } from './screens/LibraryScreen'
 import { QueueScreen } from './screens/QueueScreen'
+import { RadioScreen } from './screens/RadioScreen'
 import { SearchScreen } from './screens/SearchScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { NowPlayingScreen } from './screens/NowPlayingScreen'
@@ -104,12 +105,19 @@ function AppContent({ sleeping, onSleep, onWake }: AppContentProps) {
     content = <SearchScreen onOpenAlbum={openAlbum} />
   } else if (activeDestination === 'Queue') {
     content = <QueueScreen onBrowse={() => navigate('Library')} />
+  } else if (activeDestination === 'Radio') {
+    content = <RadioScreen />
   } else if (activeDestination === 'CD') {
     content = <CdScreen cd={cd} />
   } else if (activeDestination === 'Bluetooth') {
     content = <BluetoothScreen />
   } else if (activeDestination === 'Now Playing') {
-    content = <NowPlayingScreen onOpenBluetooth={() => navigate('Bluetooth')} />
+    content = (
+      <NowPlayingScreen
+        onOpenBluetooth={() => navigate('Bluetooth')}
+        onOpenRadio={() => navigate('Radio')}
+      />
+    )
   } else {
     content = <SettingsScreen sleeping={sleeping} />
   }
@@ -187,17 +195,26 @@ function AppContent({ sleeping, onSleep, onWake }: AppContentProps) {
           {content}
         </main>
 
-        <MiniPlayer onOpenBluetooth={() => navigate('Bluetooth')} />
+        <MiniPlayer
+          onOpenBluetooth={() => navigate('Bluetooth')}
+          onOpenRadio={() => navigate('Radio')}
+        />
         <Navigation active={activeDestination} onNavigate={navigate} />
       </div>
       {sleeping ? (
         <SleepScreen
           trackTitle={
-            player.status === 'playing' ? player.currentTrack?.title : undefined
+            player.status === 'playing'
+              ? player.source === 'radio'
+                ? player.radioStation?.name
+                : player.currentTrack?.title
+              : undefined
           }
           trackArtist={
             player.status === 'playing'
-              ? player.currentTrack?.artist
+              ? player.source === 'radio'
+                ? 'Live Radio'
+                : player.currentTrack?.artist
               : undefined
           }
           bluetoothAudio={bluetooth.status.state === 'audio_playing'}
