@@ -177,22 +177,28 @@ class MusicMetadataClient:
     def _candidate(release: Any, disc: DiscLayout) -> ReleaseCandidate | None:
         if not isinstance(release, dict) or not isinstance(release.get("id"), str):
             return None
+        media = [item for item in release.get("media", []) if isinstance(item, dict)]
         matching_medium: dict[str, Any] | None = None
-        for medium in release.get("media", []):
-            if not isinstance(medium, dict):
-                continue
+        matching_medium_index: int | None = None
+        for medium_index, medium in enumerate(media):
             discs = medium.get("discs", [])
             if any(
                 isinstance(item, dict) and item.get("id") == disc.musicbrainz_disc_id
                 for item in discs
             ):
                 matching_medium = medium
+                matching_medium_index = medium_index
                 break
         if matching_medium is None:
-            media = release.get("media", [])
-            matching_medium = media[0] if isinstance(media, list) and media else None
+            matching_medium = media[0] if media else None
+            matching_medium_index = 0 if media else None
         if not isinstance(matching_medium, dict):
             return None
+
+        disc_number = _positive_int(matching_medium.get("position"))
+        if disc_number is None and matching_medium_index is not None:
+            disc_number = matching_medium_index + 1
+        disc_total = len(media) or None
 
         album_artist = _artist_credit(release.get("artist-credit"))
         tracks: list[ReleaseTrack] = []
@@ -235,6 +241,8 @@ class MusicMetadataClient:
             edition=str(release.get("status") or release_group.get("primary-type") or "") or None,
             track_count=len(tracks),
             tracks=tuple(tracks),
+            disc_number=disc_number,
+            disc_total=disc_total,
         )
 
 
@@ -272,3 +280,11 @@ def fallback_release(disc: DiscLayout) -> ReleaseCandidate:
             for number, duration in enumerate(disc.track_durations, start=1)
         ),
     )
+
+
+def _positive_int(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None

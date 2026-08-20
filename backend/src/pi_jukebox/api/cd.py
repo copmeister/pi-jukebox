@@ -57,6 +57,8 @@ class ReleaseResponse(ApiModel):
     track_count: int
     tracks: list[ReleaseTrackResponse]
     artwork_available: bool
+    disc_number: int | None
+    disc_total: int | None
 
 
 class RipTrackResponse(ApiModel):

@@ -14,6 +14,8 @@ const release = {
   edition: 'Deluxe',
   track_count: 2,
   artwork_available: false,
+  disc_number: null,
+  disc_total: null,
   tracks: [
     {
       number: 1,

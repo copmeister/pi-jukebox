@@ -49,7 +49,7 @@ export const VISUALISER_REGISTRY: readonly VisualiserDefinition[] = [
   {
     id: 'golden-ratio',
     name: VISUALISER_NAMES['golden-ratio'],
-    logicalBandCount: 8,
+    logicalBandCount: 7,
     Renderer: GoldenRatioCanvas,
   },
   {

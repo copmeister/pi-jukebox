@@ -35,3 +35,11 @@ Source music is opened for reading only. The scanner never rewrites tags or modi
 ## CD-created files
 
 Version 0.5.0 creates FLAC files only. A track is catalogued after secure reading, FLAC encoding, metadata/artwork tagging and atomic finalisation. Temporary WAV and partial FLAC files remain outside the library and are never offered for playback. The front cover is also saved as `Cover.jpg` in the album directory when available.
+
+For MusicBrainz releases, new rips retain the matched medium position as FLAC
+`discnumber`/`disctotal` tags. Multi-disc filenames include a disc-and-track
+prefix to avoid collisions; single-disc filenames keep their established
+format. The catalogue orders tracks by known disc number and then track number,
+with missing disc metadata following known discs without guessing. Album detail
+shows Disc headings only when at least two real disc numbers are present;
+ordinary single-disc albums remain unchanged.

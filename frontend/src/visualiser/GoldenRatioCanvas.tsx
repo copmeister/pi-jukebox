@@ -9,8 +9,18 @@ import {
 import { GOLDEN_RATIO_BAND_EDGES } from './bandMapping'
 
 const PHI = (1 + Math.sqrt(5)) / 2
-const SQUARE_COUNT = 8
+const SQUARE_COUNT = 7
 const BLACK_THRESHOLD = 0.12
+
+export const GOLDEN_RATIO_COLOURS = [
+  '#ff3b30',
+  '#ff8a1f',
+  '#ffd83d',
+  '#46d369',
+  '#30d6d6',
+  '#3b82f6',
+  '#9b5cff',
+] as const
 
 interface GoldenSquare {
   x: number
@@ -42,7 +52,7 @@ export function createGoldenSquares(
   height: number,
   count = SQUARE_COUNT,
 ): GoldenSquare[] {
-  const goldenHeight = Math.min(height, width / PHI)
+  const goldenHeight = Math.max(height, width / PHI)
   let remainingWidth = goldenHeight * PHI
   let remainingHeight = goldenHeight
   let x = (width - remainingWidth) / 2
@@ -76,11 +86,6 @@ export function createGoldenSquares(
 
 function createGoldenRatioRenderer(): AudioReactiveRenderer {
   const levels = new Array<number>(SQUARE_COUNT).fill(0)
-  const colours = Array.from({ length: SQUARE_COUNT }, () => {
-    const hue = Math.floor(Math.random() * 360)
-    const saturation = 72 + Math.floor(Math.random() * 22)
-    return { hue, saturation }
-  })
   let squares: GoldenSquare[] = []
   let geometryWidth = 0
   let geometryHeight = 0
@@ -93,7 +98,7 @@ function createGoldenRatioRenderer(): AudioReactiveRenderer {
         geometryHeight = frame.height
         squares = createGoldenSquares(frame.width, frame.height)
       }
-      drawGoldenRatio(frame, levels, colours, squares)
+      drawGoldenRatio(frame, levels, squares)
     },
   }
 }
@@ -107,7 +112,6 @@ function drawGoldenRatio(
     deltaSeconds,
   }: CanvasRendererFrame,
   levels: number[],
-  colours: readonly { hue: number; saturation: number }[],
   squares: readonly GoldenSquare[],
 ) {
   context.clearRect(0, 0, width, height)
@@ -126,14 +130,14 @@ function drawGoldenRatio(
     if (brightness <= 0) continue
 
     const square = squares[index]
-    const colour = colours[index]
-    const lightness = Math.max(1, brightness * 54)
+    const colour = GOLDEN_RATIO_COLOURS[index]
     context.save()
+    context.globalAlpha = brightness
     if (brightness > 0.2) {
-      context.shadowColor = `hsla(${colour.hue} ${colour.saturation}% 55% / ${Math.min(0.7, brightness * 0.6)})`
+      context.shadowColor = colour
       context.shadowBlur = Math.min(30, square.side * 0.09) * brightness
     }
-    context.fillStyle = `hsl(${colour.hue} ${colour.saturation}% ${lightness}%)`
+    context.fillStyle = colour
     context.fillRect(square.x, square.y, square.side, square.side)
     context.restore()
   }

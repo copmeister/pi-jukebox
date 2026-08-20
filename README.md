@@ -12,6 +12,8 @@ Version 0.6.6 adds a curated Internet Radio screen using the existing persistent
 
 Version 0.6.7 adds Golden Ratio, Particle Galaxy and Water to the existing fullscreen visualiser pipeline, with swipe rotation and persistent Settings controls for enabling the preferred modes.
 
+Version 0.6.8 polishes the seven-band Golden Ratio renderer, adds locally bundled radio artwork with safe fallbacks, and carries MusicBrainz disc positions into new CD rip tags so multi-disc albums sort and group correctly.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows

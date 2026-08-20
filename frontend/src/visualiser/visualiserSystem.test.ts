@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SpectrumFrame } from '../api/types'
-import { createGoldenSquares } from './GoldenRatioCanvas'
+import { createGoldenSquares, GOLDEN_RATIO_COLOURS } from './GoldenRatioCanvas'
 import {
   GALAXY_MAX_PARTICLES,
   GALAXY_MAX_SHOCKWAVES,
@@ -51,7 +51,7 @@ describe('visualiser registry and preferences', () => {
       })),
     ).toEqual([
       { id: 'spectrum', name: 'Spectrum', logicalBandCount: 24 },
-      { id: 'golden-ratio', name: 'Golden Ratio', logicalBandCount: 8 },
+      { id: 'golden-ratio', name: 'Golden Ratio', logicalBandCount: 7 },
       { id: 'particle-galaxy', name: 'Particle Galaxy', logicalBandCount: 6 },
       { id: 'water', name: 'Water', logicalBandCount: 6 },
     ])
@@ -108,10 +108,10 @@ describe('visualiser registry and preferences', () => {
 })
 
 describe('logical band mapping and renderer bounds', () => {
-  it('maps the existing logarithmic analyser data to 8/6/6 full-range bands', () => {
+  it('maps the existing logarithmic analyser data to 7/6/6 full-range bands', () => {
     expect(
       mapFrameToLogicalBands(frame, GOLDEN_RATIO_BAND_EDGES).levels,
-    ).toHaveLength(8)
+    ).toHaveLength(7)
     expect(
       mapFrameToLogicalBands(frame, GALAXY_BAND_EDGES).levels,
     ).toHaveLength(6)
@@ -130,9 +130,9 @@ describe('logical band mapping and renderer bounds', () => {
     expect(mapped.at(-1)).toBeGreaterThan(0)
   })
 
-  it('keeps genuine decreasing golden squares and bounded complex renderers', () => {
+  it('keeps seven edge-filling golden squares and bounded complex renderers', () => {
     const squares = createGoldenSquares(1280, 720)
-    expect(squares).toHaveLength(8)
+    expect(squares).toHaveLength(7)
     expect(squares[0].side / squares[1].side).toBeCloseTo(
       (1 + Math.sqrt(5)) / 2,
       5,
@@ -140,9 +140,33 @@ describe('logical band mapping and renderer bounds', () => {
     for (let index = 1; index < squares.length; index += 1) {
       expect(squares[index].side).toBeLessThan(squares[index - 1].side)
     }
+    expect(Math.min(...squares.map((square) => square.x))).toBeLessThanOrEqual(
+      0,
+    )
+    expect(Math.min(...squares.map((square) => square.y))).toBeLessThanOrEqual(
+      0,
+    )
+    expect(
+      Math.max(...squares.map((square) => square.x + square.side)),
+    ).toBeGreaterThanOrEqual(1280)
+    expect(
+      Math.max(...squares.map((square) => square.y + square.side)),
+    ).toBeGreaterThanOrEqual(720)
     expect(GALAXY_MAX_PARTICLES).toBeLessThanOrEqual(450)
     expect(GALAXY_MAX_SHOCKWAVES).toBe(8)
     expect(WATER_MAX_RIPPLES).toBe(28)
+  })
+
+  it('uses a deterministic bass-to-treble spectral colour progression', () => {
+    expect(GOLDEN_RATIO_COLOURS).toEqual([
+      '#ff3b30',
+      '#ff8a1f',
+      '#ffd83d',
+      '#46d369',
+      '#30d6d6',
+      '#3b82f6',
+      '#9b5cff',
+    ])
   })
 })
 

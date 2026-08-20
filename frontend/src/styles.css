@@ -541,8 +541,8 @@ h2 {
   list-style: none;
   border-top: 1px solid var(--border);
 }
-.track-list > li h2 {
-  margin: 12px 8px 4px;
+.track-disc-heading h2 {
+  margin: 14px 8px 5px;
   color: var(--accent);
   font-size: 0.68rem;
   letter-spacing: 0.1em;
@@ -1223,6 +1223,7 @@ h2 {
 }
 .radio-station__logo {
   object-fit: contain;
+  background: #fff;
 }
 .radio-station__mark.is-compact,
 .radio-station__logo.is-compact {
@@ -2338,17 +2339,15 @@ h2 {
 }
 .visualiser-settings-card {
   max-width: 980px;
-  margin-bottom: 14px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: var(--panel);
+  margin: 8px 0 14px;
+  padding: 14px 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
 }
-.visualiser-settings-card > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.visualiser-settings-card h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 750;
 }
 .visualiser-settings-card > p {
   margin: 7px 0 10px;
@@ -2368,17 +2367,16 @@ h2 {
   justify-content: space-between;
   gap: 8px;
   padding: 9px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 12px;
-  background: var(--panel-strong);
+  background: color-mix(in srgb, var(--panel-strong) 68%, transparent);
   color: var(--text);
   text-align: left;
   cursor: pointer;
 }
 .visualiser-settings-list button[aria-checked='true'] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--panel));
 }
 .visualiser-settings-list button:disabled {
   cursor: not-allowed;

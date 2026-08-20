@@ -143,6 +143,8 @@ export interface CdRelease {
   track_count: number
   tracks: CdReleaseTrack[]
   artwork_available: boolean
+  disc_number: number | null
+  disc_total: number | null
 }
 
 export interface CdRipTrack {

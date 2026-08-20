@@ -69,6 +69,10 @@ class MutagenFinalizedTrackVerifier:
             track_number = self._first(audio, "tracknumber")
             if track_number is None or int(track_number.split("/", 1)[0]) != track.number:
                 return False
+            if release.disc_total and release.disc_total > 1:
+                disc_number = self._first(audio, "discnumber")
+                if disc_number is None or int(disc_number.split("/", 1)[0]) != release.disc_number:
+                    return False
             expected = {
                 "title": track.title,
                 "artist": track.artist,
@@ -118,6 +122,10 @@ class MutagenFlacTagger:
         audio["album"] = release.title
         audio["tracknumber"] = str(track.number)
         audio["tracktotal"] = str(len(release.tracks))
+        if release.disc_number is not None:
+            audio["discnumber"] = str(release.disc_number)
+        if release.disc_total is not None:
+            audio["disctotal"] = str(release.disc_total)
         if release.year:
             audio["date"] = release.year
         if release.release_id and not release.release_id.startswith("disc-"):
@@ -337,7 +345,7 @@ class RipService:
     ) -> None:
         wav = staging / f"track-{track.number:02d}.wav"
         encoded = staging / f"track-{track.number:02d}.partial.flac"
-        final = album_directory / self._track_filename(track)
+        final = album_directory / self._track_filename(release, track)
         try:
             self.store.set_track_state(job_id, track.number, "reading")
             result = self.runner.run_cancellable(
@@ -429,7 +437,7 @@ class RipService:
         prior = self.store.latest_for_disc_release(disc.disc_id, release.release_id)
         album = self._album_directory(output_root, release)
         expected_paths = {
-            track.number: album / self._track_filename(track) for track in release.tracks
+            track.number: album / self._track_filename(release, track) for track in release.tracks
         }
         existing = [path for path in expected_paths.values() if path.exists() or path.is_symlink()]
 
@@ -557,8 +565,10 @@ class RipService:
         return output_root / artist / album
 
     @staticmethod
-    def _track_filename(track: ReleaseTrack) -> str:
+    def _track_filename(release: ReleaseCandidate, track: ReleaseTrack) -> str:
         title = sanitize_component(track.title, f"Track {track.number}")
+        if release.disc_number is not None and (release.disc_total or 0) > 1:
+            return f"{release.disc_number:02d}-{track.number:02d} - {title}.flac"
         return f"{track.number:02d} - {title}.flac"
 
     @staticmethod

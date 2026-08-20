@@ -168,48 +168,6 @@ export function SettingsScreen({ sleeping = false }: { sleeping?: boolean }) {
         </p>
       </section>
 
-      <section
-        className="visualiser-settings-card"
-        aria-labelledby="visualisers-title"
-      >
-        <header>
-          <div>
-            <p className="eyebrow">Fullscreen display</p>
-            <h2 id="visualisers-title">Visualisers</h2>
-          </div>
-        </header>
-        <p>
-          Choose which visualisers appear when swiping across the fullscreen
-          display.
-        </p>
-        <div className="visualiser-settings-list">
-          {VISUALISER_REGISTRY.map((definition) => {
-            const enabled = visualiserPreferences.enabled.includes(
-              definition.id,
-            )
-            const lastEnabled =
-              enabled && visualiserPreferences.enabled.length === 1
-            return (
-              <button
-                type="button"
-                role="switch"
-                aria-checked={enabled}
-                disabled={lastEnabled}
-                onClick={() => toggleVisualiser(definition.id)}
-                key={definition.id}
-              >
-                <strong>{definition.name}</strong>
-                <span aria-hidden="true">{enabled ? 'On' : 'Off'}</span>
-              </button>
-            )
-          })}
-        </div>
-        <p className="settings-note">
-          At least one visualiser must remain enabled. Choices are stored on
-          this touchscreen.
-        </p>
-      </section>
-
       {!status && !error ? (
         <ScreenState
           title="Loading software information"
@@ -324,6 +282,40 @@ export function SettingsScreen({ sleeping = false }: { sleeping?: boolean }) {
           </p>
         </section>
       ) : null}
+
+      <section
+        className="visualiser-settings-card"
+        aria-labelledby="visualisers-title"
+      >
+        <h2 id="visualisers-title">Visualisers</h2>
+        <p>Choose which visualisers appear when swiping.</p>
+        <div className="visualiser-settings-list">
+          {VISUALISER_REGISTRY.map((definition) => {
+            const enabled = visualiserPreferences.enabled.includes(
+              definition.id,
+            )
+            const lastEnabled =
+              enabled && visualiserPreferences.enabled.length === 1
+            return (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={enabled}
+                disabled={lastEnabled}
+                onClick={() => toggleVisualiser(definition.id)}
+                key={definition.id}
+              >
+                <strong>{definition.name}</strong>
+                <span aria-hidden="true">{enabled ? 'On' : 'Off'}</span>
+              </button>
+            )
+          })}
+        </div>
+        <p className="settings-note">
+          At least one visualiser must remain enabled. Choices are stored on
+          this touchscreen.
+        </p>
+      </section>
     </div>
   )
 }

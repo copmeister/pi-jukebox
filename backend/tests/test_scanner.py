@@ -187,6 +187,52 @@ def test_album_tracks_are_ordered_by_disc_then_track(tmp_path: Path) -> None:
     ]
 
 
+def test_duplicate_track_numbers_are_grouped_by_disc_before_track(tmp_path: Path) -> None:
+    library = tmp_path / "music"
+    tracks = {
+        "d2t2.mp3": metadata(title="Disc 2 Track 2", disc=2, track=2),
+        "d1t2.mp3": metadata(title="Disc 1 Track 2", disc=1, track=2),
+        "d2t1.mp3": metadata(title="Disc 2 Track 1", disc=2, track=1),
+        "d1t1.mp3": metadata(title="Disc 1 Track 1", disc=1, track=1),
+    }
+    for name in tracks:
+        touch_audio(library, name)
+    scanner, catalogue, _reader = make_scanner(tmp_path, library, tracks)
+
+    scanner.scan()
+    album = catalogue.get_album(catalogue.list_albums()[0]["id"])
+
+    assert album is not None
+    assert [track["title"] for track in album["tracks"]] == [
+        "Disc 1 Track 1",
+        "Disc 1 Track 2",
+        "Disc 2 Track 1",
+        "Disc 2 Track 2",
+    ]
+
+
+def test_single_disc_and_missing_disc_numbers_keep_safe_track_order(tmp_path: Path) -> None:
+    library = tmp_path / "music"
+    tracks = {
+        "third.mp3": metadata(title="Unknown disc", disc=None, track=3),
+        "second.mp3": metadata(title="Second", disc=1, track=2),
+        "first.mp3": metadata(title="First", disc=1, track=1),
+    }
+    for name in tracks:
+        touch_audio(library, name)
+    scanner, catalogue, _reader = make_scanner(tmp_path, library, tracks)
+
+    scanner.scan()
+    album = catalogue.get_album(catalogue.list_albums()[0]["id"])
+
+    assert album is not None
+    assert [track["title"] for track in album["tracks"]] == [
+        "First",
+        "Second",
+        "Unknown disc",
+    ]
+
+
 @pytest.mark.parametrize("library_kind", ["unconfigured", "missing", "file"])
 def test_invalid_library_configuration_fails_gracefully(tmp_path: Path, library_kind: str) -> None:
     if library_kind == "unconfigured":
