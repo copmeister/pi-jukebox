@@ -4,6 +4,8 @@ A touchscreen-first local music jukebox for Raspberry Pi. Version 0.6.0 adds a s
 
 Version 0.6.1 corrects native D-Bus agent compatibility and documents the narrow helper release-path ACL.
 
+Version 0.6.3 improves Sleep with dynamically discovered Touch Display 2 backlight dimming, a minute-updated bedside clock and playing-track information while keeping audio services active.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows
