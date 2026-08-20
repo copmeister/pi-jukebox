@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { AudioPlayerProvider } from './audio/AudioPlayerContext'
+import { AudioPlayerProvider, useAudioPlayer } from './audio/AudioPlayerContext'
+import { sleepPhysicalDisplay, wakePhysicalDisplay } from './api/client'
 import { BluetoothProvider, useBluetooth } from './bluetooth/BluetoothContext'
 import { MiniPlayer } from './components/MiniPlayer'
 import { Navigation } from './components/Navigation'
@@ -22,16 +23,42 @@ import { SettingsScreen } from './screens/SettingsScreen'
 import { NowPlayingScreen } from './screens/NowPlayingScreen'
 import { QueueProvider, useQueue } from './queue/QueueContext'
 
-function AppContent() {
+interface AppContentProps {
+  sleeping: boolean
+  onSleep: () => void
+  onWake: () => void
+}
+
+function AppContent({ sleeping, onSleep, onWake }: AppContentProps) {
   const { displaySize } = useDisplaySize()
   const [activeDestination, setActiveDestination] =
     useState<Destination>('Jukebox')
   const [selectedAlbumId, setSelectedAlbumId] = useState<number | null>(null)
-  const [sleepTime, setSleepTime] = useState<string | null>(null)
-  const catalogue = useCatalogue()
-  const cd = useCdStatus(() => void catalogue.refresh())
+  const catalogue = useCatalogue(sleeping)
+  const cd = useCdStatus(() => void catalogue.refresh(), sleeping)
   const queue = useQueue()
   const bluetooth = useBluetooth()
+  const player = useAudioPlayer()
+
+  const sleep = () => {
+    onSleep()
+    void sleepPhysicalDisplay().catch(() => undefined)
+  }
+
+  const wake = () => {
+    onWake()
+    void (async () => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const result = await wakePhysicalDisplay()
+          if (result.adjusted || !result.available) return
+        } catch {
+          // A retry can recover from a brief backend restart during wake.
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 250))
+      }
+    })()
+  }
 
   const navigate = (destination: Destination) => {
     setSelectedAlbumId(null)
@@ -84,13 +111,17 @@ function AppContent() {
   } else if (activeDestination === 'Now Playing') {
     content = <NowPlayingScreen onOpenBluetooth={() => navigate('Bluetooth')} />
   } else {
-    content = <SettingsScreen />
+    content = <SettingsScreen sleeping={sleeping} />
   }
 
   const serviceReady = !catalogue.error
   return (
     <>
-      <div className="app-shell" data-display-size={displaySize}>
+      <div
+        className={`app-shell${sleeping ? ' is-sleeping' : ''}`}
+        data-display-size={displaySize}
+        aria-hidden={sleeping || undefined}
+      >
         <header className="top-bar">
           <button
             className="brand"
@@ -104,18 +135,7 @@ function AppContent() {
             <span>Pi Jukebox</span>
           </button>
           <div className="top-statuses">
-            <button
-              type="button"
-              className="sleep-button"
-              onClick={() =>
-                setSleepTime(
-                  new Intl.DateTimeFormat([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }).format(new Date()),
-                )
-              }
-            >
+            <button type="button" className="sleep-button" onClick={sleep}>
               Sleep
             </button>
             {bluetooth.status.mode_active ? (
@@ -170,20 +190,36 @@ function AppContent() {
         <MiniPlayer onOpenBluetooth={() => navigate('Bluetooth')} />
         <Navigation active={activeDestination} onNavigate={navigate} />
       </div>
-      {sleepTime !== null ? (
-        <SleepScreen time={sleepTime} onWake={() => setSleepTime(null)} />
+      {sleeping ? (
+        <SleepScreen
+          trackTitle={
+            player.status === 'playing' ? player.currentTrack?.title : undefined
+          }
+          trackArtist={
+            player.status === 'playing'
+              ? player.currentTrack?.artist
+              : undefined
+          }
+          bluetoothAudio={bluetooth.status.state === 'audio_playing'}
+          onWake={wake}
+        />
       ) : null}
     </>
   )
 }
 
 export default function App() {
+  const [sleeping, setSleeping] = useState(false)
   return (
     <DisplaySizeProvider>
       <BluetoothProvider>
         <QueueProvider>
-          <AudioPlayerProvider>
-            <AppContent />
+          <AudioPlayerProvider sleeping={sleeping}>
+            <AppContent
+              sleeping={sleeping}
+              onSleep={() => setSleeping(true)}
+              onWake={() => setSleeping(false)}
+            />
           </AudioPlayerProvider>
         </QueueProvider>
       </BluetoothProvider>

@@ -30,7 +30,10 @@ function message(error: unknown): string {
     : 'The CD action could not be completed safely.'
 }
 
-export function useCdStatus(onCatalogueChange: () => void): CdState {
+export function useCdStatus(
+  onCatalogueChange: () => void,
+  sleeping = false,
+): CdState {
   const [status, setStatus] = useState<CdStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [mutating, setMutating] = useState(false)
@@ -62,6 +65,7 @@ export function useCdStatus(onCatalogueChange: () => void): CdState {
   }, [applyStatus])
 
   useEffect(() => {
+    if (sleeping) return
     const controller = new AbortController()
     void getCdStatus(controller.signal)
       .then(applyStatus)
@@ -75,7 +79,7 @@ export function useCdStatus(onCatalogueChange: () => void): CdState {
       controller.abort()
       window.clearInterval(interval)
     }
-  }, [applyStatus, refresh])
+  }, [applyStatus, refresh, sleeping])
 
   const action = useCallback(
     async (request: () => Promise<{ message: string }>) => {

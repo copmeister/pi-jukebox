@@ -1748,6 +1748,9 @@ h2 {
   font-weight: 750;
   cursor: pointer;
 }
+.app-shell.is-sleeping {
+  visibility: hidden;
+}
 .sleep-screen {
   position: fixed;
   z-index: 1000;
@@ -1774,6 +1777,20 @@ h2 {
 }
 .sleep-screen span {
   font-size: clamp(1rem, 2vw, 1.35rem);
+}
+.sleep-screen__track {
+  min-height: 58px;
+  display: grid;
+  gap: 6px;
+}
+.sleep-screen__track strong {
+  color: #999;
+  font-size: clamp(1.25rem, 3vw, 2rem);
+  font-weight: 500;
+}
+.sleep-screen__track small {
+  color: #666;
+  font-size: clamp(0.9rem, 2vw, 1.2rem);
 }
 
 .bluetooth-screen {

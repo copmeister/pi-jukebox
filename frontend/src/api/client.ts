@@ -6,6 +6,7 @@ import type {
   CdRelease,
   CdRipJob,
   CdStatus,
+  DisplayAction,
   QueueItem,
   QueueSnapshot,
   ScanStart,
@@ -350,6 +351,15 @@ function isApiAction(value: unknown): value is ApiAction {
   )
 }
 
+function isDisplayAction(value: unknown): value is DisplayAction {
+  return (
+    isRecord(value) &&
+    typeof value.available === 'boolean' &&
+    typeof value.adjusted === 'boolean' &&
+    typeof value.message === 'string'
+  )
+}
+
 function isUpdateStatus(value: unknown): value is UpdateStatus {
   return (
     isRecord(value) &&
@@ -587,6 +597,20 @@ export function ejectCd(): Promise<ApiAction> {
 
 export function getUpdateStatus(signal?: AbortSignal): Promise<UpdateStatus> {
   return requestJson('/system/updates', isUpdateStatus, { signal })
+}
+
+export function sleepPhysicalDisplay(): Promise<DisplayAction> {
+  return requestJson('/system/display/sleep', isDisplayAction, {
+    method: 'POST',
+    headers: { 'X-Pi-Jukebox-Action': 'display-sleep' },
+  })
+}
+
+export function wakePhysicalDisplay(): Promise<DisplayAction> {
+  return requestJson('/system/display/wake', isDisplayAction, {
+    method: 'POST',
+    headers: { 'X-Pi-Jukebox-Action': 'display-wake' },
+  })
 }
 
 export function checkForUpdates(): Promise<ApiAction> {

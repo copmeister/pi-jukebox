@@ -18,7 +18,7 @@ function errorMessage(error: unknown): string {
     : 'Something unexpected happened while loading the library.'
 }
 
-export function useCatalogue(): CatalogueState {
+export function useCatalogue(sleeping = false): CatalogueState {
   const [albums, setAlbums] = useState<AlbumSummary[]>([])
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,7 +65,8 @@ export function useCatalogue(): CatalogueState {
   }, [])
 
   useEffect(() => {
-    if (!scanStatus?.running) return
+    if (sleeping || !scanStatus?.running) return
+    const initial = window.setTimeout(() => void refresh(), 0)
     const interval = window.setInterval(() => {
       void getScanStatus()
         .then(async (nextStatus) => {
@@ -83,8 +84,11 @@ export function useCatalogue(): CatalogueState {
         })
         .catch((pollError) => setError(errorMessage(pollError)))
     }, 800)
-    return () => window.clearInterval(interval)
-  }, [scanStatus?.running])
+    return () => {
+      window.clearTimeout(initial)
+      window.clearInterval(interval)
+    }
+  }, [refresh, scanStatus?.running, sleeping])
 
   const rescan = useCallback(async () => {
     if (scanStatus?.running) return

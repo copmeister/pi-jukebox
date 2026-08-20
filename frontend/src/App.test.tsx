@@ -120,8 +120,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.2',
-  latest_version: '0.6.2',
+  installed_version: '0.6.3',
+  latest_version: '0.6.3',
   checking: false,
   installing: false,
   update_available: false,
@@ -182,6 +182,18 @@ describe('App catalogue interface', () => {
         if (url.endsWith('/api/cd/status')) return jsonResponse(cdStatus)
         if (url.endsWith('/api/system/updates'))
           return jsonResponse(updateStatus)
+        if (url.endsWith('/api/system/display/sleep'))
+          return jsonResponse({
+            available: true,
+            adjusted: false,
+            message: 'Hardware dimming unavailable.',
+          })
+        if (url.endsWith('/api/system/display/wake'))
+          return jsonResponse({
+            available: true,
+            adjusted: true,
+            message: 'Brightness restored.',
+          })
         if (url.endsWith('/api/bluetooth/status'))
           return jsonResponse(currentBluetoothStatus)
         if (url.endsWith('/api/bluetooth/activate')) {
@@ -317,7 +329,7 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.2')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.3')).toBeInTheDocument()
   })
 
   it('does not create Jukebox effects while navigating other screens', async () => {
@@ -353,10 +365,69 @@ describe('App catalogue interface', () => {
     const sleepScreen = screen.getByRole('button', { name: 'Wake Pi Jukebox' })
     expect(sleepScreen).toHaveTextContent('Tap anywhere to wake')
     expect(miniPlayer).toBeInTheDocument()
+    expect(document.querySelector('.app-shell')).toHaveClass('is-sleeping')
 
     await user.click(sleepScreen)
     expect(screen.getByRole('heading', { name: 'Library' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Mini player' })).toBe(miniPlayer)
+  })
+
+  it('shows the playing local track and never pauses it during Sleep', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+    await user.click(screen.getByRole('button', { name: 'Library' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Open Night Drive by The House Band',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Queue actions for Northern Lights' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Play Now' }))
+    const audio = document.querySelector('audio')
+    expect(audio?.paused).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: 'Sleep' }))
+    const sleepScreen = screen.getByRole('button', { name: 'Wake Pi Jukebox' })
+    expect(within(sleepScreen).getByText('Northern Lights')).toBeInTheDocument()
+    expect(within(sleepScreen).getByText('Guest Vocalist')).toBeInTheDocument()
+    expect(audio?.paused).toBe(false)
+  })
+
+  it('keeps active Bluetooth connected and shows no invented metadata', async () => {
+    currentBluetoothStatus = {
+      ...availableBluetoothStatus,
+      mode_active: true,
+      state: 'audio_playing',
+      connected_device_id: 'a'.repeat(16),
+      devices: [
+        {
+          id: 'a'.repeat(16),
+          name: 'Test Phone',
+          paired: true,
+          trusted: true,
+          connected: true,
+          audio_playing: true,
+        },
+      ],
+      message: 'Playing audio from Test Phone.',
+    }
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+
+    await user.click(screen.getByRole('button', { name: 'Sleep' }))
+    const sleepScreen = screen.getByRole('button', { name: 'Wake Pi Jukebox' })
+    expect(within(sleepScreen).getByText('Bluetooth audio')).toBeInTheDocument()
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.some(([input]) =>
+          String(input).endsWith('/api/bluetooth/deactivate'),
+        ),
+    ).toBe(false)
   })
 
   it('pauses local playback for Bluetooth and keeps the local queue item paused', async () => {

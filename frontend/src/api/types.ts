@@ -222,6 +222,12 @@ export interface UpdateStatus {
   source: string
 }
 
+export interface DisplayAction {
+  available: boolean
+  adjusted: boolean
+  message: string
+}
+
 export type BluetoothPlaybackState =
   | 'unavailable'
   | 'inactive'

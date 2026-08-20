@@ -35,7 +35,7 @@ const UPDATE_STAGE_LABELS: Record<string, string> = {
   complete: 'Complete',
   recovery_required: 'Recovery required',
 }
-export function SettingsScreen() {
+export function SettingsScreen({ sleeping = false }: { sleeping?: boolean }) {
   const { displaySize, setDisplaySize } = useDisplaySize()
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -54,13 +54,14 @@ export function SettingsScreen() {
   }, [])
 
   useEffect(() => {
+    if (sleeping) return
     const initial = window.setTimeout(() => void refresh(), 0)
     const interval = window.setInterval(() => void refresh(), 2000)
     return () => {
       window.clearTimeout(initial)
       window.clearInterval(interval)
     }
-  }, [refresh])
+  }, [refresh, sleeping])
 
   useEffect(() => {
     if (!status) return
