@@ -296,16 +296,16 @@ At 1280×720 on Touch Display 2:
     visualiser target. Both sources must reach the resolved monitor without a
     feedback loop.
 
-## Future common-output visualiser
+## Integrated common-output visualiser
 
-The future visualiser should run in, or explicitly connect to, the `admin`
-PipeWire session and dynamically resolve the DAC/default-sink monitor. It must
-not hard-code a transient PipeWire object ID such as `57`. Capturing this common
-sink monitor can analyse the digital mix routed to the DAC for local library
-playback and Bluetooth, and later radio and direct-CD playback when those
-sources also use that sink. It cannot measure analogue amplifier or speaker
-behavior, and it cannot see a source routed to another sink. The visualiser
-itself remains outside v0.6.0.
+The first integrated visualiser runs in the application owned by `admin` and
+connects to that user's PipeWire session. It resolves the current default
+DAC/output sink's stable name and uses PipeWire sink-monitor capture; it does
+not hard-code a transient object ID such as `57` or the monitor name observed
+during the v0.6.0 audit. This common output covers local library playback and
+Bluetooth, and later radio or direct-CD playback when routed to the same sink.
+It cannot measure analogue amplifier or speaker behavior, and it cannot see a
+source routed to another sink. See [the visualiser guide](visualiser.md).
 
 MP3/FLAC browser support and Bluetooth codec behavior are separate. No claim of
 Bluetooth audio quality, codec coverage or RF reliability is made until these

@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   render,
   screen,
@@ -120,8 +121,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.3',
-  latest_version: '0.6.3',
+  installed_version: '0.6.4',
+  latest_version: '0.6.4',
   checking: false,
   installing: false,
   update_available: false,
@@ -159,6 +160,17 @@ const availableBluetoothStatus: BluetoothStatus = {
 
 let currentBluetoothStatus: BluetoothStatus = bluetoothStatus
 
+class FakeEventSource {
+  static instances: FakeEventSource[] = []
+  onmessage: ((event: MessageEvent<string>) => void) | null = null
+  onerror: (() => void) | null = null
+  close = vi.fn()
+
+  constructor(public readonly url: string) {
+    FakeEventSource.instances.push(this)
+  }
+}
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -170,6 +182,8 @@ describe('App catalogue interface', () => {
   beforeEach(() => {
     window.localStorage.clear()
     currentBluetoothStatus = bluetoothStatus
+    FakeEventSource.instances = []
+    vi.stubGlobal('EventSource', FakeEventSource)
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -329,7 +343,98 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.3')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.4')).toBeInTheDocument()
+  })
+
+  it('shows local metadata and a contained unavailable state in Spectrum', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+    await user.click(screen.getByRole('button', { name: 'Library' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Open Night Drive by The House Band',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Queue actions for Northern Lights' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Play Now' }))
+    await user.click(screen.getByRole('button', { name: 'Now Playing' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Northern Lights' }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText('Guest Vocalist')).not.toHaveLength(0)
+    expect(screen.getAllByText('Night Drive')).not.toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: 'Open Spectrum' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Northern Lights' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Guest Vocalist · Night Drive/)).toBeInTheDocument()
+    const source = FakeEventSource.instances.at(-1)
+    expect(source?.url).toMatch(/\/api\/visualiser\/stream$/)
+    act(() => {
+      source?.onmessage?.({
+        data: JSON.stringify({
+          sequence: 2,
+          status: 'unavailable',
+          message: 'The monitor is unavailable. Playback is unaffected.',
+          band_centres_hz: [60, 120, 240, 480],
+          levels: [0, 0, 0, 0],
+          max_levels: 16,
+          rise_rate: 48,
+          fall_rate: 36,
+        }),
+      } as MessageEvent<string>)
+    })
+    expect(screen.getByText('Spectrum unavailable')).toBeInTheDocument()
+    expect(screen.getByText(/Playback is unaffected/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '‹ Now Playing' }))
+    expect(source?.close).toHaveBeenCalledOnce()
+    expect(
+      screen.getByRole('button', { name: 'Open Spectrum' }),
+    ).toBeInTheDocument()
+  })
+
+  it('uses honest Bluetooth source metadata fallback in Spectrum', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    currentBluetoothStatus = {
+      ...availableBluetoothStatus,
+      mode_active: true,
+      state: 'audio_playing',
+      connected_device_id: 'a'.repeat(16),
+      devices: [
+        {
+          id: 'a'.repeat(16),
+          name: 'Test Phone',
+          paired: true,
+          trusted: true,
+          connected: true,
+          audio_playing: true,
+        },
+      ],
+      message: 'Playing audio from Test Phone.',
+    }
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+    await user.click(screen.getByRole('button', { name: 'Now Playing' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Test Phone' }),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Open Spectrum' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Bluetooth audio' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Test Phone · Playing audio from Test Phone/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Unknown Artist')).not.toBeInTheDocument()
   })
 
   it('does not create Jukebox effects while navigating other screens', async () => {

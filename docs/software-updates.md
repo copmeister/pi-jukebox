@@ -471,6 +471,9 @@ mkdir -p "$release_build/app" "$release_build/wheelhouse" \
   -r "$release_build/requirements.lock"
 test -n "$(find "$release_build/wheelhouse" -maxdepth 1 \
   -type f -iname 'dbus_fast-*.whl' -print -quit)"
+test -n "$(find "$release_build/wheelhouse" -maxdepth 1 \
+  -type f -iname 'numpy-*-cp313-cp313-manylinux*_aarch64*.whl' \
+  -print -quit)"
 "$release_tools/bin/python" scripts/build_update_release.py \
   --version "$release_version" \
   --app-wheel "$release_build/app/pi_jukebox-$release_version-py3-none-any.whl" \
@@ -716,3 +719,12 @@ so the updater's existing application restart also reloads Bluetooth helper
 code from the activated version; rollback reloads both from the restored
 version. A helper failure leaves Bluetooth unavailable and must not change the
 catalogue, queue, CD, updater or local playback data.
+
+Version 0.6.4 adds NumPy as an ordinary application runtime dependency for the
+isolated final-output spectrum analyser. The release build remains native on
+the Python 3.13 aarch64 Pi, so `pip-compile` locks the runtime requirement and
+`pip wheel --require-hashes` selects its binary aarch64 wheel. The explicit
+filename check in the release procedure prevents publication if a compatible
+`cp313` manylinux NumPy wheel was not collected. Installation remains fully
+offline through the existing per-release wheelhouse and does not alter
+PipeWire, WirePlumber, Bluetooth or any system service.

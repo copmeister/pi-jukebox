@@ -267,3 +267,14 @@ export interface BluetoothStatus {
   pending_pairing: BluetoothPairingRequest | null
   message: string
 }
+
+export interface SpectrumFrame {
+  sequence: number
+  status: 'starting' | 'ready' | 'unavailable'
+  message: string
+  band_centres_hz: number[]
+  levels: number[]
+  max_levels: number
+  rise_rate: number
+  fall_rate: number
+}

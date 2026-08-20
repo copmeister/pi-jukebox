@@ -43,6 +43,17 @@ Every successful mutation returns the complete queue snapshot. `DELETE /queue` i
 
 FastAPI also exposes interactive documentation at `/docs` while the backend is running.
 
+## Spectrum visualiser stream
+
+`GET /api/visualiser/stream` is a server-sent event stream. Subscribing starts
+the isolated final-output analyser on demand; closing the stream releases the
+subscription and stops capture when the last client leaves. Each `data` event
+contains a sequence, `starting`/`ready`/`unavailable` status, safe message,
+logarithmic `band_centres_hz`, bounded integer `levels`, `max_levels`, and the
+configured frontend rise/fall rates. Raw PCM, sink IDs and filesystem data are
+never returned. Capture failure remains an HTTP stream status and does not
+change playback, Bluetooth, queue or PipeWire routing.
+
 ## CD endpoints
 
 - `GET /api/cd/status` â€” drive, disc, storage, metadata candidates, selection and latest job

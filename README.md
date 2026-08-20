@@ -6,6 +6,8 @@ Version 0.6.1 corrects native D-Bus agent compatibility and documents the narrow
 
 Version 0.6.3 improves Sleep with dynamically discovered Touch Display 2 backlight dimming, a minute-updated bedside clock and playing-track information while keeping audio services active.
 
+Version 0.6.4 adds demand-driven real-time spectrum analysis of the shared final PipeWire/DAC output while preserving the v0.6.3 Sleep, playback, Bluetooth, CD, queue, kiosk and updater paths.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows
@@ -83,7 +85,7 @@ Open **Sounds** in the Jukebox header to enable or disable the effects, adjust t
 
 With at least eight catalogued tracks, each panel contains eight different songs. A catalogue of at least 32 tracks fills all visible positions uniquely. Smaller libraries are distributed through fresh shuffled cycles, so repeats occur across panels only as necessary; libraries with fewer than eight tracks repeat within a panel while avoiding immediately adjacent repeats where possible.
 
-The modern Library, Search, Queue, and Now Playing screens remain available. A Library or Search track's **Actions** menu provides Play Now, Play Next, or Add to Queue. Album details provide Play Album and Add Album to Queue. The Queue screen retains touch Up/Down reordering, removal, and its existing upcoming-only clear. The mini-player and Now Playing screen provide play/pause, queue-aware previous/next, seeking, volume, and mute.
+The modern Library, Search, Queue, and Now Playing screens remain available. A Library or Search track's **Actions** menu provides Play Now, Play Next, or Add to Queue. Album details provide Play Album and Add Album to Queue. The Queue screen retains touch Up/Down reordering, removal, and its existing upcoming-only clear. The mini-player and Now Playing screen provide play/pause, queue-aware previous/next, seeking, volume, and mute. **Open Spectrum** on Now Playing enters the demand-driven final-output visualiser without replacing the player or queue.
 
 Queue order and the current queue item persist in SQLite across browser refreshes and backend restarts. Restored audio remains paused and restarts from the beginning after one Play tap. Playback position is deliberately not saved, and restored audio never autoplays.
 
@@ -162,6 +164,21 @@ Cancellation retains Ready tracks and removes disposable staging files. When the
 
 See [Raspberry Pi deployment and hardware testing](docs/pi-deployment.md) for prerequisites, permissions, startup, cancellation and failure-condition checks.
 
+## Real-time spectrum visualiser
+
+The first integrated spectrum build observes the current default PipeWire sink
+monitor, so local browser playback and Bluetooth receiver audio are analysed at
+their shared digital path to the DAC. It resolves the sink at runtime and does
+not change the default output or create another playback engine. On Windows or
+when PipeWire capture is unavailable, only Spectrum reports unavailable and
+ordinary playback remains unchanged.
+
+Open **Now Playing**, then **Open Spectrum**. The backend runs capture and FFT
+analysis only while this view is connected and sends bounded LED levels—not raw
+PCM—to the browser. The canvas uses runtime dimensions, square blocks and
+band aggregation on constrained viewports. See the [visualiser tuning and Pi
+acceptance guide](docs/visualiser.md).
+
 ## Bluetooth receiver on Raspberry Pi
 
 Bluetooth is disabled by default on Windows and on a Pi that has not completed
@@ -213,8 +230,8 @@ npm.cmd --prefix frontend run build
 
 ## Current scope
 
-The backend provides the incremental catalogue, secure media, authoritative queue, persistent CD diagnostics, hardware-safe background extraction, non-blocking release checks and a strict Bluetooth-helper boundary. The frontend retains one Chromium audio element and coordinates it with the external phone-audio source; it does not add a second local player or queue. Playback position and transient selector/Bluetooth presentation state are not saved. The visualiser remains future work.
+The backend provides the incremental catalogue, secure media, authoritative queue, persistent CD diagnostics, hardware-safe background extraction, non-blocking release checks, a strict Bluetooth-helper boundary and demand-driven final-output spectrum analysis. The frontend retains one Chromium audio element and coordinates it with the external phone-audio source; neither Bluetooth nor the visualiser adds a second local player or queue. Playback position and transient selector/Bluetooth presentation state are not saved. Visualiser tuning remains subject to physical display acceptance.
 
-Version 0.6.0 Bluetooth routing, pairing behavior, phone compatibility, RF reliability and DAC-monitor coverage still require the physical acceptance checks on the Raspberry Pi 5, Touch Display 2, DAC Pro, amplifier and speakers.
+Bluetooth routing, pairing behavior, phone compatibility, RF reliability and visualiser DAC-monitor coverage still require the physical acceptance checks on the Raspberry Pi 5, Touch Display 2, DAC Pro, amplifier and speakers.
 
 See [the architecture](docs/architecture.md), [database schema notes](docs/database-schema.md), and [the product specification](docs/product-specification.md) for the approved design and v0.1 boundaries.

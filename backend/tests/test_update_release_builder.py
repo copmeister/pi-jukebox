@@ -1,4 +1,5 @@
 import json
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,10 @@ def test_release_builder_creates_reproducible_validated_assets(tmp_path: Path) -
     requirements = inputs / "requirements.lock"
     requirements.write_text("dependency==1 --hash=sha256:" + "0" * 64)
     (wheelhouse / "dependency-1-py3-none-any.whl").write_bytes(b"dependency")
+    numpy_wheel = (
+        wheelhouse / "numpy-2.5.2-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl"
+    )
+    numpy_wheel.write_bytes(b"numpy aarch64 wheel")
     (frontend / "index.html").write_text("<h1>Jukebox 0.6.0</h1>")
     (frontend / "app.js").write_text("console.log('0.6.0')")
 
@@ -53,6 +58,7 @@ def test_release_builder_creates_reproducible_validated_assets(tmp_path: Path) -
         "python": "3.13",
     }
     assert payload["archive"]["filename"] == "pi-jukebox-v0.6.0.tar.gz"
+    assert f"wheelhouse/{numpy_wheel.name}" in payload["files"]
 
     manifest = ReleaseManifest.load(first_manifest, "0.6.0")
     assert manifest.architecture == "aarch64"
@@ -61,6 +67,19 @@ def test_release_builder_creates_reproducible_validated_assets(tmp_path: Path) -
     destination.mkdir()
     manifest.extract(first_archive, destination)
     assert (destination / "frontend" / "dist" / "index.html").is_file()
+    assert (destination / "wheelhouse" / numpy_wheel.name).is_file()
+
+
+def test_numpy_is_runtime_dependency_and_pi_build_requires_cp313_aarch64_wheel() -> None:
+    project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]
+    runtime = project["dependencies"]
+    development = project["optional-dependencies"]["dev"]
+
+    assert any(requirement.startswith("numpy>=") for requirement in runtime)
+    assert not any(requirement.startswith("numpy") for requirement in development)
+
+    release_procedure = Path("docs/software-updates.md").read_text(encoding="utf-8")
+    assert "numpy-*-cp313-cp313-manylinux*_aarch64*.whl" in release_procedure
 
 
 @pytest.mark.parametrize(

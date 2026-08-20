@@ -52,6 +52,24 @@ class Settings(BaseSettings):
     bluetooth_enabled: bool = False
     bluetooth_socket_path: Path | None = None
     bluetooth_timeout_seconds: float = 2.0
+    visualiser_enabled: bool = True
+    visualiser_bands: int = 24
+    visualiser_levels: int = 16
+    visualiser_fft_size: int = 4096
+    visualiser_hop_size: int = 1024
+    visualiser_sample_rate: int = 48_000
+    visualiser_min_frequency: float = 45.0
+    visualiser_max_frequency: float = 16_000.0
+    visualiser_quiet_threshold_db: float = -62.0
+    visualiser_headroom_db: float = -8.0
+    visualiser_gain: float = 1.0
+    visualiser_spectral_tilt: float = 0.28
+    visualiser_rise_rate: float = 48.0
+    visualiser_fall_rate: float = 36.0
+    visualiser_stream_fps: float = 30.0
+    visualiser_retry_seconds: float = 2.0
+    visualiser_wpctl_executable: str = "wpctl"
+    visualiser_pw_record_executable: str = "pw-record"
 
     @property
     def database_path(self) -> Path:
