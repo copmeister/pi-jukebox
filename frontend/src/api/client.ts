@@ -36,6 +36,10 @@ function apiUrl(path: string): string {
   return `${API_BASE_URL}/api${path}`
 }
 
+export function visualiserStreamUrl(): string {
+  return apiUrl('/visualiser/stream')
+}
+
 async function requestJson<T>(
   path: string,
   validate: Validator<T>,

@@ -73,7 +73,8 @@ The frontend is a React single-page application written in TypeScript and built 
 - One application-root player context is the only component allowed to control the persistent HTML audio element. It consumes confirmed queue snapshots, so Queue, Now Playing, and the mini-player stay synchronized while navigation never recreates the element.
 - One queue context loads persisted state, serializes mutations to prevent double taps, safely refetches after failures, and shows concise confirmations or errors.
 - Chromium will perform audio decoding and playback.
-- A future lightweight visualiser should capture the dynamically resolved DAC/default-sink monitor in the `admin` PipeWire graph. This common digital-output point can cover local browser, Bluetooth, radio and direct-CD audio when each source is routed to that sink. It must not hard-code a numeric PipeWire node ID; it will not measure analogue amplifier or speaker behavior.
+- The demand-driven spectrum visualiser captures the dynamically resolved DAC/default-sink monitor in the `admin` PipeWire graph. It resolves the stable sink name with WirePlumber and uses PipeWire's sink-monitor capture property rather than a numeric node ID. This common digital-output point covers local browser and Bluetooth audio, and can cover later sources routed to the same sink; it does not measure analogue amplifier or speaker behavior.
+- FFT analysis runs in an isolated daemon thread only while a browser subscribes. It reuses its NumPy window and logarithmic band mapping, publishes only bounded LED targets over a server-sent event stream, and treats capture/analysis failure as a visualiser-only unavailable state.
 - During development, Vite proxies `/api` requests to FastAPI on port 8000.
 - A small typed client validates important response fields at runtime and converts network or invalid-response failures into safe user-facing messages.
 - Catalogue summary state is shared with Library. The Jukebox selector independently requests complete track metadata when mounted. Scan status is polled only while a scan is active, then albums are refreshed.
@@ -95,6 +96,7 @@ The frontend is a React single-page application written in TypeScript and built 
 - The main content region and scrollable dialogs use native `pan-y` scrolling, contained overscroll and hidden scrollbar styling. General kiosk text is non-selectable to prevent drag selection, while inputs, range controls and useful Settings diagnostics retain their appropriate interaction.
 - Standard retains the original four-by-eight Jukebox selector. Large and Extra Large provide three persistent letter identities A–C with six numbered slots each; the same panel generator, forward transition, queue mutation and single audio path receive the mode-specific panel count and size.
 - A root Bluetooth context polls bounded status and coordinates the two mutually exclusive sources. Activating, pairing or connecting pauses the single local `HTMLAudioElement`, cancels pending Jukebox loading and preserves the queue. Starting local playback deactivates Bluetooth first. Phone disconnect never auto-resumes an old local track. While Bluetooth is active, mini-player and Now Playing show receiver state rather than local seek, volume or transport controls.
+- Now Playing retains its existing artwork and controls and offers an in-screen Spectrum mode. A single canvas calculates square LED cells from its live viewport, aggregates bands only on constrained widths, animates at most one block per column per rendered frame, and returns to the ordinary Now Playing view without recreating playback state.
 
 The shell targets the official Touch Display 2 at 1280×720 landscape. Standard, Large and Extra Large are visually accepted at that native size. The interface uses large touch targets, no hover-only controls, visible keyboard focus, native vertical scrolling, and fixed player/navigation rows.
 
@@ -139,11 +141,11 @@ Each release is prepared under a root-owned staging directory. Its hashed depend
 
 The existing graphical-session startup retains ownership of Chromium kiosk launch but no longer launches FastAPI or Vite. A fixed system service owns the application lifecycle and serves both API and prebuilt frontend on the kiosk's existing production origin, `http://127.0.0.1:5173`, allowing the updater to restart it safely while Chromium reconnects without losing origin-scoped display preferences. Windows development remains Vite on 5173 proxying FastAPI on 8000. Bluetooth has a second fixed unprivileged service whose `PartOf` relationship restarts it against the same active immutable version on update or rollback; it does not own Chromium or PipeWire. Exact updater operations are in [Safe software updates](software-updates.md), and the separately privileged Bluetooth migration is in [Bluetooth receiver](bluetooth.md).
 
-## Future component boundaries
+## First integrated visualiser boundary
 
-The following frontend feature area remains for later work:
-
-- Frequency visualiser
+The frequency visualiser is now a demand-driven observer of the final digital
+output. Physical Pi evaluation and tuning remain, but playback ownership and
+PipeWire routing stay outside its boundary.
 
 ## Deliberate constraints
 

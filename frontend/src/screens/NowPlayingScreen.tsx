@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
 import { useBluetooth } from '../bluetooth/BluetoothContext'
 import { Artwork } from '../components/Artwork'
 import { PlaybackControls } from '../components/PlaybackControls'
 import { ScreenState } from '../components/ScreenState'
+import { SpectrumScreen } from '../visualiser/SpectrumScreen'
 
 export function NowPlayingScreen({
   onOpenBluetooth,
@@ -11,6 +13,11 @@ export function NowPlayingScreen({
 }) {
   const player = useAudioPlayer()
   const bluetooth = useBluetooth()
+  const [showSpectrum, setShowSpectrum] = useState(false)
+
+  if (showSpectrum) {
+    return <SpectrumScreen onBack={() => setShowSpectrum(false)} />
+  }
 
   if (bluetooth.status.mode_active) {
     const device = bluetooth.status.devices.find(
@@ -32,13 +39,22 @@ export function NowPlayingScreen({
             <p className="now-playing-album">
               Playback is controlled on the connected phone.
             </p>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={onOpenBluetooth}
-            >
-              Open Bluetooth Controls
-            </button>
+            <div className="now-playing-actions">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={onOpenBluetooth}
+              >
+                Open Bluetooth Controls
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setShowSpectrum(true)}
+              >
+                Open Spectrum
+              </button>
+            </div>
           </div>
         </section>
       </div>
@@ -73,6 +89,13 @@ export function NowPlayingScreen({
           <p className="now-playing-artist">{player.currentTrack.artist}</p>
           <p className="now-playing-album">{player.currentTrack.album}</p>
           <PlaybackControls detailed />
+          <button
+            type="button"
+            className="secondary-button spectrum-open-button"
+            onClick={() => setShowSpectrum(true)}
+          >
+            Open Spectrum
+          </button>
           {player.error ? (
             <p className="player-error" role="alert">
               {player.error}
