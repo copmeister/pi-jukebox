@@ -244,7 +244,9 @@ function isCdRelease(value: unknown): value is CdRelease {
         typeof track.artist === 'string' &&
         isNullableNumber(track.duration_seconds),
     ) &&
-    typeof value.artwork_available === 'boolean'
+    typeof value.artwork_available === 'boolean' &&
+    isNullableNumber(value.disc_number) &&
+    isNullableNumber(value.disc_total)
   )
 }
 

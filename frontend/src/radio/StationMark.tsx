@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { useState } from 'react'
 import type { RadioStation } from './stations'
 
 export function StationMark({
@@ -8,12 +9,14 @@ export function StationMark({
   station: RadioStation
   compact?: boolean
 }) {
-  if (station.logo) {
+  const [failedArtwork, setFailedArtwork] = useState<string | null>(null)
+  if (station.artwork && failedArtwork !== station.artwork) {
     return (
       <img
         className={`radio-station__logo${compact ? ' is-compact' : ''}`}
-        src={station.logo}
+        src={station.artwork}
         alt=""
+        onError={() => setFailedArtwork(station.artwork ?? null)}
       />
     )
   }

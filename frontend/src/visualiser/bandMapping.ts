@@ -1,6 +1,6 @@
 import type { SpectrumFrame } from '../api/types'
 
-export const GOLDEN_RATIO_BAND_EDGES = logarithmicEdges(45, 100, 16_000, 8)
+export const GOLDEN_RATIO_BAND_EDGES = logarithmicEdges(45, 100, 16_000, 7)
 export const GALAXY_BAND_EDGES = [45, 100, 250, 700, 2_000, 5_000, 16_000]
 export const WATER_BAND_EDGES = [45, 90, 200, 500, 1_400, 4_000, 16_000]
 

@@ -1,5 +1,6 @@
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,6 +18,7 @@ from pi_jukebox.cd.metadata import MetadataLookupError, MusicMetadataClient
 from pi_jukebox.cd.models import DiscLayout, DriveState, ReleaseCandidate, ReleaseTrack
 from pi_jukebox.cd.ripper import (
     MutagenFinalizedTrackVerifier,
+    MutagenFlacTagger,
     RipAlreadyRunningError,
     RipConflictError,
     RipService,
@@ -91,8 +93,10 @@ class FakeDiscReader:
 
 class AnyMetadataReader:
     def read(self, path: Path):
-        number = int(path.name.split(" ", 1)[0])
-        return metadata(title=f"Song {number}", track=number)
+        number_prefix = path.name.split(" ", 1)[0].split("-")
+        number = int(number_prefix[-1])
+        disc = int(number_prefix[0]) if len(number_prefix) > 1 else None
+        return metadata(title=f"Song {number}", disc=disc, track=number)
 
 
 class FakeTagger:
@@ -385,6 +389,35 @@ def test_musicbrainz_single_multiple_timeout_and_artwork() -> None:
     assert cover.fetch_front_cover("release") == (b"jpeg", "image/jpeg")
 
 
+def test_musicbrainz_retains_the_matched_medium_number() -> None:
+    payload = musicbrainz_payload()
+    release_payload = payload["releases"][0]
+    first_medium = release_payload["media"][0]
+    first_medium["discs"] = [{"id": "another-disc-id"}]
+    release_payload["media"].append(
+        {
+            **first_medium,
+            "position": 2,
+            "discs": [{"id": MUSICBRAINZ_DISC_ID}],
+        }
+    )
+    disc = DiscLayout(
+        "e310b410",
+        1,
+        (61.0,),
+        MUSICBRAINZ_DISC_ID,
+        MUSICBRAINZ_TOC,
+    )
+
+    candidate = MusicMetadataClient(
+        Settings(_env_file=None, metadata_retry_count=0),
+        FakeHttp([FakeResponse(payload)]),
+    ).releases_for_disc(disc)[0]
+
+    assert candidate.disc_number == 2
+    assert candidate.disc_total == 2
+
+
 def test_musicbrainz_logs_http_and_parsing_failures_without_response_body(caplog) -> None:
     settings = Settings(_env_file=None, metadata_retry_count=0)
     disc = DiscLayout("e310b410", 1, (61.0,), MUSICBRAINZ_DISC_ID, MUSICBRAINZ_TOC)
@@ -453,6 +486,52 @@ def test_finalized_track_verification_requires_matching_release_tags(
     assert verifier.matches(tmp_path / "track.flac", release=release, track=release.tracks[0])
     tags["musicbrainz_albumid"] = ["different-release"]
     assert not verifier.matches(tmp_path / "track.flac", release=release, track=release.tracks[0])
+
+
+def test_flac_tagger_writes_multi_disc_metadata(tmp_path: Path, monkeypatch) -> None:
+    _settings, _catalogue, _store, _ripper, _runner, release, _disc = rip_fixture(tmp_path)
+    tagged: dict[str, str] = {}
+
+    class FakeFlac(dict):
+        def clear_pictures(self) -> None:
+            pass
+
+        def add_picture(self, _picture) -> None:
+            pass
+
+        def save(self) -> None:
+            tagged.update(self)
+
+    monkeypatch.setattr("pi_jukebox.cd.ripper.FLAC", lambda _path: FakeFlac())
+    multi_disc = replace(release, disc_number=2, disc_total=3)
+
+    MutagenFlacTagger().tag(
+        tmp_path / "track.flac",
+        release=multi_disc,
+        track=multi_disc.tracks[0],
+        artwork=None,
+    )
+
+    assert tagged["tracknumber"] == "1"
+    assert tagged["discnumber"] == "2"
+    assert tagged["disctotal"] == "3"
+
+
+def test_multi_disc_rips_use_non_colliding_disc_track_filenames(tmp_path: Path) -> None:
+    _settings, catalogue, store, ripper, _runner, release, disc = rip_fixture(tmp_path)
+    multi_disc = replace(release, disc_number=2, disc_total=2)
+
+    job_id = ripper.start(disc, multi_disc, None)
+    assert ripper.wait()
+
+    job = store.get_job(job_id)
+    album = catalogue.get_album(catalogue.list_albums()[0]["id"])
+    assert job and job["status"] == "completed"
+    assert album is not None
+    assert [track["disc_number"] for track in album["tracks"]] == [2, 2]
+    output = tmp_path / "jukebox" / "Music" / "Test Artist" / "Test Album"
+    assert (output / "02-01 - First _ Song.flac").is_file()
+    assert (output / "02-02 - Second Song.flac").is_file()
 
 
 def test_track_is_atomic_and_playable_before_album_finishes(tmp_path: Path) -> None:

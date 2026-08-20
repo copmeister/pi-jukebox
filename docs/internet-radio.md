@@ -44,6 +44,14 @@ listening page and Global Player confirm that Classic FM Movies is a separate
 live sister station rather than only the similarly named Jonathan Ross
 programme.
 
+Station definitions may also provide a local `artwork` path. The Radio tiles,
+mini-player and Now Playing reuse that image with aspect-preserving scaling.
+Classic FM and Capital currently use bundled artwork declared by their official
+sites; stations without a confidently sourced local asset retain the coloured
+station-mark fallback. An image load failure immediately returns to the same
+fallback, so a broken-image control is never left in the interface. Adding
+artwork never changes the stream URL or playback selection behaviour.
+
 BBC Radio 1, 2, 3, 4, 5 Live and 6 Music are excluded from this first release:
 the former direct MP3 addresses returned BBC web pages, while current delivery
 requires a player/HLS-style integration outside this small release. Absolute

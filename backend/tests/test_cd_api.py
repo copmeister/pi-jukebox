@@ -52,6 +52,8 @@ class FakeCdService:
                         }
                     ],
                     "artwork_available": False,
+                    "disc_number": None,
+                    "disc_total": None,
                 }
             ],
             "selected_release_id": "release-1",

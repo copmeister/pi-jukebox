@@ -64,16 +64,18 @@ axis.
 
 All four modes reuse the same compact SSE frame. Spectrum uses the analyser
 bands directly and may interpolate additional square columns for the live
-viewport. Golden Ratio maps the supplied frequency centres into eight
+viewport. Golden Ratio maps the supplied frequency centres into seven
 logarithmic regions. Particle Galaxy and Water each map them into six broad
 musical regions using logarithmic overlap weighting, including the lowest and
 highest supplied frequencies. No renderer performs an FFT or receives PCM.
 
 - **Spectrum** retains the 16-level square LED matrix and persisted Smooth or
   Classic colour palette.
-- **Golden Ratio** draws eight genuine recursively divided golden squares with
-  fixed-per-mount saturated colours, true black at low activity, fast attack
-  and slower glow release.
+- **Golden Ratio** draws seven genuine recursively divided golden squares using
+  cover-style geometry so the composition reaches the canvas edges without
+  distortion. Its deterministic low-to-high mapping is red, orange, yellow,
+  green, cyan, blue and violet; true black at low activity, fast attack and
+  slower glow release remain unchanged.
 - **Particle Galaxy** uses six bounded, pooled particle classes, a static
   starfield and at most eight layered sub-bass shockwaves. The live-particle cap
   is lower than the Python reference to protect the appliance.
@@ -85,10 +87,10 @@ highest supplied frequencies. No renderer performs an FFT or receives PCM.
 A predominantly horizontal swipe rotates through enabled renderers and wraps.
 The opposite direction moves backwards. A predominantly vertical swipe toggles
 Spectrum's Smooth/Classic palette; other renderers ignore it. Short or diagonal
-gestures and gestures beginning on Exit Spectrum do nothing. Settings stores
-the enabled stable renderer IDs and current renderer locally, prevents an empty
-enabled set, and repairs a disabled current selection by moving forward to the
-next enabled renderer.
+gestures and gestures beginning on Exit Spectrum do nothing. The restrained
+Visualisers section at the bottom of Settings stores the enabled stable renderer
+IDs and current renderer locally, prevents an empty enabled set, and repairs a
+disabled current selection by moving forward to the next enabled renderer.
 
 Only the active renderer is mounted. Each canvas owns one animation frame loop,
 resizes from its live bounds, catches drawing failures, and cancels its loop and

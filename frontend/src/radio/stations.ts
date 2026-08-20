@@ -2,7 +2,7 @@ export interface RadioStation {
   id: string
   name: string
   streamUrl: string
-  logo?: string
+  artwork?: string
   mark: string
   accent: string
 }
@@ -14,6 +14,7 @@ export const RADIO_STATIONS: readonly RadioStation[] = [
     id: 'classic-fm',
     name: 'Classic FM',
     streamUrl: 'https://media-ice.musicradio.com/ClassicFMMP3',
+    artwork: '/radio/classic-fm.svg',
     mark: 'CFM',
     accent: '#9f8cff',
   },
@@ -42,6 +43,7 @@ export const RADIO_STATIONS: readonly RadioStation[] = [
     id: 'capital',
     name: 'Capital',
     streamUrl: 'https://media-ice.musicradio.com/CapitalUKMP3',
+    artwork: '/radio/capital.png',
     mark: 'C',
     accent: '#25a9e8',
   },

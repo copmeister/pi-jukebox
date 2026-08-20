@@ -13,6 +13,12 @@ describe('curated radio catalogue', () => {
       expect(new URL(station.streamUrl).protocol).toBe('https:')
       expect(radioStationById(station.id)).toBe(station)
     }
+    expect(RADIO_STATIONS.filter((station) => station.artwork)).toHaveLength(2)
+    expect(
+      RADIO_STATIONS.filter((station) => station.artwork).every((station) =>
+        station.artwork?.startsWith('/radio/'),
+      ),
+    ).toBe(true)
   })
 
   it('contains only the streams verified for this first release', () => {

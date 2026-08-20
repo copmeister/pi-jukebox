@@ -41,6 +41,8 @@ class ReleaseCandidate:
     track_count: int
     tracks: tuple[ReleaseTrack, ...]
     artwork_available: bool = False
+    disc_number: int | None = None
+    disc_total: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {**asdict(self), "tracks": [track.to_dict() for track in self.tracks]}

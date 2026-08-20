@@ -120,6 +120,19 @@ describe('Settings software updates', () => {
     )
 
     const switches = await screen.findAllByRole('switch')
+    const softwareHeading = await screen.findByRole('heading', {
+      name: 'Pi Jukebox 0.5.0',
+    })
+    const visualiserHeading = screen.getByRole('heading', {
+      name: 'Visualisers',
+    })
+    expect(
+      softwareHeading.compareDocumentPosition(visualiserHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      screen.getByText('Choose which visualisers appear when swiping.'),
+    ).toBeInTheDocument()
     expect(switches).toHaveLength(4)
     expect(
       switches.every(

@@ -58,6 +58,12 @@ The backend is an installable Python package under `backend/src/pi_jukebox`.
 - Finalized tracks use sanitized Artist/Album names and `os.replace`, then enter the catalogue through a single-file scanner operation sharing a lock with full scans. A final reconciliation follows the job.
 - Storage validation resolves mount, library and output paths; requires output beneath both approved roots; checks a genuine mount, write access and free space; and rejects conflicts instead of overwriting.
 - MusicBrainz requests use a versioned identifying User-Agent, timeout and bounded retry. Cover Art Archive failure is advisory. Available art is written atomically as `Cover.jpg` and embedded in each FLAC.
+- MusicBrainz medium position is retained on each selected CD release and written
+  as FLAC disc metadata. The scanner already reads this field and the catalogue
+  already orders by disc then track; earlier jukebox rips discarded the medium
+  position, which left every disc unknown and caused duplicate track numbers to
+  interleave. Multi-disc output names include the known disc number solely to
+  prevent collisions, while the album UI uses metadata-based Disc groupings.
 - Bluetooth HTTP routes call a bounded local client only. The client speaks a versioned, exact-shape JSON protocol over one fixed Unix socket and fails closed when disabled, absent, slow or malformed. It never accepts a command, MAC address, D-Bus path or audio destination from the browser.
 - The Bluetooth broker runs under a dedicated unprivileged account, owns one BlueZ `DisplayYesNo` agent and uses `dbus-fast` rather than subprocesses. It hashes BlueZ paths into opaque UI IDs, sanitizes phone names, serializes mutations, limits discoverability/pairability to 120 seconds, requires touchscreen approval before trust, exposes only remote A2DP Audio Source devices, and reconciles explicit or unsolicited connections to one active trusted phone. BlueZ persists pairing keys; receiver presentation itself is transient and starts inactive.
 

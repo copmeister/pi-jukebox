@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { ApiError, getAlbum } from '../api/client'
 import type { AlbumDetail } from '../api/types'
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
@@ -8,6 +8,7 @@ import { ScreenState } from '../components/ScreenState'
 import { TrackActions } from '../components/TrackActions'
 import { useQueue } from '../queue/QueueContext'
 import { formatAlbumDuration, formatTrackDuration } from '../utils/format'
+import { groupAlbumTracks } from './albumTrackGroups'
 
 interface AlbumScreenProps {
   albumId: number
@@ -66,8 +67,7 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
     )
   }
 
-  const hasMultipleDiscs =
-    new Set(album.tracks.map((track) => track.disc_number)).size > 1
+  const trackGroups = groupAlbumTracks(album.tracks)
   const queueIsNonEmpty = Boolean(
     queue.snapshot?.current || queue.snapshot?.upcoming.length,
   )
@@ -133,38 +133,41 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
         />
       ) : null}
       <ol className="track-list" aria-label={`Tracks on ${album.title}`}>
-        {album.tracks.map((track, index) => {
-          const previousDisc = album.tracks[index - 1]?.disc_number
-          const showDisc =
-            hasMultipleDiscs && track.disc_number !== previousDisc
-          return (
-            <li key={track.id}>
-              {showDisc ? <h2>Disc {track.disc_number ?? '—'}</h2> : null}
-              <div
-                className={`track-row${player.currentTrack?.id === track.id ? ' is-current' : ''}`}
-              >
-                <span
-                  className="track-number"
-                  aria-label={`Track ${track.track_number ?? 'unknown'}`}
+        {trackGroups.map((group) => (
+          <Fragment key={group.key}>
+            {group.label ? (
+              <li className="track-disc-heading">
+                <h2>{group.label}</h2>
+              </li>
+            ) : null}
+            {group.tracks.map((track) => (
+              <li key={track.id}>
+                <div
+                  className={`track-row${player.currentTrack?.id === track.id ? ' is-current' : ''}`}
                 >
-                  {track.track_number ?? '—'}
-                </span>
-                <span className="track-copy">
-                  <strong>{track.title}</strong>
-                  <small>{track.artist}</small>
-                </span>
-                <time>{formatTrackDuration(track.duration_seconds)}</time>
-                <span className="track-play-state" aria-hidden="true">
-                  {player.currentTrack?.id === track.id &&
-                  player.status === 'playing'
-                    ? 'Ⅱ'
-                    : ''}
-                </span>
-                <TrackActions track={track} />
-              </div>
-            </li>
-          )
-        })}
+                  <span
+                    className="track-number"
+                    aria-label={`Track ${track.track_number ?? 'unknown'}`}
+                  >
+                    {track.track_number ?? '—'}
+                  </span>
+                  <span className="track-copy">
+                    <strong>{track.title}</strong>
+                    <small>{track.artist}</small>
+                  </span>
+                  <time>{formatTrackDuration(track.duration_seconds)}</time>
+                  <span className="track-play-state" aria-hidden="true">
+                    {player.currentTrack?.id === track.id &&
+                    player.status === 'playing'
+                      ? 'Ⅱ'
+                      : ''}
+                  </span>
+                  <TrackActions track={track} />
+                </div>
+              </li>
+            ))}
+          </Fragment>
+        ))}
       </ol>
     </div>
   )

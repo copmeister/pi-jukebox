@@ -64,6 +64,7 @@ const albumDetail = {
     },
   ],
 }
+let currentAlbumDetail = albumDetail
 
 const emptyQueue = {
   revision: 0,
@@ -122,8 +123,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.7',
-  latest_version: '0.6.7',
+  installed_version: '0.6.8',
+  latest_version: '0.6.8',
   checking: false,
   installing: false,
   update_available: false,
@@ -182,6 +183,7 @@ function jsonResponse(payload: unknown, status = 200): Response {
 describe('App catalogue interface', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    currentAlbumDetail = albumDetail
     currentBluetoothStatus = bluetoothStatus
     FakeEventSource.instances = []
     vi.stubGlobal('EventSource', FakeEventSource)
@@ -225,7 +227,8 @@ describe('App catalogue interface', () => {
           currentBluetoothStatus = availableBluetoothStatus
           return jsonResponse(currentBluetoothStatus)
         }
-        if (url.endsWith('/api/albums/7')) return jsonResponse(albumDetail)
+        if (url.endsWith('/api/albums/7'))
+          return jsonResponse(currentAlbumDetail)
         if (url.endsWith('/api/queue/tracks/11/play-now'))
           return jsonResponse(playingQueue)
         if (url.endsWith('/api/queue/albums/7/play'))
@@ -292,6 +295,10 @@ describe('App catalogue interface', () => {
         name: 'Open Night Drive by The House Band',
       }),
     )
+
+    expect(
+      screen.queryByRole('heading', { name: 'Disc 1' }),
+    ).not.toBeInTheDocument()
     expect(
       await screen.findByRole('heading', { name: 'Night Drive' }),
     ).toBeInTheDocument()
@@ -344,7 +351,47 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.7')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.8')).toBeInTheDocument()
+  })
+
+  it('shows clean disc headings for a genuinely multi-disc album', async () => {
+    const user = userEvent.setup()
+    const makeTrack = (
+      id: number,
+      discNumber: number,
+      trackNumber: number,
+    ) => ({
+      ...albumDetail.tracks[0],
+      id,
+      relative_path: `night/${discNumber}-${trackNumber}.mp3`,
+      filename: `${discNumber}-${trackNumber}.mp3`,
+      title: `Movement ${id}`,
+      disc_number: discNumber,
+      track_number: trackNumber,
+    })
+    currentAlbumDetail = {
+      ...albumDetail,
+      track_count: 4,
+      tracks: [
+        makeTrack(11, 1, 1),
+        makeTrack(12, 1, 2),
+        makeTrack(13, 2, 1),
+        makeTrack(14, 2, 2),
+      ],
+    }
+
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Library' }))
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Open Night Drive by The House Band',
+      }),
+    )
+
+    expect(screen.getByRole('heading', { name: 'Disc 1' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Disc 2' })).toBeInTheDocument()
+    expect(screen.getByText('Movement 11')).toBeInTheDocument()
+    expect(screen.queryByText(/Disc 1 Movement/)).not.toBeInTheDocument()
   })
 
   it('shows local metadata and keeps unavailable status nonvisual in Spectrum', async () => {
