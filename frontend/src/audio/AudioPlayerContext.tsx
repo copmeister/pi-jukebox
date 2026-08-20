@@ -86,12 +86,14 @@ interface AudioPlayerProviderProps {
   children: ReactNode
   soundController?: JukeboxSoundController
   jukeboxLoadingDelayMs?: number
+  sleeping?: boolean
 }
 
 export function AudioPlayerProvider({
   children,
   soundController,
   jukeboxLoadingDelayMs = JUKEBOX_LOADING_DELAY_MS,
+  sleeping = false,
 }: AudioPlayerProviderProps) {
   const queue = useQueue()
   const bluetooth = useOptionalBluetooth()
@@ -123,6 +125,11 @@ export function AudioPlayerProvider({
   useEffect(() => {
     soundsRef.current = jukeboxSounds
   }, [jukeboxSounds])
+
+  useEffect(() => {
+    if (!sleeping && audioRef.current)
+      setCurrentTime(audioRef.current.currentTime)
+  }, [sleeping])
 
   const cancelPendingJukeboxStart = useCallback(() => {
     const pending = pendingJukeboxStartRef.current
@@ -615,9 +622,9 @@ export function AudioPlayerProvider({
         onWaiting={() => {
           if (!restoringRef.current) setStatus('loading')
         }}
-        onTimeUpdate={(event) =>
-          setCurrentTime(event.currentTarget.currentTime)
-        }
+        onTimeUpdate={(event) => {
+          if (!sleeping) setCurrentTime(event.currentTarget.currentTime)
+        }}
         onDurationChange={(event) =>
           setDuration(safeDuration(event.currentTarget))
         }

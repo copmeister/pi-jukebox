@@ -5,6 +5,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 
+from pi_jukebox.display.backlight import BacklightService
 from pi_jukebox.updates.service import UpdateService
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -33,8 +34,44 @@ class UpdateActionResponse(BaseModel):
     message: str
 
 
+class DisplayActionResponse(BaseModel):
+    available: bool
+    adjusted: bool
+    message: str
+
+
 def _updates(request: Request) -> UpdateService:
     return request.app.state.update_service
+
+
+def _backlight(request: Request) -> BacklightService:
+    return request.app.state.backlight_service
+
+
+def _require_display_action(action: str | None, expected: str) -> None:
+    if action != expected:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This display action must originate from the jukebox interface.",
+        )
+
+
+@router.post("/display/sleep", response_model=DisplayActionResponse)
+def sleep_display(
+    request: Request,
+    action: Annotated[str | None, Header(alias="X-Pi-Jukebox-Action")] = None,
+) -> dict[str, bool | str]:
+    _require_display_action(action, "display-sleep")
+    return _backlight(request).sleep().to_dict()
+
+
+@router.post("/display/wake", response_model=DisplayActionResponse)
+def wake_display(
+    request: Request,
+    action: Annotated[str | None, Header(alias="X-Pi-Jukebox-Action")] = None,
+) -> dict[str, bool | str]:
+    _require_display_action(action, "display-wake")
+    return _backlight(request).wake().to_dict()
 
 
 @router.get("/updates", response_model=UpdateStatusResponse)
