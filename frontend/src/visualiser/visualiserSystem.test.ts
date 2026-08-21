@@ -4,6 +4,7 @@ import {
   FREQUENCY_WAVE_COLOURS,
   FREQUENCY_WAVE_COMPONENT_OFFSETS,
   FREQUENCY_WAVE_DATA_INTERVAL_SECONDS,
+  FREQUENCY_WAVE_EDGE_ENVELOPE,
   FREQUENCY_WAVE_MAX_HEIGHT_FRACTION,
   FREQUENCY_WAVE_MODES,
   FREQUENCY_WAVE_SAMPLE_RATIOS,
@@ -13,6 +14,7 @@ import {
   frequencyWaveBasisValue,
   frequencyWaveDirection,
   frequencyWaveShapeValue,
+  frequencyWaveSpatialEnvelope,
   frequencyWaveY,
   sampleFrequencyWaveComponents,
   updateFrequencyWaveComponents,
@@ -247,9 +249,10 @@ describe('Frequency Waves renderer', () => {
     let previous = 0
     for (let frameIndex = 0; frameIndex < 60; frameIndex += 1) {
       updateFrequencyWaveLevels(smoothFrames, targets, 1 / 60)
-      expect(smoothFrames[0]).toBeGreaterThan(previous)
+      expect(smoothFrames[0]).toBeGreaterThanOrEqual(previous)
       previous = smoothFrames[0]
     }
+    expect(smoothFrames[0]).toBeGreaterThan(0.99)
     for (let update = 0; update < 10; update += 1)
       updateFrequencyWaveLevels(sparseFrames, targets, 0.1)
     expect(smoothFrames[0]).toBeCloseTo(sparseFrames[0], 5)
@@ -265,11 +268,11 @@ describe('Frequency Waves renderer', () => {
 
   it('responds within a short musical transition without a half-second tail', () => {
     const levels = new Float32Array(6)
-    updateFrequencyWaveLevels(levels, new Float32Array(6).fill(1), 0.05)
-    expect(levels[0]).toBeGreaterThan(0.75)
+    updateFrequencyWaveLevels(levels, new Float32Array(6).fill(1), 0.02)
+    expect(levels[0]).toBeGreaterThan(0.79)
     const peak = levels[0]
-    updateFrequencyWaveLevels(levels, new Float32Array(6), 0.1)
-    expect(levels[0]).toBeLessThan(peak * 0.25)
+    updateFrequencyWaveLevels(levels, new Float32Array(6), 0.05)
+    expect(levels[0]).toBeLessThan(peak * 0.14)
   })
 
   it('uses two or more complete cycles with fixed standing-wave endpoints', () => {
@@ -335,14 +338,14 @@ describe('Frequency Waves renderer', () => {
     expect(FREQUENCY_WAVE_DATA_INTERVAL_SECONDS).toBeCloseTo(1 / 30)
   })
 
-  it('smoothly reforms three equal-status positive components in about 50 ms', () => {
+  it('smoothly reforms three equal-status positive components within one analyser update', () => {
     const components = new Float32Array(18)
     const targets = new Float32Array(18)
     targets[0] = 1
     targets[1] = 0.5
     targets[2] = 0.25
-    updateFrequencyWaveComponents(components, targets, 0.05)
-    expect(components[0]).toBeGreaterThan(0.6)
+    updateFrequencyWaveComponents(components, targets, 1 / 30)
+    expect(components[0]).toBeGreaterThan(0.85)
     expect(components[0]).toBeLessThan(1)
     expect(components[1]).toBeCloseTo(components[0] / 2, 5)
     expect(components[2]).toBeCloseTo(components[0] / 4, 5)
@@ -367,6 +370,15 @@ describe('Frequency Waves renderer', () => {
         0,
         10,
       )
+  })
+
+  it('gently favours the middle of the screen over the side lobes', () => {
+    expect(FREQUENCY_WAVE_EDGE_ENVELOPE).toBe(0.3)
+    expect(frequencyWaveSpatialEnvelope(0)).toBe(0.3)
+    expect(frequencyWaveSpatialEnvelope(0.25)).toBeCloseTo(0.65, 10)
+    expect(frequencyWaveSpatialEnvelope(0.5)).toBe(1)
+    expect(frequencyWaveSpatialEnvelope(0.75)).toBeCloseTo(0.65, 10)
+    expect(frequencyWaveSpatialEnvelope(1)).toBe(0.3)
   })
 
   it('uses a nonlinear near-full-height range without clipping the glow', () => {

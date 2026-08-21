@@ -17,13 +17,14 @@ export const FREQUENCY_WAVE_COMPONENT_OFFSETS = [0, 2, 4] as const
 export const FREQUENCY_WAVE_SAMPLE_RATIOS = [0.25, 0.5, 0.75] as const
 export const FREQUENCY_WAVE_MAX_HEIGHT_FRACTION = 0.86
 export const FREQUENCY_WAVE_DATA_INTERVAL_SECONDS = 1 / 30
+export const FREQUENCY_WAVE_EDGE_ENVELOPE = 0.3
 
 const BAND_COUNT = 6
 const COMPONENTS_PER_BAND = FREQUENCY_WAVE_COMPONENT_OFFSETS.length
 const COMPONENT_COUNT = BAND_COUNT * COMPONENTS_PER_BAND
-const BAND_ATTACK_RATE = 30
-const BAND_RELEASE_RATE = 15
-const COMPONENT_RESPONSE_RATE = 20
+const BAND_ATTACK_RATE = 80
+const BAND_RELEASE_RATE = 40
+const COMPONENT_RESPONSE_RATE = 60
 const SHAPE_SNAP = 0.0005
 const SAMPLE_SPACING = 6
 const MAXIMUM_PIXEL_RATIO = 1.25
@@ -43,6 +44,7 @@ interface FrequencyWaveGeometry {
   width: number
   sampleCount: number
   xPositions: Float32Array
+  envelope: Float32Array
   basis: Float32Array
   yPositions: Float32Array
 }
@@ -138,6 +140,15 @@ export function frequencyWaveDirection(band: number): -1 | 1 {
   return band % 2 === 0 ? -1 : 1
 }
 
+export function frequencyWaveSpatialEnvelope(xRatio: number): number {
+  const x = Math.min(1, Math.max(0, xRatio))
+  const centreWeight = Math.sin(Math.PI * x) ** 2
+  return (
+    FREQUENCY_WAVE_EDGE_ENVELOPE +
+    (1 - FREQUENCY_WAVE_EDGE_ENVELOPE) * centreWeight
+  )
+}
+
 export function frequencyWaveShapeValue(
   band: number,
   xRatio: number,
@@ -151,7 +162,11 @@ export function frequencyWaveShapeValue(
     weightSum += weight
   }
   if (weightSum <= 0) return 0
-  return frequencyWaveDirection(band) * (value / weightSum)
+  return (
+    frequencyWaveDirection(band) *
+    (value / weightSum) *
+    frequencyWaveSpatialEnvelope(xRatio)
+  )
 }
 
 export function createFrequencyWaveSampleMap(
@@ -300,16 +315,22 @@ function frequencyWaveShapeFromBuffer(
     weightSum += weight
   }
   if (weightSum <= 0) return 0
-  return frequencyWaveDirection(band) * (value / weightSum)
+  return (
+    frequencyWaveDirection(band) *
+    (value / weightSum) *
+    geometry.envelope[sample]
+  )
 }
 
 function createFrequencyWaveGeometry(width: number): FrequencyWaveGeometry {
   const sampleCount = Math.max(2, Math.ceil(width / SAMPLE_SPACING) + 1)
   const xPositions = new Float32Array(sampleCount)
+  const envelope = new Float32Array(sampleCount)
   const basis = new Float32Array(COMPONENT_COUNT * sampleCount)
   for (let sample = 0; sample < sampleCount; sample += 1) {
     const xRatio = sample / (sampleCount - 1)
     xPositions[sample] = width * xRatio
+    envelope[sample] = frequencyWaveSpatialEnvelope(xRatio)
     for (let band = 0; band < BAND_COUNT; band += 1) {
       for (let component = 0; component < COMPONENTS_PER_BAND; component += 1) {
         basis[(band * COMPONENTS_PER_BAND + component) * sampleCount + sample] =
@@ -321,6 +342,7 @@ function createFrequencyWaveGeometry(width: number): FrequencyWaveGeometry {
     width,
     sampleCount,
     xPositions,
+    envelope,
     basis,
     yPositions: new Float32Array(BAND_COUNT * sampleCount),
   }
