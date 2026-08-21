@@ -96,8 +96,10 @@ no renderer receives PCM or performs audio DSP.
   broadest line therefore shows two complete cycles and treble remains finer.
   Entire lines alternate initial direction, while every component retains fixed
   centre-line nodes at both edges. The existing level stream supplies fresh
-  targets at up to 30 Hz; the Canvas uses approximately 33 ms attack, 67 ms
-  release and 50 ms component interpolation on its 60 FPS animation loop.
+  targets at up to 30 Hz; the Canvas uses approximately 13 ms attack, 25 ms
+  release and 17 ms component interpolation on its 60 FPS animation loop. A
+  lightweight symmetric spatial envelope gently reduces the outer lobes to 30%
+  of their unweighted size while retaining full scale at the screen centre.
   Absolute six-band activity still controls height, so lower energy and musical
   fade-outs naturally collapse the waves to an exactly flat centre line. Strong
   activity can span 86% of the canvas height. There is no rolling PCM window,

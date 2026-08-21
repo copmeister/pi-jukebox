@@ -85,7 +85,7 @@ def test_update_check_current_and_newer_release() -> None:
     wait_until(lambda: not current.status()["checking"])
     assert current.status()["update_available"] is False
 
-    newer = UpdateService(Settings(_env_file=None), Source(release_info("0.6.14")))
+    newer = UpdateService(Settings(_env_file=None), Source(release_info("0.6.15")))
     assert newer.check()
     wait_until(lambda: not newer.status()["checking"])
     assert newer.status()["update_available"] is True
@@ -107,7 +107,7 @@ def test_release_without_required_assets_is_visible_but_not_installable(tmp_path
         update_request_path=(tmp_path / "request.json").resolve(),
         update_status_path=(tmp_path / "status.json").resolve(),
     )
-    service = UpdateService(settings, Source(release_info("0.6.14", assets=False)))
+    service = UpdateService(settings, Source(release_info("0.6.15", assets=False)))
     service.check()
     wait_until(lambda: not service.status()["checking"])
     assert service.status()["update_available"] is True
@@ -131,13 +131,13 @@ def test_old_terminal_outcome_does_not_hide_a_later_release(tmp_path: Path) -> N
         )
     )
     settings = Settings(_env_file=None, update_status_path=status_path)
-    service = UpdateService(settings, Source(release_info("0.6.14")))
+    service = UpdateService(settings, Source(release_info("0.6.15")))
     service.check()
     wait_until(lambda: not service.status()["checking"])
 
     assert service.status()["outcome"] is None
-    assert service.status()["latest_version"] == "0.6.14"
-    assert service.status()["message"] == "Version 0.6.14 is available."
+    assert service.status()["latest_version"] == "0.6.15"
+    assert service.status()["message"] == "Version 0.6.15 is available."
 
 
 class GhRunner:
@@ -391,7 +391,7 @@ def test_install_request_is_narrow_and_concurrent_requests_are_rejected(tmp_path
         update_request_path=state / "request.json",
         update_status_path=state / "status.json",
     )
-    service = UpdateService(settings, Source(release_info("0.6.14")))
+    service = UpdateService(settings, Source(release_info("0.6.15")))
     service.check()
     wait_until(lambda: not service.status()["checking"])
     assert service.request_install()
@@ -401,7 +401,7 @@ def test_install_request_is_narrow_and_concurrent_requests_are_rejected(tmp_path
     assert service.status()["stage"] == "queued"
     request = json.loads((state / "request.json").read_text())
     assert set(request) == {"format_version", "version", "installed_version", "requested_at"}
-    assert request["version"] == "0.6.14"
+    assert request["version"] == "0.6.15"
     assert all("token" not in str(value).casefold() for value in request.values())
 
 
@@ -451,7 +451,7 @@ class FakeController:
 def helper_config(tmp_path: Path) -> HelperConfig:
     return HelperConfig(
         repository="copmeister/pi-jukebox",
-        release_root=active_root(tmp_path, "0.6.13"),
+        release_root=active_root(tmp_path, "0.6.14"),
         request_path=tmp_path / "request" / "request.json",
         status_path=tmp_path / "status" / "status.json",
         lock_path=tmp_path / "lock" / "installer.lock",
@@ -485,14 +485,14 @@ def test_root_helper_config_rejects_arbitrary_install_destinations(tmp_path: Pat
         HelperConfig.load(path)
 
 
-def write_request(config: HelperConfig, version="0.6.14") -> None:
+def write_request(config: HelperConfig, version="0.6.15") -> None:
     config.request_path.parent.mkdir(parents=True, exist_ok=True)
     config.request_path.write_text(
         json.dumps(
             {
                 "format_version": 1,
                 "version": version,
-                "installed_version": "0.6.13",
+                "installed_version": "0.6.14",
                 "requested_at": "2026-01-01T00:00:00+00:00",
             }
         )
@@ -502,11 +502,11 @@ def write_request(config: HelperConfig, version="0.6.14") -> None:
 def test_helper_persists_success_and_rollback_outcomes(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("pi_jukebox.updates.helper.platform.machine", lambda: "aarch64")
     monkeypatch.setattr("pi_jukebox.updates.helper.__version__", __version__)
-    archive, manifest = make_release(tmp_path / "package", version="0.6.14")
+    archive, manifest = make_release(tmp_path / "package", version="0.6.15")
 
     success_config = helper_config(tmp_path / "success")
     write_request(success_config)
-    success_controller = FakeController({"0.6.14"})
+    success_controller = FakeController({"0.6.15"})
     success = UpdateHelper(
         success_config,
         downloader_factory=lambda _config, _executor: FakeDownloader(archive, manifest),
@@ -523,7 +523,7 @@ def test_helper_persists_success_and_rollback_outcomes(tmp_path: Path, monkeypat
 
     rollback_config = helper_config(tmp_path / "rollback")
     write_request(rollback_config)
-    rollback_controller = FakeController({"0.6.13"})
+    rollback_controller = FakeController({"0.6.14"})
     rollback = UpdateHelper(
         rollback_config,
         downloader_factory=lambda _config, _executor: FakeDownloader(archive, manifest),
@@ -535,5 +535,5 @@ def test_helper_persists_success_and_rollback_outcomes(tmp_path: Path, monkeypat
     assert not rollback.run()
     rollback_status = json.loads(rollback_config.status_path.read_text())
     assert rollback_status["state"] == "rolled_back"
-    assert "restored to 0.6.13" in rollback_status["message"]
-    assert (rollback_config.release_root / "current-version").read_text().strip() == "0.6.13"
+    assert "restored to 0.6.14" in rollback_status["message"]
+    assert (rollback_config.release_root / "current-version").read_text().strip() == "0.6.14"
