@@ -19,6 +19,7 @@ from pi_jukebox.cd.store import RipStore
 from pi_jukebox.config import Settings as AppSettings
 from pi_jukebox.config import get_settings
 from pi_jukebox.display.backlight import BacklightService
+from pi_jukebox.library.deletion import AlbumDeletionService
 from pi_jukebox.library.scanner import LibraryScanner, ScanService
 from pi_jukebox.queue.database import QueueStore
 from pi_jukebox.updates.service import GitHubCliReleaseSource, UpdateService
@@ -44,14 +45,22 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         hardware = CdHardware(settings)
         storage = StorageGuard(settings)
         ripper = RipService(settings, rip_store, storage, hardware, scan_service)
+        candidate_artwork_cache = CandidateArtworkCache(settings.cd_artwork_directory)
         cd_service = CdService(
             settings,
             hardware,
             MusicMetadataClient(settings),
-            CandidateArtworkCache(settings.cd_artwork_directory),
+            candidate_artwork_cache,
             storage,
             ripper,
             rip_store,
+        )
+        application.state.album_deletion_service = AlbumDeletionService(
+            settings,
+            catalogue,
+            candidate_artwork_cache,
+            scan_active=lambda: scan_service.is_running,
+            rip_active=lambda: ripper.active,
         )
         update_service = UpdateService(settings, GitHubCliReleaseSource(settings))
         bluetooth_service = BluetoothService(settings)

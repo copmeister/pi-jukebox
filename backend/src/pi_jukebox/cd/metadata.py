@@ -263,6 +263,17 @@ class CandidateArtworkCache:
         path = self.directory / (hashlib.sha256(release_id.encode()).hexdigest() + ".jpg")
         return path if path.is_file() else None
 
+    def remove(self, release_ids: list[str]) -> int:
+        """Remove release-specific candidates without accepting caller-supplied paths."""
+
+        removed = 0
+        for release_id in release_ids:
+            path = self.directory / (hashlib.sha256(release_id.encode()).hexdigest() + ".jpg")
+            if path.is_file():
+                path.unlink()
+                removed += 1
+        return removed
+
 
 def fallback_release(disc: DiscLayout) -> ReleaseCandidate:
     """Provide a safe no-keyboard fallback when metadata is unavailable."""

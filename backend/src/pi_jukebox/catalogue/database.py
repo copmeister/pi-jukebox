@@ -295,6 +295,127 @@ class Catalogue:
             ]
             return result
 
+    def delete_album_records(self, album_id: int) -> dict[str, Any] | None:
+        """Remove one album and its private runtime state in one transaction."""
+
+        with self.connect() as connection:
+            album = connection.execute(
+                """
+                SELECT albums.id, albums.title, albums.artwork_id,
+                       artists.name AS album_artist
+                FROM albums
+                JOIN artists ON artists.id = albums.album_artist_id
+                WHERE albums.id = ?
+                """,
+                (album_id,),
+            ).fetchone()
+            if album is None:
+                return None
+
+            relative_paths = {
+                str(row["relative_path"])
+                for row in connection.execute(
+                    "SELECT relative_path FROM tracks WHERE album_id = ?", (album_id,)
+                )
+            }
+            track_count_row = connection.execute(
+                "SELECT COUNT(*) AS count FROM tracks WHERE album_id = ?", (album_id,)
+            ).fetchone()
+
+            queue_rows = connection.execute(
+                "SELECT id, position FROM queue_items WHERE album_id = ? ORDER BY position, id",
+                (album_id,),
+            ).fetchall()
+            queue_items_removed = len(queue_rows)
+            current_queue_item_removed = any(int(row["position"]) == 0 for row in queue_rows)
+            if queue_items_removed:
+                connection.execute("DELETE FROM queue_items WHERE album_id = ?", (album_id,))
+                remaining_ids = [
+                    int(row["id"])
+                    for row in connection.execute(
+                        "SELECT id FROM queue_items ORDER BY position, id"
+                    )
+                ]
+                connection.execute("UPDATE queue_items SET position = 1000000000 + id")
+                connection.executemany(
+                    "UPDATE queue_items SET position = ? WHERE id = ?",
+                    ((position, item_id) for position, item_id in enumerate(remaining_ids)),
+                )
+                connection.execute(
+                    "UPDATE queue_state SET revision = revision + 1, updated_at = ? WHERE id = 1",
+                    (utc_now(),),
+                )
+
+            rip_job_ids: list[int] = []
+            release_ids: set[str] = set()
+            for job in connection.execute(
+                "SELECT id, release_id, album_title, album_artist FROM cd_rip_jobs"
+            ):
+                name_match = normalize_group_value(
+                    str(job["album_title"])
+                ) == normalize_group_value(str(album["title"])) and normalize_group_value(
+                    str(job["album_artist"])
+                ) == normalize_group_value(str(album["album_artist"]))
+                path_match = False
+                if relative_paths:
+                    placeholders = ",".join("?" for _ in relative_paths)
+                    path_match = (
+                        connection.execute(
+                            f"""
+                            SELECT 1 FROM cd_rip_tracks
+                            WHERE job_id = ? AND final_relative_path IN ({placeholders})
+                            LIMIT 1
+                            """,
+                            (int(job["id"]), *sorted(relative_paths)),
+                        ).fetchone()
+                        is not None
+                    )
+                if name_match or path_match:
+                    rip_job_ids.append(int(job["id"]))
+                    if job["release_id"]:
+                        release_ids.add(str(job["release_id"]))
+            if rip_job_ids:
+                connection.executemany(
+                    "DELETE FROM cd_rip_jobs WHERE id = ?",
+                    ((job_id,) for job_id in rip_job_ids),
+                )
+
+            connection.execute("DELETE FROM tracks WHERE album_id = ?", (album_id,))
+            connection.execute("DELETE FROM albums WHERE id = ?", (album_id,))
+
+            artwork_cache_filename = None
+            artwork_id = album["artwork_id"]
+            if artwork_id is not None:
+                still_used = connection.execute(
+                    "SELECT 1 FROM albums WHERE artwork_id = ? LIMIT 1", (artwork_id,)
+                ).fetchone()
+                if still_used is None:
+                    artwork = connection.execute(
+                        "SELECT cache_filename FROM artwork WHERE id = ?", (artwork_id,)
+                    ).fetchone()
+                    if artwork is not None:
+                        artwork_cache_filename = str(artwork["cache_filename"])
+                    connection.execute("DELETE FROM artwork WHERE id = ?", (artwork_id,))
+
+            connection.execute(
+                """
+                DELETE FROM artists
+                WHERE NOT EXISTS (SELECT 1 FROM tracks WHERE tracks.artist_id = artists.id)
+                  AND NOT EXISTS (SELECT 1 FROM albums WHERE albums.album_artist_id = artists.id)
+                """
+            )
+            return {
+                "album_id": int(album["id"]),
+                "title": str(album["title"]),
+                "album_artist": str(album["album_artist"]),
+                "track_count": int(track_count_row["count"]),
+                "queue_items_removed": queue_items_removed,
+                "current_queue_item_removed": current_queue_item_removed,
+                "rip_jobs_removed": len(rip_job_ids),
+                "release_ids": sorted(release_ids),
+                "artwork_cache_filename": artwork_cache_filename,
+            }
+
     def get_track(self, track_id: int) -> dict[str, Any] | None:
         with self.connect() as connection:
             row = connection.execute(

@@ -1,6 +1,25 @@
 import type { SpectrumFrame } from '../api/types'
 
-export const GOLDEN_RATIO_BAND_EDGES = logarithmicEdges(45, 100, 16_000, 7)
+const LEGACY_SEVEN_BAND_EDGES = logarithmicEdges(45, 100, 16_000, 7)
+
+export function mergeHighestLogicalBands(edges: readonly number[]): number[] {
+  if (edges.length < 4) return [...edges]
+  return [...edges.slice(0, -2), edges.at(-1) as number]
+}
+
+export const SHARED_SIX_BAND_EDGES = mergeHighestLogicalBands(
+  LEGACY_SEVEN_BAND_EDGES,
+)
+export const SHARED_SIX_BAND_COLOURS = [
+  '#ff3b30',
+  '#ff8a1f',
+  '#ffd83d',
+  '#46d369',
+  '#32b7e8',
+  '#9b5cff',
+] as const
+export const GOLDEN_RATIO_BAND_EDGES = SHARED_SIX_BAND_EDGES
+export const FREQUENCY_WAVES_BAND_EDGES = SHARED_SIX_BAND_EDGES
 export const GALAXY_BAND_EDGES = [45, 100, 250, 700, 2_000, 5_000, 16_000]
 export const WATER_BAND_EDGES = [45, 90, 200, 500, 1_400, 4_000, 16_000]
 

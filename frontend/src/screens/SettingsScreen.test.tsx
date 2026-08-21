@@ -133,7 +133,7 @@ describe('Settings software updates', () => {
     expect(
       screen.getByText('Choose which visualisers appear when swiping.'),
     ).toBeInTheDocument()
-    expect(switches).toHaveLength(4)
+    expect(switches).toHaveLength(5)
     expect(
       switches.every(
         (control) => control.getAttribute('aria-checked') === 'true',
@@ -161,6 +161,7 @@ describe('Settings software updates', () => {
 
     await user.click(screen.getByRole('switch', { name: /^Spectrum/i }))
     await user.click(screen.getByRole('switch', { name: /Particle Galaxy/i }))
+    await user.click(screen.getByRole('switch', { name: /Frequency Waves/i }))
     const water = screen.getByRole('switch', { name: /^Water/i })
     expect(water).toBeDisabled()
     expect(water).toHaveAttribute('aria-checked', 'true')

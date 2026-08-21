@@ -1,14 +1,26 @@
 import { describe, expect, it } from 'vitest'
 import type { SpectrumFrame } from '../api/types'
-import { createGoldenSquares, GOLDEN_RATIO_COLOURS } from './GoldenRatioCanvas'
+import {
+  FREQUENCY_WAVE_COLOURS,
+  FREQUENCY_WAVE_CYCLES,
+  FREQUENCY_WAVE_PHASE_SPEEDS,
+  createFrequencyWavesRenderer,
+  frequencyWaveAmplitude,
+  frequencyWaveY,
+  updateFrequencyWaveLevels,
+} from './FrequencyWavesCanvas'
+import { createGoldenRegions, GOLDEN_RATIO_COLOURS } from './GoldenRatioCanvas'
 import {
   GALAXY_MAX_PARTICLES,
   GALAXY_MAX_SHOCKWAVES,
 } from './ParticleGalaxyCanvas'
 import {
   GALAXY_BAND_EDGES,
+  FREQUENCY_WAVES_BAND_EDGES,
   GOLDEN_RATIO_BAND_EDGES,
   mapFrameToLogicalBands,
+  mergeHighestLogicalBands,
+  SHARED_SIX_BAND_EDGES,
   WATER_BAND_EDGES,
 } from './bandMapping'
 import {
@@ -42,7 +54,7 @@ const frame: SpectrumFrame = {
 }
 
 describe('visualiser registry and preferences', () => {
-  it('registers all four modes with their intended logical band counts', () => {
+  it('registers all five modes with their intended logical band counts', () => {
     expect(
       VISUALISER_REGISTRY.map(({ id, name, logicalBandCount }) => ({
         id,
@@ -51,11 +63,16 @@ describe('visualiser registry and preferences', () => {
       })),
     ).toEqual([
       { id: 'spectrum', name: 'Spectrum', logicalBandCount: 24 },
-      { id: 'golden-ratio', name: 'Golden Ratio', logicalBandCount: 7 },
+      { id: 'golden-ratio', name: 'Golden Ratio', logicalBandCount: 6 },
       { id: 'particle-galaxy', name: 'Particle Galaxy', logicalBandCount: 6 },
       { id: 'water', name: 'Water', logicalBandCount: 6 },
+      {
+        id: 'frequency-waves',
+        name: 'Frequency Waves',
+        logicalBandCount: 6,
+      },
     ])
-    expect(DEFAULT_VISUALISER_PREFERENCES.enabled).toHaveLength(4)
+    expect(DEFAULT_VISUALISER_PREFERENCES.enabled).toHaveLength(5)
   })
 
   it('removes disabled modes from rotation and prevents disabling all modes', () => {
@@ -72,6 +89,7 @@ describe('visualiser registry and preferences', () => {
     let oneRemaining = withoutGolden
     oneRemaining = setVisualiserEnabled(oneRemaining, 'particle-galaxy', false)
     oneRemaining = setVisualiserEnabled(oneRemaining, 'water', false)
+    oneRemaining = setVisualiserEnabled(oneRemaining, 'frequency-waves', false)
     expect(oneRemaining.enabled).toEqual(['spectrum'])
     expect(setVisualiserEnabled(oneRemaining, 'spectrum', false)).toEqual(
       oneRemaining,
@@ -89,12 +107,12 @@ describe('visualiser registry and preferences', () => {
       false,
     )
     expect(disabledCurrent.current).toBe('particle-galaxy')
-    expect(cycleVisualiser('water', disabledCurrent.enabled, 'next')).toBe(
-      'spectrum',
-    )
+    expect(
+      cycleVisualiser('frequency-waves', disabledCurrent.enabled, 'next'),
+    ).toBe('spectrum')
     expect(
       cycleVisualiser('spectrum', disabledCurrent.enabled, 'previous'),
-    ).toBe('water')
+    ).toBe('frequency-waves')
 
     const values = new Map<string, string>()
     const storage = {
@@ -105,13 +123,33 @@ describe('visualiser registry and preferences', () => {
     expect(values.has(VISUALISER_PREFERENCES_STORAGE_KEY)).toBe(true)
     expect(loadVisualiserPreferences(storage).current).toBe('water')
   })
+
+  it('migrates v1 preferences while enabling the new Frequency Waves mode', () => {
+    const storage = {
+      getItem: () =>
+        JSON.stringify({
+          version: 1,
+          enabled: ['spectrum', 'water'],
+          current: 'water',
+        }),
+    }
+    expect(loadVisualiserPreferences(storage)).toEqual({
+      enabled: ['spectrum', 'water', 'frequency-waves'],
+      current: 'water',
+    })
+  })
 })
 
 describe('logical band mapping and renderer bounds', () => {
-  it('maps the existing logarithmic analyser data to 7/6/6 full-range bands', () => {
+  it('shares six full-range bands and merges the legacy highest ranges', () => {
     expect(
       mapFrameToLogicalBands(frame, GOLDEN_RATIO_BAND_EDGES).levels,
-    ).toHaveLength(7)
+    ).toHaveLength(6)
+    expect(GOLDEN_RATIO_BAND_EDGES).toBe(FREQUENCY_WAVES_BAND_EDGES)
+    expect(GOLDEN_RATIO_BAND_EDGES).toBe(SHARED_SIX_BAND_EDGES)
+    expect(
+      mergeHighestLogicalBands([45, 100, 200, 400, 800, 1_600, 3_200, 16_000]),
+    ).toEqual([45, 100, 200, 400, 800, 1_600, 16_000])
     expect(
       mapFrameToLogicalBands(frame, GALAXY_BAND_EDGES).levels,
     ).toHaveLength(6)
@@ -125,33 +163,44 @@ describe('logical band mapping and renderer bounds', () => {
         index === 0 || index === frame.levels.length - 1 ? 16 : 0,
       ),
     }
-    const mapped = mapFrameToLogicalBands(edgeFrame, GALAXY_BAND_EDGES).levels
+    const mapped = mapFrameToLogicalBands(
+      edgeFrame,
+      GOLDEN_RATIO_BAND_EDGES,
+    ).levels
     expect(mapped[0]).toBeGreaterThan(0)
     expect(mapped.at(-1)).toBeGreaterThan(0)
   })
 
-  it('keeps seven edge-filling golden squares and bounded complex renderers', () => {
-    const squares = createGoldenSquares(1280, 720)
-    expect(squares).toHaveLength(7)
-    expect(squares[0].side / squares[1].side).toBeCloseTo(
+  it('keeps six edge-filling golden regions without a black recursive hole', () => {
+    const regions = createGoldenRegions(1280, 720)
+    expect(regions).toHaveLength(6)
+    expect(regions[0].width / regions[1].width).toBeCloseTo(
       (1 + Math.sqrt(5)) / 2,
       5,
     )
-    for (let index = 1; index < squares.length; index += 1) {
-      expect(squares[index].side).toBeLessThan(squares[index - 1].side)
+    for (let index = 1; index < regions.length; index += 1) {
+      expect(
+        Math.min(regions[index].width, regions[index].height),
+      ).toBeLessThan(
+        Math.min(regions[index - 1].width, regions[index - 1].height),
+      )
     }
-    expect(Math.min(...squares.map((square) => square.x))).toBeLessThanOrEqual(
+    expect(Math.min(...regions.map((region) => region.x))).toBeLessThanOrEqual(
       0,
     )
-    expect(Math.min(...squares.map((square) => square.y))).toBeLessThanOrEqual(
+    expect(Math.min(...regions.map((region) => region.y))).toBeLessThanOrEqual(
       0,
     )
     expect(
-      Math.max(...squares.map((square) => square.x + square.side)),
+      Math.max(...regions.map((region) => region.x + region.width)),
     ).toBeGreaterThanOrEqual(1280)
     expect(
-      Math.max(...squares.map((square) => square.y + square.side)),
+      Math.max(...regions.map((region) => region.y + region.height)),
     ).toBeGreaterThanOrEqual(720)
+    const goldenHeight = Math.max(720, 1280 / ((1 + Math.sqrt(5)) / 2))
+    expect(
+      regions.reduce((area, region) => area + region.width * region.height, 0),
+    ).toBeCloseTo(goldenHeight * goldenHeight * ((1 + Math.sqrt(5)) / 2), 5)
     expect(GALAXY_MAX_PARTICLES).toBeLessThanOrEqual(450)
     expect(GALAXY_MAX_SHOCKWAVES).toBe(8)
     expect(WATER_MAX_RIPPLES).toBe(28)
@@ -163,10 +212,51 @@ describe('logical band mapping and renderer bounds', () => {
       '#ff8a1f',
       '#ffd83d',
       '#46d369',
-      '#30d6d6',
-      '#3b82f6',
+      '#32b7e8',
       '#9b5cff',
     ])
+    expect(FREQUENCY_WAVE_COLOURS).toBe(GOLDEN_RATIO_COLOURS)
+  })
+})
+
+describe('Frequency Waves renderer', () => {
+  it('settles all six silent bands to the exact centre line', () => {
+    const levels = new Array<number>(6).fill(0)
+    updateFrequencyWaveLevels(levels, new Array<number>(6).fill(0), 1 / 60)
+    expect(levels).toEqual([0, 0, 0, 0, 0, 0])
+    for (let band = 0; band < 6; band += 1) {
+      const amplitude = frequencyWaveAmplitude(levels[band], 720, band)
+      expect(amplitude).toBe(0)
+      expect(
+        frequencyWaveY(360, amplitude, 0.37, FREQUENCY_WAVE_CYCLES[band], 1),
+      ).toBe(360)
+    }
+  })
+
+  it('uses broader/slower bass waves and tighter/faster treble waves', () => {
+    expect(FREQUENCY_WAVE_CYCLES).toHaveLength(6)
+    expect(FREQUENCY_WAVE_PHASE_SPEEDS).toHaveLength(6)
+    for (let band = 1; band < 6; band += 1) {
+      expect(FREQUENCY_WAVE_CYCLES[band]).toBeGreaterThan(
+        FREQUENCY_WAVE_CYCLES[band - 1],
+      )
+      expect(FREQUENCY_WAVE_PHASE_SPEEDS[band]).toBeGreaterThan(
+        FREQUENCY_WAVE_PHASE_SPEEDS[band - 1],
+      )
+    }
+  })
+
+  it('uses fast attack, clean release and an explicit disposable renderer', () => {
+    const levels = new Array<number>(6).fill(0)
+    updateFrequencyWaveLevels(levels, new Array<number>(6).fill(1), 1 / 60)
+    expect(levels.every((level) => level > 0)).toBe(true)
+    for (let frameIndex = 0; frameIndex < 240; frameIndex += 1)
+      updateFrequencyWaveLevels(levels, new Array<number>(6).fill(0), 1 / 60)
+    expect(levels).toEqual([0, 0, 0, 0, 0, 0])
+    const renderer = createFrequencyWavesRenderer()
+    expect(renderer.targetFps).toBe(60)
+    expect(renderer.dispose).toBeTypeOf('function')
+    renderer.dispose?.()
   })
 })
 

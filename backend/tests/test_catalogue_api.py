@@ -64,6 +64,35 @@ def test_album_and_track_api_responses(tmp_path: Path) -> None:
     assert artwork == b"api-artwork"
 
 
+def test_album_delete_api_requires_dedicated_confirmation_header(tmp_path: Path) -> None:
+    library = tmp_path / "music"
+    touch_audio(library, "Delete Me/delete.mp3")
+    app = create_app(make_settings(tmp_path, library))
+
+    async def exercise() -> None:
+        async with app.router.lifespan_context(app):
+            app.state.scan_service.scanner.metadata_reader = FakeMetadataReader(
+                {"delete.mp3": metadata(title="Delete Me", album="Delete Me")}
+            )
+            app.state.scan_service.scanner.scan()
+            album_id = app.state.catalogue.list_albums()[0]["id"]
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                unconfirmed = await client.delete(f"/api/albums/{album_id}")
+                assert unconfirmed.status_code == 403
+                assert app.state.catalogue.get_album(album_id) is not None
+
+                confirmed = await client.delete(
+                    f"/api/albums/{album_id}",
+                    headers={"X-Pi-Jukebox-Action": "delete-album"},
+                )
+                assert confirmed.status_code == 200
+                assert confirmed.json()["files_removed"] == 1
+                assert app.state.catalogue.get_album(album_id) is None
+
+    asyncio.run(exercise())
+
+
 def test_search_api_matches_album_and_track_fields(tmp_path: Path) -> None:
     library = tmp_path / "music"
     touch_audio(library, "first.mp3")

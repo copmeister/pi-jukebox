@@ -78,6 +78,10 @@ function AppContent({ sleeping, onSleep, onWake }: AppContentProps) {
         key={selectedAlbumId}
         albumId={selectedAlbumId}
         onBack={() => setSelectedAlbumId(null)}
+        onDeleted={() => {
+          setSelectedAlbumId(null)
+          void catalogue.refresh()
+        }}
       />
     )
   } else if (activeDestination === 'Jukebox') {

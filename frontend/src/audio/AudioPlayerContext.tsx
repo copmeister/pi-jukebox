@@ -49,6 +49,7 @@ interface AudioPlayerValue {
   playAlbum: (albumId: number) => Promise<boolean>
   playRadio: (station: RadioStation) => Promise<boolean>
   stopRadio: () => void
+  prepareAlbumDeletion: (albumId: number) => void
   stopAndClear: () => Promise<boolean>
   togglePlayback: () => void
   previous: () => void
@@ -119,7 +120,7 @@ export function AudioPlayerProvider({
   const radioStationRef = useRef<RadioStation | null>(null)
   const radioRetryTimerRef = useRef<number | null>(null)
   const retryRadioRef = useRef<() => void>(() => undefined)
-  const historyRef = useRef<number[]>([])
+  const historyRef = useRef<{ trackId: number; albumId: number }[]>([])
   const advancingRef = useRef(false)
   const pendingAdvanceRef = useRef<boolean | null>(null)
   const restoringRef = useRef(false)
@@ -272,11 +273,29 @@ export function AudioPlayerProvider({
     setPresentationMode('modern')
   }, [cancelPendingJukeboxStart, selectLocalSource, setPresentationMode])
 
+  const prepareAlbumDeletion = useCallback(
+    (albumId: number) => {
+      historyRef.current = historyRef.current.filter(
+        (item) => item.albumId !== albumId,
+      )
+      setHistoryCount(historyRef.current.length)
+      if (
+        sourceRef.current === 'local' &&
+        currentItemRef.current?.album_id === albumId
+      )
+        stopAudio()
+    },
+    [stopAudio],
+  )
+
   const setCurrentItem = useCallback(
     (item: QueueItem, rememberCurrent = true) => {
       const previous = currentItemRef.current
       if (rememberCurrent && previous && previous.id !== item.id) {
-        historyRef.current.push(previous.track_id)
+        historyRef.current.push({
+          trackId: previous.track_id,
+          albumId: previous.album_id,
+        })
         setHistoryCount(historyRef.current.length)
       }
       currentItemRef.current = item
@@ -634,11 +653,11 @@ export function AudioPlayerProvider({
       setCurrentTime(0)
       return
     }
-    const previousTrackId = historyRef.current.pop()
+    const previousItem = historyRef.current.pop()
     setHistoryCount(historyRef.current.length)
-    if (!previousTrackId) return
+    if (!previousItem) return
     cancelPendingJukeboxStart()
-    void queue.playNow(previousTrackId).then((snapshot) => {
+    void queue.playNow(previousItem.trackId).then((snapshot) => {
       if (!snapshot?.current) return
       if (presentationRef.current === 'jukebox' && shouldUseJukeboxPause()) {
         prepareJukeboxItem(snapshot.current, 'Changing record…', false)
@@ -707,6 +726,7 @@ export function AudioPlayerProvider({
       playAlbum,
       playRadio,
       stopRadio,
+      prepareAlbumDeletion,
       stopAndClear,
       togglePlayback,
       previous,
@@ -728,6 +748,7 @@ export function AudioPlayerProvider({
       playJukebox,
       playNow,
       playRadio,
+      prepareAlbumDeletion,
       presentation,
       presentationMessage,
       previous,
