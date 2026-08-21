@@ -20,6 +20,8 @@ Version 0.6.10 polishes Frequency Waves with anchored multi-component standing s
 
 Version 0.6.11 gives Frequency Waves genuine short-term temporal detail: the existing final-output capture now derives six compact 0.5-second band-limited traces on demand, while the browser morphs complete snapshots in place without raw PCM transport or a scrolling display.
 
+Version 0.6.12 restores the physically tested standing-wave character with responsive six-band energy-driven shapes, smooth 60 FPS interpolation and no additional inverse-FFT trace stream.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows

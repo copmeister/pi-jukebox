@@ -169,26 +169,6 @@ describe('spectrum geometry and motion', () => {
       fall_rate: 36,
     }
     expect(parseSpectrumFrame(valid)).toEqual(valid)
-    const withFrequencyWaves = {
-      ...valid,
-      frequency_waves: {
-        band_edges_hz: [45, 100, 233, 543, 1265, 2947, 16000],
-        window_seconds: 0.5,
-        traces: Array.from({ length: 6 }, () =>
-          Array.from({ length: 192 }, (_, index) => (index % 255) - 127),
-        ),
-      },
-    }
-    expect(parseSpectrumFrame(withFrequencyWaves)).toEqual(withFrequencyWaves)
-    expect(
-      parseSpectrumFrame({
-        ...withFrequencyWaves,
-        frequency_waves: {
-          ...withFrequencyWaves.frequency_waves,
-          traces: [[128]],
-        },
-      }),
-    ).toBeNull()
     expect(parseSpectrumFrame({ ...valid, levels: [17, 0, 0, 0] })).toBeNull()
   })
 })

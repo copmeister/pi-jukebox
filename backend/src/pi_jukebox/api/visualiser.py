@@ -6,7 +6,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from pi_jukebox.visualiser.service import VisualiserService
@@ -19,16 +19,13 @@ def _service(request: Request) -> VisualiserService:
 
 
 @router.get("/stream")
-async def stream_visualiser(
-    request: Request,
-    frequency_waves: bool = Query(default=False),
-) -> StreamingResponse:
+async def stream_visualiser(request: Request) -> StreamingResponse:
     service = _service(request)
 
     async def events() -> AsyncIterator[str]:
-        frame = service.subscribe(include_frequency_waves=frequency_waves)
+        frame = service.subscribe()
         try:
-            yield _event(frame.payload(include_frequency_waves=frequency_waves))
+            yield _event(frame.payload())
             sequence = frame.sequence
             while not await request.is_disconnected():
                 frame = await asyncio.to_thread(service.wait_for_frame, sequence, 10.0)
@@ -36,9 +33,9 @@ async def stream_visualiser(
                     yield ": keep-alive\n\n"
                     continue
                 sequence = frame.sequence
-                yield _event(frame.payload(include_frequency_waves=frequency_waves))
+                yield _event(frame.payload())
         finally:
-            await asyncio.to_thread(service.unsubscribe, frequency_waves)
+            await asyncio.to_thread(service.unsubscribe)
 
     return StreamingResponse(
         events(),

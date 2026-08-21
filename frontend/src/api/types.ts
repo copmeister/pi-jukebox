@@ -296,11 +296,4 @@ export interface SpectrumFrame {
   max_levels: number
   rise_rate: number
   fall_rate: number
-  frequency_waves?: FrequencyWaveFrame
-}
-
-export interface FrequencyWaveFrame {
-  band_edges_hz: number[]
-  window_seconds: number
-  traces: number[][]
 }
