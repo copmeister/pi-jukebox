@@ -37,11 +37,8 @@ function apiUrl(path: string): string {
   return `${API_BASE_URL}/api${path}`
 }
 
-export function visualiserStreamUrl(includeFrequencyWaves = false): string {
-  const path = includeFrequencyWaves
-    ? '/visualiser/stream?frequency_waves=true'
-    : '/visualiser/stream'
-  return apiUrl(path)
+export function visualiserStreamUrl(): string {
+  return apiUrl('/visualiser/stream')
 }
 
 async function requestJson<T>(

@@ -48,47 +48,7 @@ export function parseSpectrumFrame(value: unknown): SpectrumFrame | null {
     )
   )
     return null
-  if (
-    frame.frequency_waves !== undefined &&
-    !validFrequencyWaveFrame(frame.frequency_waves)
-  )
-    return null
   return frame as unknown as SpectrumFrame
-}
-
-function validFrequencyWaveFrame(value: unknown): boolean {
-  if (typeof value !== 'object' || value === null || Array.isArray(value))
-    return false
-  const traceFrame = value as Record<string, unknown>
-  if (
-    !Array.isArray(traceFrame.band_edges_hz) ||
-    traceFrame.band_edges_hz.length !== 7 ||
-    !traceFrame.band_edges_hz.every(
-      (frequency) => finiteNumber(frequency) && frequency > 0,
-    ) ||
-    !finiteNumber(traceFrame.window_seconds) ||
-    Number(traceFrame.window_seconds) <= 0 ||
-    !Array.isArray(traceFrame.traces) ||
-    traceFrame.traces.length !== 6
-  )
-    return false
-  const pointCount = Array.isArray(traceFrame.traces[0])
-    ? traceFrame.traces[0].length
-    : 0
-  return (
-    pointCount >= 64 &&
-    traceFrame.traces.every(
-      (trace) =>
-        Array.isArray(trace) &&
-        trace.length === pointCount &&
-        trace.every(
-          (point) =>
-            Number.isInteger(point) &&
-            Number(point) >= -127 &&
-            Number(point) <= 127,
-        ),
-    )
-  )
 }
 
 export function calculateMatrixLayout(
