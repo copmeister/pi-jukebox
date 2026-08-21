@@ -22,6 +22,8 @@ Version 0.6.11 gives Frequency Waves genuine short-term temporal detail: the exi
 
 Version 0.6.12 restores the physically tested standing-wave character with responsive six-band energy-driven shapes, smooth 60 FPS interpolation and no additional inverse-FFT trace stream.
 
+Version 0.6.13 makes Frequency Waves more lively and symmetrical with three interpolated log-quartile energy components per band, alternating directions, two or more complete cycles and faster response, while retaining the same compact FFT/SSE path.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows

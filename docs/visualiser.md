@@ -88,16 +88,20 @@ no renderer receives PCM or performs audio DSP.
   reference prototype's numerical 160×90 wave field.
 - **Frequency Waves** draws six centred neon standing waves in those same
   frequency colours. The shared ranges remain 45–100, 100–233, 233–543,
-  543–1,265, 1,265–2,947 and 2,947–16,000 Hz. Their dominant spatial modes use
-  2, 3, 4, 5, 6 and 8 fixed half-wave lobes respectively, so bass is broad and
-  treble is progressively finer. Two restrained neighbouring modes flex each
-  curve from the changing low/middle/high energy balance inside its band. All
-  modes have fixed edge nodes: they reform in place and never scroll. The
-  existing level stream supplies fresh targets at up to 30 Hz; the Canvas uses
-  approximately 45 ms attack, 100 ms release and 83 ms shape interpolation on
-  its 60 FPS animation loop. Strong activity can span 86% of the canvas height,
-  while zero energy produces an exactly flat centre line. There is no rolling
-  PCM window, inverse FFT reconstruction or additional trace payload.
+  543–1,265, 1,265–2,947 and 2,947–16,000 Hz. Three equal-status components per
+  line sample the 25%, 50% and 75% logarithmic positions inside that range,
+  interpolating between the existing analyser centres rather than snapping to
+  a nearest bin. Base spatial modes use 4, 5, 6, 7, 8 and 10 fixed half-wave
+  lobes respectively, with two same-parity components at +2 and +4 lobes. The
+  broadest line therefore shows two complete cycles and treble remains finer.
+  Entire lines alternate initial direction, while every component retains fixed
+  centre-line nodes at both edges. The existing level stream supplies fresh
+  targets at up to 30 Hz; the Canvas uses approximately 33 ms attack, 67 ms
+  release and 50 ms component interpolation on its 60 FPS animation loop.
+  Absolute six-band activity still controls height, so lower energy and musical
+  fade-outs naturally collapse the waves to an exactly flat centre line. Strong
+  activity can span 86% of the canvas height. There is no rolling PCM window,
+  inverse FFT reconstruction or additional trace payload.
 
 A predominantly horizontal swipe rotates through enabled renderers and wraps.
 The opposite direction moves backwards. A predominantly vertical swipe toggles
@@ -110,7 +114,7 @@ disabled current selection by moving forward to the next enabled renderer.
 Only the active renderer is mounted. Each canvas owns one animation frame loop,
 resizes from its live bounds, catches drawing failures, and cancels its loop and
 listeners when switched or exited. Galaxy targets 45 fps and Water 40 fps;
-Frequency Waves targets 60 fps with preallocated level/shape buffers, cached
+Frequency Waves targets 60 fps with preallocated level/component buffers, cached
 standing-wave geometry, a capped 1.25 canvas pixel ratio and one blurred glow
 pass. It adds no backend transforms or high-rate payload. Smooth stable Pi
 rendering takes priority over forcing 60 fps.
