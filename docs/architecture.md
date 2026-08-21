@@ -81,13 +81,14 @@ The frontend is a React single-page application written in TypeScript and built 
 - Chromium will perform audio decoding and playback.
 - The demand-driven spectrum visualiser captures the dynamically resolved DAC/default-sink monitor in the `admin` PipeWire graph. It resolves the stable sink name with WirePlumber and uses PipeWire's sink-monitor capture property rather than a numeric node ID. This common digital-output point covers local browser and Bluetooth audio, and can cover later sources routed to the same sink; it does not measure analogue amplifier or speaker behavior.
 - FFT analysis runs in an isolated daemon thread only while a browser subscribes. It reuses its NumPy window and logarithmic band mapping, publishes only bounded LED targets over a server-sent event stream, and treats capture/analysis failure as a visualiser-only unavailable state.
-- Spectrum, Golden Ratio, Particle Galaxy and Water share that single stream. A frontend registry mounts only the selected canvas renderer and logarithmically aggregates the existing analyser centres to each renderer's required band count.
+- Spectrum, Golden Ratio, Particle Galaxy, Water and Frequency Waves share that single stream. A frontend registry mounts only the selected canvas renderer and logarithmically aggregates the existing analyser centres to each renderer's required band count. Golden Ratio and Frequency Waves use the same six low-to-high regions and deterministic red-to-violet palette; neither adds FFT work or PCM transport.
 - During development, Vite proxies `/api` requests to FastAPI on port 8000.
 - A small typed client validates important response fields at runtime and converts network or invalid-response failures into safe user-facing messages.
 - Catalogue summary state is shared with Library. The Jukebox selector independently requests complete track metadata when mounted. Scan status is polled only while a scan is active, then albums are refreshed.
 - Search requests wait briefly after input changes and cancel stale requests.
 - The search screen includes a compact in-flow QWERTY and number keypad. It changes the same editable input used by physical keyboards and can be hidden to recover result space.
 - Track action menus expose Play Now, Play Next, and Add to Queue without relying on hover. Album actions support confirmed replacement and append. The Queue screen provides touch-sized deterministic Up/Down movement rather than requiring drag-and-drop.
+- Album deletion is a deliberately secondary Library action. The browser first stops a matching local current item, then calls an album-ID-only endpoint with a fixed action header. The backend re-resolves every catalogued path beneath the configured music root, rejects traversal, symlinks, the root itself and concurrent scan/rip work, removes matching queue rows and stale CD completion history transactionally, and deletes only server-derived files and now-unreferenced artwork. Unrelated files, albums and shared artwork survive; partial filesystem failure is reported rather than presented as success.
 - The default Jukebox screen requests the complete catalogue and uses a pure Fisher–Yates panel utility. It shows four eight-song panels whose state explicitly owns one persistent identity from A through D. Random panel state and discarded history remain browser-only and are never persisted.
 - Each identity owns a permanent accessible accent: A amber (`#f3b53f`), B blue (`#54b6e8`), C violet (`#b08cff`), and D green (`#5fd39a`). Shared CSS custom properties tint only panel edges, selection codes, fixed letter controls, and confirmation feedback; the dark panel surface and neutral metadata text remain unchanged.
 - NEXT and a valid left swipe rotate the state from A–B–C–D to B–C–D–A. The outgoing identity is recycled into a newly randomized incoming panel, retaining its letter and colour. Selection resolves the visible panel by its owned letter rather than its current array position.
@@ -123,6 +124,13 @@ Important settings include:
 Machine-specific paths, music, databases, caches, logs, and secrets must not be committed. Runtime data lives in the configured data directory rather than in the Python package. The default database is `data/catalogue.sqlite3`; content-addressed artwork is stored under `data/artwork`.
 
 The scanner resolves the configured library root before walking it. Catalogue paths are relative to that root. Directory symlinks are not followed, and resolved audio files outside the root are rejected.
+
+Permanent album deletion accepts an integer catalogue album ID, never a path.
+It validates all target paths before the first unlink and refuses to run while a
+scan or rip is active. Missing target files are tolerated, while unsafe or
+unexpected paths fail closed. Empty album directories and their local
+`Cover.jpg` may be removed only when no audio remains; unrelated directory
+contents prevent folder removal.
 
 ## Catalogue and scan behaviour
 

@@ -28,6 +28,23 @@ export interface AlbumDetail extends AlbumSummary {
   tracks: Track[]
 }
 
+export interface AlbumDeletionResult {
+  album_id: number
+  title: string
+  album_artist: string
+  track_count: number
+  files_removed: number
+  missing_files: number
+  directories_removed: number
+  album_artwork_removed: number
+  runtime_artwork_removed: boolean
+  cd_artwork_removed: number
+  queue_items_removed: number
+  current_queue_item_removed: boolean
+  rip_jobs_removed: number
+  message: string
+}
+
 export interface ScanRun {
   id: number
   status: 'running' | 'completed' | 'failed'

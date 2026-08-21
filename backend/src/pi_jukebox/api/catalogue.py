@@ -8,6 +8,13 @@ from pydantic import BaseModel, ConfigDict
 
 from pi_jukebox.catalogue.database import Catalogue
 from pi_jukebox.config import LibraryConfigurationError, Settings
+from pi_jukebox.library.deletion import (
+    AlbumDeletionBusyError,
+    AlbumDeletionIncompleteError,
+    AlbumDeletionService,
+    AlbumNotFoundError,
+    UnsafeAlbumPathError,
+)
 from pi_jukebox.library.scanner import ScanAlreadyRunningError, ScanService
 
 router = APIRouter(tags=["library"])
@@ -75,6 +82,23 @@ class AlbumDetailResponse(AlbumSummaryResponse):
     tracks: list[TrackResponse]
 
 
+class AlbumDeletionResponse(ApiModel):
+    album_id: int
+    title: str
+    album_artist: str
+    track_count: int
+    files_removed: int
+    missing_files: int
+    directories_removed: int
+    album_artwork_removed: int
+    runtime_artwork_removed: bool
+    cd_artwork_removed: int
+    queue_items_removed: int
+    current_queue_item_removed: bool
+    rip_jobs_removed: int
+    message: str
+
+
 class SearchResponse(ApiModel):
     query: str
     albums: list[AlbumSummaryResponse]
@@ -91,6 +115,10 @@ def _scan_service(request: Request) -> ScanService:
 
 def _settings(request: Request) -> Settings:
     return request.app.state.settings
+
+
+def _album_deletion(request: Request) -> AlbumDeletionService:
+    return request.app.state.album_deletion_service
 
 
 @router.post(
@@ -149,6 +177,27 @@ def get_album(album_id: int, request: Request) -> dict[str, Any]:
     if album is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Album not found.")
     return album
+
+
+@router.delete("/albums/{album_id}", response_model=AlbumDeletionResponse)
+def delete_album(album_id: int, request: Request) -> dict[str, Any]:
+    """Permanently delete one server-resolved album after guarded UI confirmation."""
+
+    if request.headers.get("X-Pi-Jukebox-Action") != "delete-album":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Album deletion requires the dedicated jukebox confirmation flow.",
+        )
+    try:
+        return _album_deletion(request).delete(album_id)
+    except AlbumNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except (AlbumDeletionBusyError, UnsafeAlbumPathError) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except AlbumDeletionIncompleteError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        ) from exc
 
 
 @router.get("/tracks/{track_id}", response_model=TrackResponse)

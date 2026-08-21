@@ -535,6 +535,39 @@ h2 {
   flex-wrap: wrap;
   gap: 8px;
 }
+.album-manage-button {
+  color: var(--muted);
+  background: transparent;
+}
+.album-manage-panel {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+}
+.album-manage-panel h2 {
+  color: #c2c9cf;
+  font-size: 0.78rem;
+}
+.album-manage-panel p {
+  margin: 3px 0 0;
+  font-size: 0.66rem;
+}
+.album-manage-panel .danger-button {
+  color: var(--danger);
+}
+.album-delete-error {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--danger);
+  background: rgba(255, 151, 140, 0.08);
+  font-size: 0.72rem;
+}
 .track-list {
   margin: 16px 0 0;
   padding: 0 0 4px;

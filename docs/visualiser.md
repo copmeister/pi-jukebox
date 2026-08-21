@@ -62,19 +62,21 @@ axis.
 
 ## Frontend renderers and controls
 
-All four modes reuse the same compact SSE frame. Spectrum uses the analyser
+All five modes reuse the same compact SSE frame. Spectrum uses the analyser
 bands directly and may interpolate additional square columns for the live
-viewport. Golden Ratio maps the supplied frequency centres into seven
-logarithmic regions. Particle Galaxy and Water each map them into six broad
+viewport. Golden Ratio and Frequency Waves map the supplied frequency centres
+into the same six logarithmic regions. Particle Galaxy and Water each map them into six broad
 musical regions using logarithmic overlap weighting, including the lowest and
 highest supplied frequencies. No renderer performs an FFT or receives PCM.
 
 - **Spectrum** retains the 16-level square LED matrix and persisted Smooth or
   Classic colour palette.
-- **Golden Ratio** draws seven genuine recursively divided golden squares using
-  cover-style geometry so the composition reaches the canvas edges without
-  distortion. Its deterministic low-to-high mapping is red, orange, yellow,
-  green, cyan, blue and violet; true black at low activity, fast attack and
+- **Golden Ratio** draws five recursively divided golden squares and uses the
+  complete remaining golden rectangle as its sixth region. This merges the two
+  former highest-frequency regions and fills the recursive tail, eliminating
+  the tiny persistently black centre while keeping cover-style edge-to-edge
+  geometry. Its deterministic low-to-high mapping is red, orange, yellow,
+  green, cyan-blue and violet; true black at low activity, fast attack and
   slower glow release remain unchanged.
 - **Particle Galaxy** uses six bounded, pooled particle classes, a static
   starfield and at most eight layered sub-bass shockwaves. The live-particle cap
@@ -83,6 +85,11 @@ highest supplied frequencies. No renderer performs an FFT or receives PCM.
   speed and decay, transparent overlap, clipped mirror-source reflections and
   a cheap animated surface texture. It deliberately does not recreate the
   reference prototype's numerical 160×90 wave field.
+- **Frequency Waves** draws six centred neon traces in those same frequency
+  colours. Bass has the fewest cycles and slowest phase, treble has the most
+  cycles and fastest phase, and amplitude follows only the live FFT band
+  energy. With zero input every trace is exactly flat at the centre line; there
+  is no autonomous or random motion.
 
 A predominantly horizontal swipe rotates through enabled renderers and wraps.
 The opposite direction moves backwards. A predominantly vertical swipe toggles
@@ -95,7 +102,8 @@ disabled current selection by moving forward to the next enabled renderer.
 Only the active renderer is mounted. Each canvas owns one animation frame loop,
 resizes from its live bounds, catches drawing failures, and cancels its loop and
 listeners when switched or exited. Galaxy targets 45 fps and Water 40 fps;
-smooth stable Pi rendering takes priority over forcing 60 fps.
+Frequency Waves targets 60 fps with six preallocated level/phase values and no
+unbounded history. Smooth stable Pi rendering takes priority over forcing 60 fps.
 
 ## Physical Pi acceptance
 

@@ -1,5 +1,6 @@
 import type {
   AlbumDetail,
+  AlbumDeletionResult,
   AlbumSummary,
   ApiAction,
   BluetoothStatus,
@@ -62,23 +63,29 @@ async function requestJson<T>(
 
   if (!response.ok) {
     throw new ApiError(
-      path.startsWith('/system/updates')
-        ? response.status === 409
-          ? 'Another update is already active, or no installable stable release is available.'
-          : 'The software update request could not be completed.'
-        : path.startsWith('/bluetooth')
+      path.startsWith('/albums/') && init?.method === 'DELETE'
+        ? response.status === 404
+          ? 'That album is no longer in the library.'
+          : response.status === 409
+            ? 'The album cannot be deleted safely while library or CD work is active.'
+            : 'The album could not be deleted completely. Check the library storage before retrying.'
+        : path.startsWith('/system/updates')
           ? response.status === 409
-            ? 'That Bluetooth action is no longer available. The current receiver state has been kept.'
-            : 'Bluetooth receiver control could not complete that request.'
-          : path.startsWith('/queue')
-            ? response.status === 404
-              ? 'That track or queue item is no longer available.'
+            ? 'Another update is already active, or no installable stable release is available.'
+            : 'The software update request could not be completed.'
+          : path.startsWith('/bluetooth')
+            ? response.status === 409
+              ? 'That Bluetooth action is no longer available. The current receiver state has been kept.'
+              : 'Bluetooth receiver control could not complete that request.'
+            : path.startsWith('/queue')
+              ? response.status === 404
+                ? 'That track or queue item is no longer available.'
+                : response.status === 409
+                  ? 'The queue changed before that action completed. Its current state has been kept.'
+                  : 'The queue action could not be completed.'
               : response.status === 409
-                ? 'The queue changed before that action completed. Its current state has been kept.'
-                : 'The queue action could not be completed.'
-            : response.status === 409
-              ? 'A library scan is already running.'
-              : 'The jukebox service could not complete that request.',
+                ? 'A library scan is already running.'
+                : 'The jukebox service could not complete that request.',
       response.status,
     )
   }
@@ -146,6 +153,26 @@ function isTrack(value: unknown): value is Track {
 function isAlbumDetail(value: unknown): value is AlbumDetail {
   const tracks = isRecord(value) ? value.tracks : undefined
   return isAlbumSummary(value) && Array.isArray(tracks) && tracks.every(isTrack)
+}
+
+function isAlbumDeletionResult(value: unknown): value is AlbumDeletionResult {
+  return (
+    isRecord(value) &&
+    isNumber(value.album_id) &&
+    typeof value.title === 'string' &&
+    typeof value.album_artist === 'string' &&
+    isNumber(value.track_count) &&
+    isNumber(value.files_removed) &&
+    isNumber(value.missing_files) &&
+    isNumber(value.directories_removed) &&
+    isNumber(value.album_artwork_removed) &&
+    typeof value.runtime_artwork_removed === 'boolean' &&
+    isNumber(value.cd_artwork_removed) &&
+    isNumber(value.queue_items_removed) &&
+    typeof value.current_queue_item_removed === 'boolean' &&
+    isNumber(value.rip_jobs_removed) &&
+    typeof value.message === 'string'
+  )
 }
 
 function isScanRun(value: unknown): boolean {
@@ -453,6 +480,13 @@ export function getAlbum(
   signal?: AbortSignal,
 ): Promise<AlbumDetail> {
   return requestJson(`/albums/${albumId}`, isAlbumDetail, { signal })
+}
+
+export function deleteAlbum(albumId: number): Promise<AlbumDeletionResult> {
+  return requestJson(`/albums/${albumId}`, isAlbumDeletionResult, {
+    method: 'DELETE',
+    headers: { 'X-Pi-Jukebox-Action': 'delete-album' },
+  })
 }
 
 export function getTrack(

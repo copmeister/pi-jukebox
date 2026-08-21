@@ -2,6 +2,7 @@ import { VISUALISER_IDS, type VisualiserId } from './visualiserTypes'
 
 export const VISUALISER_PREFERENCES_STORAGE_KEY =
   'pi-jukebox:visualiser-preferences'
+const VISUALISER_PREFERENCES_VERSION = 2
 
 export interface VisualiserPreferences {
   enabled: VisualiserId[]
@@ -30,9 +31,15 @@ export function loadVisualiserPreferences(
       enabled?: unknown
       current?: unknown
     }
-    if (parsed.version !== 1 || !Array.isArray(parsed.enabled))
+    if (
+      ![1, VISUALISER_PREFERENCES_VERSION].includes(Number(parsed.version)) ||
+      !Array.isArray(parsed.enabled)
+    )
       return cloneDefaults()
-    const storedEnabled = parsed.enabled
+    const storedEnabled =
+      parsed.version === 1
+        ? [...parsed.enabled, 'frequency-waves']
+        : parsed.enabled
     const enabled = VISUALISER_IDS.filter((id) => storedEnabled.includes(id))
     if (enabled.length === 0) return cloneDefaults()
     const requested = isVisualiserId(parsed.current)
@@ -57,7 +64,10 @@ export function saveVisualiserPreferences(
         : storage
     availableStorage?.setItem(
       VISUALISER_PREFERENCES_STORAGE_KEY,
-      JSON.stringify({ version: 1, ...preferences }),
+      JSON.stringify({
+        version: VISUALISER_PREFERENCES_VERSION,
+        ...preferences,
+      }),
     )
   } catch {
     // Visualiser choices are optional; storage failure must stay harmless.

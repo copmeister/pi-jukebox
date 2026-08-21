@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { ApiError, getAlbum } from '../api/client'
+import { ApiError, deleteAlbum, getAlbum } from '../api/client'
 import type { AlbumDetail } from '../api/types'
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
 import { Artwork } from '../components/Artwork'
@@ -13,14 +13,19 @@ import { groupAlbumTracks } from './albumTrackGroups'
 interface AlbumScreenProps {
   albumId: number
   onBack: () => void
+  onDeleted: () => void
 }
 
-export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
+export function AlbumScreen({ albumId, onBack, onDeleted }: AlbumScreenProps) {
   const player = useAudioPlayer()
   const queue = useQueue()
   const [album, setAlbum] = useState<AlbumDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmReplace, setConfirmReplace] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -74,10 +79,32 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
 
   const playAlbum = () => {
     if (queueIsNonEmpty) {
+      setManageOpen(false)
+      setConfirmDelete(false)
       setConfirmReplace(true)
       return
     }
     void player.playAlbum(album.id)
+  }
+
+  const deleteSelectedAlbum = async () => {
+    setDeleting(true)
+    setDeleteError(null)
+    player.prepareAlbumDeletion(album.id)
+    try {
+      const result = await deleteAlbum(album.id)
+      await queue.refresh()
+      queue.notify(result.message)
+      onDeleted()
+    } catch (requestError) {
+      setDeleteError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : 'The album could not be deleted safely.',
+      )
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -116,9 +143,58 @@ export function AlbumScreen({ albumId, onBack }: AlbumScreenProps) {
             >
               Add Album to Queue
             </button>
+            <button
+              className="secondary-button album-manage-button"
+              type="button"
+              onClick={() => {
+                setConfirmReplace(false)
+                setConfirmDelete(false)
+                setDeleteError(null)
+                setManageOpen((current) => !current)
+              }}
+              disabled={deleting}
+            >
+              Manage Album
+            </button>
           </div>
         </div>
       </section>
+      {manageOpen && !confirmDelete ? (
+        <section
+          className="album-manage-panel"
+          aria-labelledby="manage-album-title"
+        >
+          <div>
+            <h2 id="manage-album-title">Manage Album</h2>
+            <p>Secondary actions for this album.</p>
+          </div>
+          <button
+            type="button"
+            className="secondary-button danger-button"
+            onClick={() => setConfirmDelete(true)}
+          >
+            Delete Album
+          </button>
+        </section>
+      ) : null}
+      {confirmDelete ? (
+        <ConfirmationPanel
+          title={`Delete “${album.title}”?`}
+          message={`${album.album_artist} · ${album.track_count} track${album.track_count === 1 ? '' : 's'}. This permanently removes the music files and album artwork from the jukebox. It cannot be undone here. The CD can subsequently be ripped again as a fresh album.`}
+          confirmLabel={deleting ? 'Deleting…' : 'Delete from Jukebox'}
+          disabled={deleting}
+          onCancel={() => {
+            setConfirmDelete(false)
+            setDeleteError(null)
+          }}
+          onConfirm={() => void deleteSelectedAlbum()}
+        />
+      ) : null}
+      {deleteError ? (
+        <p className="album-delete-error" role="alert">
+          {deleteError}
+        </p>
+      ) : null}
       {confirmReplace ? (
         <ConfirmationPanel
           title="Replace the current queue?"

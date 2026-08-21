@@ -5,6 +5,7 @@ import {
   type AudioReactiveRenderer,
 } from './AudioReactiveCanvas'
 import { GALAXY_BAND_EDGES } from './bandMapping'
+import { FrequencyWavesCanvas } from './FrequencyWavesCanvas'
 
 describe('AudioReactiveCanvas lifecycle', () => {
   afterEach(() => {
@@ -59,5 +60,25 @@ describe('AudioReactiveCanvas lifecycle', () => {
     expect(cancel).toHaveBeenCalled()
     view.unmount()
     expect(secondDispose).toHaveBeenCalledOnce()
+  })
+
+  it('cancels the Frequency Waves animation when it becomes inactive', () => {
+    const cancel = vi.fn()
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 42),
+    )
+    vi.stubGlobal('cancelAnimationFrame', cancel)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      setTransform: vi.fn(),
+    } as unknown as CanvasRenderingContext2D)
+
+    const view = render(<FrequencyWavesCanvas frame={null} />)
+    expect(
+      view.getByRole('img', { name: 'Frequency Waves audio visualiser' }),
+    ).toBeInTheDocument()
+    view.unmount()
+
+    expect(cancel).toHaveBeenCalledWith(42)
   })
 })

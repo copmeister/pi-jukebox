@@ -123,8 +123,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.8',
-  latest_version: '0.6.8',
+  installed_version: '0.6.9',
+  latest_version: '0.6.9',
   checking: false,
   installing: false,
   update_available: false,
@@ -161,6 +161,7 @@ const availableBluetoothStatus: BluetoothStatus = {
 }
 
 let currentBluetoothStatus: BluetoothStatus = bluetoothStatus
+let albumDeleted = false
 
 class FakeEventSource {
   static instances: FakeEventSource[] = []
@@ -185,14 +186,17 @@ describe('App catalogue interface', () => {
     window.localStorage.clear()
     currentAlbumDetail = albumDetail
     currentBluetoothStatus = bluetoothStatus
+    albumDeleted = false
     FakeEventSource.instances = []
     vi.stubGlobal('EventSource', FakeEventSource)
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
-        if (url.endsWith('/api/albums?limit=500')) return jsonResponse(albums)
-        if (url.endsWith('/api/tracks')) return jsonResponse(albumDetail.tracks)
+        if (url.endsWith('/api/albums?limit=500'))
+          return jsonResponse(albumDeleted ? [] : albums)
+        if (url.endsWith('/api/tracks'))
+          return jsonResponse(albumDeleted ? [] : albumDetail.tracks)
         if (url.endsWith('/api/queue')) return jsonResponse(emptyQueue)
         if (url.endsWith('/api/library/scan/status'))
           return jsonResponse(scanStatus)
@@ -226,6 +230,26 @@ describe('App catalogue interface', () => {
         if (url.endsWith('/api/bluetooth/deactivate')) {
           currentBluetoothStatus = availableBluetoothStatus
           return jsonResponse(currentBluetoothStatus)
+        }
+        if (url.endsWith('/api/albums/7') && init?.method === 'DELETE') {
+          albumDeleted = true
+          return jsonResponse({
+            album_id: 7,
+            title: 'Night Drive',
+            album_artist: 'The House Band',
+            track_count: 2,
+            files_removed: 2,
+            missing_files: 0,
+            directories_removed: 1,
+            album_artwork_removed: 1,
+            runtime_artwork_removed: true,
+            cd_artwork_removed: 1,
+            queue_items_removed: 1,
+            current_queue_item_removed: true,
+            rip_jobs_removed: 1,
+            message:
+              'Deleted "Night Drive" from the jukebox. The CD can now be ripped again as a fresh album.',
+          })
         }
         if (url.endsWith('/api/albums/7'))
           return jsonResponse(currentAlbumDetail)
@@ -351,7 +375,7 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.8')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.9')).toBeInTheDocument()
   })
 
   it('shows clean disc headings for a genuinely multi-disc album', async () => {
@@ -392,6 +416,70 @@ describe('App catalogue interface', () => {
     expect(screen.getByRole('heading', { name: 'Disc 2' })).toBeInTheDocument()
     expect(screen.getByText('Movement 11')).toBeInTheDocument()
     expect(screen.queryByText(/Disc 1 Movement/)).not.toBeInTheDocument()
+  })
+
+  it('requires the guarded multi-step flow and stops matching playback before deletion', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.mocked(fetch)
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: 'Library' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Open Night Drive by The House Band',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Queue actions for Northern Lights' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Play Now' }))
+
+    expect(
+      screen.queryByRole('button', { name: 'Delete Album' }),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Manage Album' }))
+    expect(
+      screen.getByRole('button', { name: 'Delete Album' }),
+    ).toBeInTheDocument()
+    expect(
+      fetchMock.mock.calls.some(
+        ([input, init]) =>
+          String(input).endsWith('/api/albums/7') && init?.method === 'DELETE',
+      ),
+    ).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: 'Delete Album' }))
+    const confirmation = screen.getByRole('alertdialog', {
+      name: 'Delete “Night Drive”?',
+    })
+    expect(
+      within(confirmation).getByText(/The House Band · 2 tracks/),
+    ).toBeInTheDocument()
+    expect(
+      within(confirmation).getByText(/cannot be undone/i),
+    ).toBeInTheDocument()
+    expect(
+      within(confirmation).getByText(/ripped again as a fresh album/i),
+    ).toBeInTheDocument()
+
+    await user.click(
+      within(confirmation).getByRole('button', {
+        name: 'Delete from Jukebox',
+      }),
+    )
+    await screen.findByRole('heading', { name: 'Library' })
+    expect(
+      screen.queryByRole('button', {
+        name: 'Open Night Drive by The House Band',
+      }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Nothing playing')).toBeInTheDocument()
+    const deletionRequest = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        String(input).endsWith('/api/albums/7') && init?.method === 'DELETE',
+    )
+    expect(deletionRequest?.[1]?.headers).toEqual({
+      'X-Pi-Jukebox-Action': 'delete-album',
+    })
   })
 
   it('shows local metadata and keeps unavailable status nonvisual in Spectrum', async () => {
@@ -485,11 +573,15 @@ describe('App catalogue interface', () => {
     ).toBeInTheDocument()
     swipe(-100, 3, 6)
     expect(
+      screen.getByRole('img', { name: 'Frequency Waves audio visualiser' }),
+    ).toBeInTheDocument()
+    swipe(-100, 3, 7)
+    expect(
       screen.getByRole('img', {
         name: 'Real-time audio spectrum, smooth colours',
       }),
     ).toBeInTheDocument()
-    swipe(4, -100, 7)
+    swipe(4, -100, 8)
     expect(
       screen.getByRole('img', {
         name: 'Real-time audio spectrum, classic colours',
@@ -498,12 +590,12 @@ describe('App catalogue interface', () => {
 
     const exitButton = screen.getByRole('button', { name: 'Exit Spectrum' })
     fireEvent.pointerDown(exitButton, {
-      pointerId: 8,
+      pointerId: 9,
       clientX: 900,
       clientY: 40,
     })
     fireEvent.pointerUp(exitButton, {
-      pointerId: 8,
+      pointerId: 9,
       clientX: 700,
       clientY: 42,
     })

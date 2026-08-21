@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- this module is the visualiser registry */
 import type { ComponentType } from 'react'
 import type { SpectrumFrame } from '../api/types'
+import { FrequencyWavesCanvas } from './FrequencyWavesCanvas'
 import { GoldenRatioCanvas } from './GoldenRatioCanvas'
 import { ParticleGalaxyCanvas } from './ParticleGalaxyCanvas'
 import { SpectrumCanvas } from './SpectrumCanvas'
@@ -49,7 +50,7 @@ export const VISUALISER_REGISTRY: readonly VisualiserDefinition[] = [
   {
     id: 'golden-ratio',
     name: VISUALISER_NAMES['golden-ratio'],
-    logicalBandCount: 7,
+    logicalBandCount: 6,
     Renderer: GoldenRatioCanvas,
   },
   {
@@ -63,6 +64,12 @@ export const VISUALISER_REGISTRY: readonly VisualiserDefinition[] = [
     name: VISUALISER_NAMES.water,
     logicalBandCount: 6,
     Renderer: WaterCanvas,
+  },
+  {
+    id: 'frequency-waves',
+    name: VISUALISER_NAMES['frequency-waves'],
+    logicalBandCount: 6,
+    Renderer: FrequencyWavesCanvas,
   },
 ]
 

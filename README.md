@@ -14,6 +14,8 @@ Version 0.6.7 adds Golden Ratio, Particle Galaxy and Water to the existing fulls
 
 Version 0.6.8 polishes the seven-band Golden Ratio renderer, adds locally bundled radio artwork with safe fallbacks, and carries MusicBrainz disc positions into new CD rip tags so multi-disc albums sort and group correctly.
 
+Version 0.6.9 adds guarded album deletion, a six-band edge-filling Golden Ratio composition and the Frequency Waves fullscreen visualiser. The built-in Radio catalogue now uses one consistent station-mark treatment while retaining optional artwork support for future stations.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows
@@ -57,7 +59,7 @@ PI_JUKEBOX_MUSIC_LIBRARY_PATH=C:/Music/Pi Jukebox Test
 
 Forward slashes are recommended on Windows. The folder must already exist and must be a directory. Do not put quotes around the path. `.env` is ignored by Git, so this machine-specific path will not be committed.
 
-The catalogue database and extracted artwork are written under `./data` by default. That directory is also ignored by Git. The scanner reads source audio files but never changes, renames, copies, or deletes them.
+The catalogue database and extracted artwork are written under `./data` by default. That directory is also ignored by Git. The scanner reads source audio files but never changes, renames, copies, or deletes them. Album deletion is a separate, explicit and confirmed Library action.
 
 The frontend normally uses Vite's local `/api` proxy. If the backend is hosted at a different address during development, copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_BASE_URL`. Keep that local file untracked.
 
@@ -91,7 +93,7 @@ Open **Sounds** in the Jukebox header to enable or disable the effects, adjust t
 
 With at least eight catalogued tracks, each panel contains eight different songs. A catalogue of at least 32 tracks fills all visible positions uniquely. Smaller libraries are distributed through fresh shuffled cycles, so repeats occur across panels only as necessary; libraries with fewer than eight tracks repeat within a panel while avoiding immediately adjacent repeats where possible.
 
-The modern Library, Search, Queue, and Now Playing screens remain available. A Library or Search track's **Actions** menu provides Play Now, Play Next, or Add to Queue. Album details provide Play Album and Add Album to Queue. The Queue screen retains touch Up/Down reordering, removal, and its existing upcoming-only clear. The mini-player and Now Playing screen provide play/pause, queue-aware previous/next, seeking, volume, and mute. **Open Spectrum** on Now Playing enters the demand-driven final-output visualiser without replacing the player or queue.
+The modern Library, Search, Queue, and Now Playing screens remain available. A Library or Search track's **Actions** menu provides Play Now, Play Next, or Add to Queue. Album details provide Play Album and Add Album to Queue. A secondary **Manage Album** action leads to a permanent, explicitly confirmed deletion flow; it is never shown as a primary playback action. The Queue screen retains touch Up/Down reordering, removal, and its existing upcoming-only clear. The mini-player and Now Playing screen provide play/pause, queue-aware previous/next, seeking, volume, and mute. **Open Spectrum** on Now Playing enters the demand-driven final-output visualiser without replacing the player or queue.
 
 Queue order and the current queue item persist in SQLite across browser refreshes and backend restarts. Restored audio remains paused and restarts from the beginning after one Play tap. Playback position is deliberately not saved, and restored audio never autoplays.
 

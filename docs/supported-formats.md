@@ -32,6 +32,24 @@ Malformed or incomplete metadata does not stop the scan. Missing titles fall bac
 
 Source music is opened for reading only. The scanner never rewrites tags or modifies, renames, moves, copies, or deletes source files.
 
+## Permanent album deletion
+
+Album detail exposes deletion only through **Manage Album**, followed by a
+dedicated warning and final confirmation. The operation permanently removes the
+catalogued audio files for that album, its album-local cover when no audio
+remains, the album's catalogue rows, matching current/upcoming queue entries,
+unreferenced runtime artwork and matching completed CD-rip history/artwork. This
+history cleanup is what makes a later insertion eligible for a genuinely fresh
+rip rather than being mistaken for an already completed disc.
+
+The API receives only the catalogue album ID. Before deleting anything, the
+backend resolves every stored relative path against the configured library root
+and rejects absolute paths, traversal, symlinks, the root itself and paths that
+escape the root. It also rejects deletion during a library scan or CD rip. A
+missing target file is handled safely; unrelated files, albums, shared artwork
+and queue entries are preserved. A directory is removed only when it is empty,
+so unrelated content is never swept up recursively.
+
 ## CD-created files
 
 Version 0.5.0 creates FLAC files only. A track is catalogued after secure reading, FLAC encoding, metadata/artwork tagging and atomic finalisation. Temporary WAV and partial FLAC files remain outside the library and are never offered for playback. The front cover is also saved as `Cover.jpg` in the album directory when available.

@@ -24,6 +24,13 @@ Multi-row writes start with `BEGIN IMMEDIATE`. Add, replace, move, remove, upcom
 
 Playback time, volume, mute state, and listening history are not persisted. A restored current item is presented paused at time zero and does not autoplay.
 
+Permanent album deletion removes matching queue snapshots and renumbers the
+remaining items in the same immediate transaction as the catalogue and matching
+CD-history cleanup. The revision is incremented when queue rows change. The
+filesystem preflight happens before that transaction and validates every target
+against the configured music root; the database never trusts a browser-supplied
+path.
+
 ## CD rip history
 
 - `cd_rip_jobs` stores disc/release identity, safe album labels, job status, aggregate counts, timestamps, cancellation intent and user-safe diagnostics.

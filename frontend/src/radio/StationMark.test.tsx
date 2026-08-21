@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { StationMark } from './StationMark'
-import type { RadioStation } from './stations'
+import { RADIO_STATIONS, type RadioStation } from './stations'
 
 const fallbackStation: RadioStation = {
   id: 'fallback',
@@ -43,5 +43,18 @@ describe('StationMark', () => {
     fireEvent.error(image as HTMLImageElement)
     expect(container.querySelector('img')).not.toBeInTheDocument()
     expect(screen.getByText('FR')).toBeInTheDocument()
+  })
+
+  it('renders every built-in station with the same fallback policy', () => {
+    const { container } = render(
+      <>
+        {RADIO_STATIONS.map((station) => (
+          <StationMark station={station} key={station.id} />
+        ))}
+      </>,
+    )
+
+    expect(container.querySelectorAll('img')).toHaveLength(0)
+    expect(container.querySelectorAll('.radio-station__mark')).toHaveLength(6)
   })
 })

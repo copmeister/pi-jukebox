@@ -6,26 +6,19 @@ import {
   type AudioReactiveRenderer,
   type CanvasRendererFrame,
 } from './AudioReactiveCanvas'
-import { GOLDEN_RATIO_BAND_EDGES } from './bandMapping'
+import { GOLDEN_RATIO_BAND_EDGES, SHARED_SIX_BAND_COLOURS } from './bandMapping'
 
 const PHI = (1 + Math.sqrt(5)) / 2
-const SQUARE_COUNT = 7
+const REGION_COUNT = 6
 const BLACK_THRESHOLD = 0.12
 
-export const GOLDEN_RATIO_COLOURS = [
-  '#ff3b30',
-  '#ff8a1f',
-  '#ffd83d',
-  '#46d369',
-  '#30d6d6',
-  '#3b82f6',
-  '#9b5cff',
-] as const
+export const GOLDEN_RATIO_COLOURS = SHARED_SIX_BAND_COLOURS
 
-interface GoldenSquare {
+interface GoldenRegion {
   x: number
   y: number
-  side: number
+  width: number
+  height: number
 }
 
 export function GoldenRatioCanvas({
@@ -47,46 +40,65 @@ export function GoldenRatioCanvas({
   )
 }
 
-export function createGoldenSquares(
+export function createGoldenRegions(
   width: number,
   height: number,
-  count = SQUARE_COUNT,
-): GoldenSquare[] {
+  count = REGION_COUNT,
+): GoldenRegion[] {
   const goldenHeight = Math.max(height, width / PHI)
   let remainingWidth = goldenHeight * PHI
   let remainingHeight = goldenHeight
   let x = (width - remainingWidth) / 2
   let y = (height - remainingHeight) / 2
-  const squares: GoldenSquare[] = []
+  const regions: GoldenRegion[] = []
 
   for (let index = 0; index < count; index += 1) {
+    if (index === count - 1) {
+      regions.push({
+        x,
+        y,
+        width: remainingWidth,
+        height: remainingHeight,
+      })
+      break
+    }
     const direction = index % 4
     if (direction === 0) {
       const side = remainingHeight
-      squares.push({ x, y, side })
+      regions.push({ x, y, width: side, height: side })
       x += side
       remainingWidth -= side
     } else if (direction === 1) {
       const side = remainingWidth
-      squares.push({ x, y: y + remainingHeight - side, side })
+      regions.push({
+        x,
+        y: y + remainingHeight - side,
+        width: side,
+        height: side,
+      })
       remainingHeight -= side
     } else if (direction === 2) {
       const side = remainingHeight
-      squares.push({ x: x + remainingWidth - side, y, side })
+      regions.push({
+        x: x + remainingWidth - side,
+        y,
+        width: side,
+        height: side,
+      })
       remainingWidth -= side
     } else {
       const side = remainingWidth
-      squares.push({ x, y, side })
+      regions.push({ x, y, width: side, height: side })
       y += side
       remainingHeight -= side
     }
   }
-  return squares
+  return regions
 }
 
 function createGoldenRatioRenderer(): AudioReactiveRenderer {
-  const levels = new Array<number>(SQUARE_COUNT).fill(0)
-  let squares: GoldenSquare[] = []
+  const levels = new Array<number>(REGION_COUNT).fill(0)
+  let regions: GoldenRegion[] = []
   let geometryWidth = 0
   let geometryHeight = 0
 
@@ -96,9 +108,9 @@ function createGoldenRatioRenderer(): AudioReactiveRenderer {
       if (frame.width !== geometryWidth || frame.height !== geometryHeight) {
         geometryWidth = frame.width
         geometryHeight = frame.height
-        squares = createGoldenSquares(frame.width, frame.height)
+        regions = createGoldenRegions(frame.width, frame.height)
       }
-      drawGoldenRatio(frame, levels, squares)
+      drawGoldenRatio(frame, levels, regions)
     },
   }
 }
@@ -112,12 +124,12 @@ function drawGoldenRatio(
     deltaSeconds,
   }: CanvasRendererFrame,
   levels: number[],
-  squares: readonly GoldenSquare[],
+  regions: readonly GoldenRegion[],
 ) {
   context.clearRect(0, 0, width, height)
   context.fillStyle = '#000000'
   context.fillRect(0, 0, width, height)
-  for (let index = 0; index < SQUARE_COUNT; index += 1) {
+  for (let index = 0; index < REGION_COUNT; index += 1) {
     const target = targets[index] ?? 0
     const rate = target > levels[index] ? 28 : 7
     const blend = 1 - Math.exp(-rate * deltaSeconds)
@@ -129,16 +141,17 @@ function drawGoldenRatio(
         : Math.pow((raw - BLACK_THRESHOLD) / (1 - BLACK_THRESHOLD), 3)
     if (brightness <= 0) continue
 
-    const square = squares[index]
+    const region = regions[index]
     const colour = GOLDEN_RATIO_COLOURS[index]
     context.save()
     context.globalAlpha = brightness
     if (brightness > 0.2) {
       context.shadowColor = colour
-      context.shadowBlur = Math.min(30, square.side * 0.09) * brightness
+      context.shadowBlur =
+        Math.min(30, Math.min(region.width, region.height) * 0.09) * brightness
     }
     context.fillStyle = colour
-    context.fillRect(square.x, square.y, square.side, square.side)
+    context.fillRect(region.x, region.y, region.width, region.height)
     context.restore()
   }
 }

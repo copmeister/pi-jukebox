@@ -41,6 +41,14 @@ Every successful mutation returns the complete queue snapshot. `DELETE /queue` i
 - `/artwork/{id}` — cached embedded artwork
 - `/tracks/{id}/media` — root-confined audio with complete and single-range responses
 
+`DELETE /api/albums/{id}` permanently deletes one server-resolved album and
+requires `X-Pi-Jukebox-Action: delete-album`. The request accepts no filesystem
+path. It is rejected while scanning/ripping, for an unsafe catalogue path, or
+without the fixed header. A successful response reports removed/missing files,
+queue and rip-history cleanup, artwork cleanup and whether the current queue
+item was removed. The touchscreen flow pauses and detaches matching local audio
+before making this request.
+
 FastAPI also exposes interactive documentation at `/docs` while the backend is running.
 
 ## Spectrum visualiser stream
