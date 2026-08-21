@@ -9,10 +9,12 @@ export interface CanvasRendererFrame {
   levels: readonly number[]
   time: number
   deltaSeconds: number
+  sourceFrame: SpectrumFrame | null
 }
 
 export interface AudioReactiveRenderer {
   targetFps: number
+  paintToleranceMs?: number
   draw(frame: CanvasRendererFrame): void
   dispose?(): void
 }
@@ -23,6 +25,7 @@ export interface AudioReactiveCanvasProps {
   createRenderer: () => AudioReactiveRenderer
   label: string
   onFailure?: () => void
+  maximumPixelRatio?: number
 }
 
 export function AudioReactiveCanvas({
@@ -31,6 +34,7 @@ export function AudioReactiveCanvas({
   createRenderer,
   label,
   onFailure,
+  maximumPixelRatio,
 }: AudioReactiveCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const frameRef = useRef(frame)
@@ -56,7 +60,10 @@ export function AudioReactiveCanvas({
       const bounds = canvas.getBoundingClientRect()
       cssWidth = Math.max(1, Math.floor(bounds.width))
       cssHeight = Math.max(1, Math.floor(bounds.height))
-      const scale = Math.max(1, window.devicePixelRatio || 1)
+      const scale = Math.min(
+        maximumPixelRatio ?? Number.POSITIVE_INFINITY,
+        Math.max(1, window.devicePixelRatio || 1),
+      )
       canvas.width = Math.max(1, Math.round(cssWidth * scale))
       canvas.height = Math.max(1, Math.round(cssHeight * scale))
       canvas.getContext('2d')?.setTransform(scale, 0, 0, scale, 0, 0)
@@ -72,7 +79,8 @@ export function AudioReactiveCanvas({
       const interval = 1_000 / Math.max(1, renderer.targetFps)
       if (
         !failed &&
-        (previousPaint === 0 || time - previousPaint >= interval)
+        (previousPaint === 0 ||
+          time - previousPaint + (renderer.paintToleranceMs ?? 0) >= interval)
       ) {
         const current = frameRef.current
         if (current && current.sequence !== mappedSequence) {
@@ -92,6 +100,7 @@ export function AudioReactiveCanvas({
                 0.1,
                 Math.max(0, (time - previousTime) / 1_000),
               ),
+              sourceFrame: current,
             })
           } catch {
             failed = true
@@ -111,7 +120,7 @@ export function AudioReactiveCanvas({
       if (!observer) window.removeEventListener('resize', resize)
       renderer.dispose?.()
     }
-  }, [bandEdges, createRenderer, onFailure])
+  }, [bandEdges, createRenderer, maximumPixelRatio, onFailure])
 
   return (
     <canvas

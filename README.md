@@ -16,6 +16,8 @@ Version 0.6.8 polishes the seven-band Golden Ratio renderer, adds locally bundle
 
 Version 0.6.9 adds guarded album deletion, a six-band edge-filling Golden Ratio composition and the Frequency Waves fullscreen visualiser. The built-in Radio catalogue now uses one consistent station-mark treatment while retaining optional artwork support for future stations.
 
+Version 0.6.10 polishes Frequency Waves with anchored multi-component standing shapes, continuous time-based interpolation and a wider near-full-height response while retaining the existing compact FFT/SSE input.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows

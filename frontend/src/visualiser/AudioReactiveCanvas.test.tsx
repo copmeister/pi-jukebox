@@ -81,4 +81,30 @@ describe('AudioReactiveCanvas lifecycle', () => {
 
     expect(cancel).toHaveBeenCalledWith(42)
   })
+
+  it('caps Frequency Waves canvas oversampling on high-density displays', () => {
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 24),
+    )
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(2)
+    vi.spyOn(
+      HTMLCanvasElement.prototype,
+      'getBoundingClientRect',
+    ).mockReturnValue({ width: 100, height: 50 } as DOMRect)
+    const setTransform = vi.fn()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      setTransform,
+    } as unknown as CanvasRenderingContext2D)
+
+    const view = render(<FrequencyWavesCanvas frame={null} />)
+    const canvas = view.getByRole('img', {
+      name: 'Frequency Waves audio visualiser',
+    }) as HTMLCanvasElement
+
+    expect(canvas.width).toBe(125)
+    expect(canvas.height).toBe(63)
+    expect(setTransform).toHaveBeenCalledWith(1.25, 0, 0, 1.25, 0, 0)
+  })
 })
