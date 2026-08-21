@@ -8,10 +8,12 @@ Browser playback ─┐
 Bluetooth A2DP ───┘                  │
                                      └─> passive sink-monitor capture
                                             │
-                                  windowed FFT/log bands
-                                            │
-                                  small SSE level frames
-                                            │
+                             ┌──── windowed FFT/log bands ─── compact level SSE
+                             │
+                             └──── opt-in six-band reconstruction
+                                      │
+                                compact 0.5 s traces
+                                      │
                               active browser canvas renderer
 ```
 
@@ -50,6 +52,9 @@ the physical display.
 | `VISUALISER_RISE_RATE` | 48 | Maximum upward block steps per second. |
 | `VISUALISER_FALL_RATE` | 36 | Maximum downward block steps per second. |
 | `VISUALISER_STREAM_FPS` | 30 | Maximum backend level-frame publication rate. |
+| `VISUALISER_TRACE_WINDOW_SECONDS` | 0.5 | Rolling final-output history represented by Frequency Waves. |
+| `VISUALISER_TRACE_POINTS` | 192 | Compact signed display points per Frequency Waves band. Must be even. |
+| `VISUALISER_TRACE_FPS` | 30 | Target trace snapshot publication rate while Frequency Waves is active. |
 | `VISUALISER_RETRY_SECONDS` | 2 | Delay before retrying a missing monitor. |
 
 The browser renders with `requestAnimationFrame`, independently of stream
@@ -62,12 +67,13 @@ axis.
 
 ## Frontend renderers and controls
 
-All five modes reuse the same compact SSE frame. Spectrum uses the analyser
-bands directly and may interpolate additional square columns for the live
-viewport. Golden Ratio and Frequency Waves map the supplied frequency centres
-into the same six logarithmic regions. Particle Galaxy and Water each map them into six broad
+All five modes reuse the same demand-driven SSE connection and FFT level frame.
+Spectrum uses the analyser bands directly and may interpolate additional square
+columns for the live viewport. Golden Ratio maps the supplied frequency centres
+into the shared six logarithmic regions. Particle Galaxy and Water each map them into six broad
 musical regions using logarithmic overlap weighting, including the lowest and
-highest supplied frequencies. No renderer performs an FFT or receives PCM.
+highest supplied frequencies. Frequency Waves opts into an additional compact
+trace field on that connection; no renderer receives PCM or performs audio DSP.
 
 - **Spectrum** retains the 16-level square LED matrix and persisted Smooth or
   Classic colour palette.
@@ -85,14 +91,21 @@ highest supplied frequencies. No renderer performs an FFT or receives PCM.
   speed and decay, transparent overlap, clipped mirror-source reflections and
   a cheap animated surface texture. It deliberately does not recreate the
   reference prototype's numerical 160×90 wave field.
-- **Frequency Waves** draws six centred neon standing-wave traces in those same
-  frequency colours. Each line blends twelve fixed spatial components sampled
-  across its logical range from the compact analyser bands. Per-component and
-  overall energy interpolate continuously between SSE updates; no phase is
-  advanced, so shapes evolve in place rather than travelling sideways. Bass
-  remains broader and treble finer. Strong activity can span 86% of the canvas
-  height, while zero input makes every trace exactly flat at the centre line.
-  There is no autonomous or random motion and no raw PCM transport.
+- **Frequency Waves** draws six centred neon traces in those same frequency
+  colours. Only while this renderer is selected, the existing capture thread
+  retains 0.5 seconds of mono PCM. One pre-padded FFT and six precomputed smooth
+  band masks reconstruct the shared ranges: 45–100, 100–233, 233–543,
+  543–1,265, 1,265–2,947 and 2,947–16,000 Hz. Each reconstructed signal is
+  reduced to 192 signed points as time-ordered minimum/maximum pairs across 96
+  buckets. This peak-preserving reduction represents every part of the window
+  instead of point-sampling high frequencies or sending full-rate PCM. Each
+  snapshot is peak-normalised only for shape; the existing absolute FFT energy
+  still controls its displayed amplitude, so quiet audio is not forced to fill
+  the screen. Successive complete snapshots morph point-for-point in place over
+  50 ms on RAF; the canvas never copies or shifts existing pixels as a
+  scrolling strip. Strong activity can span 86%
+  of the canvas height, while a trace below the absolute silence gate is all
+  zero and therefore exactly flat at the centre line.
 
 A predominantly horizontal swipe rotates through enabled renderers and wraps.
 The opposite direction moves backwards. A predominantly vertical swipe toggles
@@ -105,9 +118,11 @@ disabled current selection by moving forward to the next enabled renderer.
 Only the active renderer is mounted. Each canvas owns one animation frame loop,
 resizes from its live bounds, catches drawing failures, and cancels its loop and
 listeners when switched or exited. Galaxy targets 45 fps and Water 40 fps;
-Frequency Waves targets 60 fps with preallocated component, geometry and shape
-buffers, a capped 1.25 canvas pixel ratio, one blurred glow pass and no
-unbounded history. Smooth stable Pi rendering takes priority over forcing 60 fps.
+Frequency Waves targets 60 fps with three preallocated trace buffers, cached x
+geometry, a capped 1.25 canvas pixel ratio and one blurred glow pass. Its backend
+trace analyser uses a fixed 24,000-sample history, a 32,768-point transform and
+reused FFT/reconstruction arrays only while requested. Smooth stable Pi
+rendering takes priority over forcing 60 fps.
 
 ## Physical Pi acceptance
 

@@ -123,8 +123,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.10',
-  latest_version: '0.6.10',
+  installed_version: '0.6.11',
+  latest_version: '0.6.11',
   checking: false,
   installing: false,
   update_available: false,
@@ -375,7 +375,7 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.10')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.11')).toBeInTheDocument()
   })
 
   it('shows clean disc headings for a genuinely multi-disc album', async () => {
@@ -575,12 +575,18 @@ describe('App catalogue interface', () => {
     expect(
       screen.getByRole('img', { name: 'Frequency Waves audio visualiser' }),
     ).toBeInTheDocument()
+    expect(FakeEventSource.instances.at(-1)?.url).toMatch(
+      /\/api\/visualiser\/stream\?frequency_waves=true$/,
+    )
     swipe(-100, 3, 7)
     expect(
       screen.getByRole('img', {
         name: 'Real-time audio spectrum, smooth colours',
       }),
     ).toBeInTheDocument()
+    expect(FakeEventSource.instances.at(-1)?.url).toMatch(
+      /\/api\/visualiser\/stream$/,
+    )
     swipe(4, -100, 8)
     expect(
       screen.getByRole('img', {
