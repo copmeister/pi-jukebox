@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { SpectrumFrame } from '../api/types'
 import {
+  FREQUENCY_WAVE_BASE_CYCLES,
   FREQUENCY_WAVE_COLOURS,
-  FREQUENCY_WAVE_CYCLES,
-  FREQUENCY_WAVE_PHASE_SPEEDS,
+  FREQUENCY_WAVE_COMPONENTS_PER_BAND,
+  FREQUENCY_WAVE_MAX_HEIGHT_FRACTION,
+  createFrequencyWaveSampleMap,
   createFrequencyWavesRenderer,
   frequencyWaveAmplitude,
+  frequencyWaveBasisValue,
   frequencyWaveY,
+  sampleFrequencyWaveComponents,
   updateFrequencyWaveLevels,
 } from './FrequencyWavesCanvas'
 import { createGoldenRegions, GOLDEN_RATIO_COLOURS } from './GoldenRatioCanvas'
@@ -225,36 +229,83 @@ describe('Frequency Waves renderer', () => {
     updateFrequencyWaveLevels(levels, new Array<number>(6).fill(0), 1 / 60)
     expect(levels).toEqual([0, 0, 0, 0, 0, 0])
     for (let band = 0; band < 6; band += 1) {
-      const amplitude = frequencyWaveAmplitude(levels[band], 720, band)
+      const amplitude = frequencyWaveAmplitude(levels[band], 720)
       expect(amplitude).toBe(0)
-      expect(
-        frequencyWaveY(360, amplitude, 0.37, FREQUENCY_WAVE_CYCLES[band], 1),
-      ).toBe(360)
+      expect(frequencyWaveY(360, amplitude, 0.9)).toBe(360)
     }
   })
 
-  it('uses broader/slower bass waves and tighter/faster treble waves', () => {
-    expect(FREQUENCY_WAVE_CYCLES).toHaveLength(6)
-    expect(FREQUENCY_WAVE_PHASE_SPEEDS).toHaveLength(6)
+  it('uses twelve deterministic anchored components per band with finer treble detail', () => {
+    expect(FREQUENCY_WAVE_COMPONENTS_PER_BAND).toBe(12)
+    expect(FREQUENCY_WAVE_BASE_CYCLES).toHaveLength(6)
     for (let band = 1; band < 6; band += 1) {
-      expect(FREQUENCY_WAVE_CYCLES[band]).toBeGreaterThan(
-        FREQUENCY_WAVE_CYCLES[band - 1],
-      )
-      expect(FREQUENCY_WAVE_PHASE_SPEEDS[band]).toBeGreaterThan(
-        FREQUENCY_WAVE_PHASE_SPEEDS[band - 1],
+      expect(FREQUENCY_WAVE_BASE_CYCLES[band]).toBeGreaterThan(
+        FREQUENCY_WAVE_BASE_CYCLES[band - 1],
       )
     }
+    const first = frequencyWaveBasisValue(3, 4, 0.37)
+    expect(frequencyWaveBasisValue(3, 4, 0.37)).toBe(first)
+    expect(frequencyWaveBasisValue(3, 5, 0.37)).not.toBe(first)
+    expect(frequencyWaveBasisValue(3, 4, 0)).toBeCloseTo(0)
+    expect(frequencyWaveBasisValue(3, 4, 1)).toBeCloseTo(0)
   })
 
-  it('uses fast attack, clean release and an explicit disposable renderer', () => {
-    const levels = new Array<number>(6).fill(0)
-    updateFrequencyWaveLevels(levels, new Array<number>(6).fill(1), 1 / 60)
-    expect(levels.every((level) => level > 0)).toBe(true)
+  it('interpolates continuously and consistently between sparse analyser updates', () => {
+    const smoothFrames = new Array<number>(6).fill(0)
+    const sparseFrames = new Array<number>(6).fill(0)
+    const targets = new Array<number>(6).fill(1)
+    let previous = 0
+    for (let frameIndex = 0; frameIndex < 60; frameIndex += 1) {
+      updateFrequencyWaveLevels(smoothFrames, targets, 1 / 60)
+      expect(smoothFrames[0]).toBeGreaterThan(previous)
+      previous = smoothFrames[0]
+    }
+    for (let update = 0; update < 10; update += 1)
+      updateFrequencyWaveLevels(sparseFrames, targets, 0.1)
+    expect(smoothFrames[0]).toBeCloseTo(sparseFrames[0], 5)
+
     for (let frameIndex = 0; frameIndex < 240; frameIndex += 1)
-      updateFrequencyWaveLevels(levels, new Array<number>(6).fill(0), 1 / 60)
-    expect(levels).toEqual([0, 0, 0, 0, 0, 0])
+      updateFrequencyWaveLevels(
+        smoothFrames,
+        new Array<number>(6).fill(0),
+        1 / 60,
+      )
+    expect(smoothFrames).toEqual([0, 0, 0, 0, 0, 0])
+  })
+
+  it('samples spectral character within each shared logical band', () => {
+    const map = createFrequencyWaveSampleMap(frame.band_centres_hz)
+    const components = new Float32Array(6 * FREQUENCY_WAVE_COMPONENTS_PER_BAND)
+    sampleFrequencyWaveComponents(frame, map, components)
+    expect(components).toHaveLength(72)
+    expect(new Set(components.slice(24, 36)).size).toBeGreaterThan(2)
+
+    const highOnly = {
+      ...frame,
+      levels: frame.levels.map((_, index) =>
+        index === frame.levels.length - 1 ? 16 : 0,
+      ),
+    }
+    sampleFrequencyWaveComponents(highOnly, map, components)
+    expect(components.slice(0, 60).every((level) => level === 0)).toBe(true)
+    expect(components.slice(60).some((level) => level > 0)).toBe(true)
+  })
+
+  it('uses a nonlinear near-full-height range without clipping the glow', () => {
+    const quiet = frequencyWaveAmplitude(0.05, 720)
+    const moderate = frequencyWaveAmplitude(0.5, 720)
+    const loud = frequencyWaveAmplitude(1, 720)
+    expect(quiet).toBeGreaterThan(0)
+    expect(moderate).toBeGreaterThan(quiet)
+    expect(loud).toBeGreaterThan(moderate)
+    expect((loud * 2) / 720).toBeCloseTo(FREQUENCY_WAVE_MAX_HEIGHT_FRACTION)
+    expect(loud).toBeLessThanOrEqual(360 - 14)
+  })
+
+  it('retains one disposable 60 fps renderer with cadence tolerance', () => {
     const renderer = createFrequencyWavesRenderer()
     expect(renderer.targetFps).toBe(60)
+    expect(renderer.paintToleranceMs).toBe(1)
     expect(renderer.dispose).toBeTypeOf('function')
     renderer.dispose?.()
   })
