@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { SpectrumFrame } from '../api/types'
 import {
-  FREQUENCY_WAVE_BASE_CYCLES,
   FREQUENCY_WAVE_COLOURS,
-  FREQUENCY_WAVE_COMPONENTS_PER_BAND,
   FREQUENCY_WAVE_MAX_HEIGHT_FRACTION,
-  createFrequencyWaveSampleMap,
+  FREQUENCY_WAVE_TRACE_MORPH_SECONDS,
+  copyFrequencyWaveTarget,
+  createFrequencyWaveBuffers,
   createFrequencyWavesRenderer,
   frequencyWaveAmplitude,
-  frequencyWaveBasisValue,
   frequencyWaveY,
-  sampleFrequencyWaveComponents,
+  morphFrequencyWaveTraces,
   updateFrequencyWaveLevels,
 } from './FrequencyWavesCanvas'
 import { createGoldenRegions, GOLDEN_RATIO_COLOURS } from './GoldenRatioCanvas'
@@ -235,21 +234,6 @@ describe('Frequency Waves renderer', () => {
     }
   })
 
-  it('uses twelve deterministic anchored components per band with finer treble detail', () => {
-    expect(FREQUENCY_WAVE_COMPONENTS_PER_BAND).toBe(12)
-    expect(FREQUENCY_WAVE_BASE_CYCLES).toHaveLength(6)
-    for (let band = 1; band < 6; band += 1) {
-      expect(FREQUENCY_WAVE_BASE_CYCLES[band]).toBeGreaterThan(
-        FREQUENCY_WAVE_BASE_CYCLES[band - 1],
-      )
-    }
-    const first = frequencyWaveBasisValue(3, 4, 0.37)
-    expect(frequencyWaveBasisValue(3, 4, 0.37)).toBe(first)
-    expect(frequencyWaveBasisValue(3, 5, 0.37)).not.toBe(first)
-    expect(frequencyWaveBasisValue(3, 4, 0)).toBeCloseTo(0)
-    expect(frequencyWaveBasisValue(3, 4, 1)).toBeCloseTo(0)
-  })
-
   it('interpolates continuously and consistently between sparse analyser updates', () => {
     const smoothFrames = new Array<number>(6).fill(0)
     const sparseFrames = new Array<number>(6).fill(0)
@@ -273,22 +257,76 @@ describe('Frequency Waves renderer', () => {
     expect(smoothFrames).toEqual([0, 0, 0, 0, 0, 0])
   })
 
-  it('samples spectral character within each shared logical band', () => {
-    const map = createFrequencyWaveSampleMap(frame.band_centres_hz)
-    const components = new Float32Array(6 * FREQUENCY_WAVE_COMPONENTS_PER_BAND)
-    sampleFrequencyWaveComponents(frame, map, components)
-    expect(components).toHaveLength(72)
-    expect(new Set(components.slice(24, 36)).size).toBeGreaterThan(2)
-
-    const highOnly = {
-      ...frame,
-      levels: frame.levels.map((_, index) =>
-        index === frame.levels.length - 1 ? 16 : 0,
-      ),
+  it('morphs complete temporal snapshots in place without shifting point positions', () => {
+    const buffers = createFrequencyWaveBuffers(4)
+    const first = {
+      band_edges_hz: [...FREQUENCY_WAVES_BAND_EDGES],
+      window_seconds: 0.5,
+      traces: Array.from({ length: 6 }, () => [127, 0, -127, 64]),
     }
-    sampleFrequencyWaveComponents(highOnly, map, components)
-    expect(components.slice(0, 60).every((level) => level === 0)).toBe(true)
-    expect(components.slice(60).some((level) => level > 0)).toBe(true)
+    copyFrequencyWaveTarget(first, buffers)
+    morphFrequencyWaveTraces(buffers, FREQUENCY_WAVE_TRACE_MORPH_SECONDS)
+    expect(Array.from(buffers.current.slice(0, 3))).toEqual([1, 0, -1])
+    expect(buffers.current[3]).toBeCloseTo(64 / 127)
+
+    const second = {
+      ...first,
+      traces: Array.from({ length: 6 }, () => [-127, 127, 0, -64]),
+    }
+    copyFrequencyWaveTarget(second, buffers)
+    morphFrequencyWaveTraces(buffers, FREQUENCY_WAVE_TRACE_MORPH_SECONDS / 2)
+    expect(buffers.current[0]).toBeCloseTo(0)
+    expect(buffers.current[1]).toBeCloseTo(0.5)
+    expect(buffers.current[2]).toBeCloseTo(-0.5)
+  })
+
+  it('replaces the complete snapshot at fixed point positions without shifting entries', () => {
+    const buffers = createFrequencyWaveBuffers(8)
+    const original = [127, 64, 0, -64, -127, -64, 0, 64]
+    copyFrequencyWaveTarget(
+      {
+        band_edges_hz: [...FREQUENCY_WAVES_BAND_EDGES],
+        window_seconds: 0.5,
+        traces: Array.from({ length: 6 }, () => original),
+      },
+      buffers,
+    )
+    morphFrequencyWaveTraces(buffers, FREQUENCY_WAVE_TRACE_MORPH_SECONDS)
+    const replacement = [-80, 20, 127, 45, -32, -127, 18, 92]
+    copyFrequencyWaveTarget(
+      {
+        band_edges_hz: [...FREQUENCY_WAVES_BAND_EDGES],
+        window_seconds: 0.5,
+        traces: Array.from({ length: 6 }, () => replacement),
+      },
+      buffers,
+    )
+    replacement.forEach((point, index) => {
+      expect(buffers.target[index]).toBeCloseTo(point / 127)
+    })
+  })
+
+  it('snaps a silent temporal band to an exactly flat trace', () => {
+    const buffers = createFrequencyWaveBuffers(4)
+    copyFrequencyWaveTarget(
+      {
+        band_edges_hz: [...FREQUENCY_WAVES_BAND_EDGES],
+        window_seconds: 0.5,
+        traces: Array.from({ length: 6 }, () => [127, -127, 64, -64]),
+      },
+      buffers,
+    )
+    morphFrequencyWaveTraces(buffers, FREQUENCY_WAVE_TRACE_MORPH_SECONDS)
+    copyFrequencyWaveTarget(
+      {
+        band_edges_hz: [...FREQUENCY_WAVES_BAND_EDGES],
+        window_seconds: 0.5,
+        traces: Array.from({ length: 6 }, () => [0, 0, 0, 0]),
+      },
+      buffers,
+    )
+    expect(Array.from(buffers.current)).toEqual(new Array(24).fill(0))
+    expect(Array.from(buffers.silentBands)).toEqual(new Array(6).fill(1))
   })
 
   it('uses a nonlinear near-full-height range without clipping the glow', () => {

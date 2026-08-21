@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- renderer utilities are tested */
 import { useCallback } from 'react'
-import type { SpectrumFrame } from '../api/types'
+import type { FrequencyWaveFrame, SpectrumFrame } from '../api/types'
 import {
   AudioReactiveCanvas,
   type AudioReactiveRenderer,
@@ -12,37 +12,32 @@ import {
 } from './bandMapping'
 
 export const FREQUENCY_WAVE_COLOURS = SHARED_SIX_BAND_COLOURS
-export const FREQUENCY_WAVE_COMPONENTS_PER_BAND = 12
-export const FREQUENCY_WAVE_BASE_CYCLES = [0.9, 1.25, 1.7, 2.3, 3, 3.8] as const
 export const FREQUENCY_WAVE_MAX_HEIGHT_FRACTION = 0.86
+export const FREQUENCY_WAVE_TRACE_MORPH_SECONDS = 0.05
 
 const BAND_COUNT = 6
-const COMPONENT_COUNT = BAND_COUNT * FREQUENCY_WAVE_COMPONENTS_PER_BAND
 const BAND_ATTACK_RATE = 14
 const BAND_RELEASE_RATE = 4.5
-const COMPONENT_ATTACK_RATE = 11
-const COMPONENT_RELEASE_RATE = 5
 const SILENCE_SNAP = 0.0005
-const SAMPLE_SPACING = 5
 const MAXIMUM_PIXEL_RATIO = 1.25
 const MIN_STROKE_MARGIN = 14
-const TAU = Math.PI * 2
+const TRACE_QUANTISATION = 127
 
 type MutableLevels = number[] | Float32Array
 
-export interface FrequencyWaveSampleMap {
-  sourceCentres: Float64Array
-  leftIndices: Int16Array
-  rightIndices: Int16Array
-  mixes: Float32Array
+interface FrequencyWaveBuffers {
+  pointCount: number
+  previous: Float32Array
+  target: Float32Array
+  current: Float32Array
+  silentBands: Uint8Array
+  progress: number
 }
 
 interface FrequencyWaveGeometry {
   width: number
-  sampleCount: number
+  pointCount: number
   xPositions: Float32Array
-  basis: Float32Array
-  shapes: Float32Array
 }
 
 export function FrequencyWavesCanvas({
@@ -96,110 +91,74 @@ export function frequencyWaveAmplitude(level: number, height: number): number {
 export function frequencyWaveY(
   centre: number,
   amplitude: number,
-  normalisedShape: number,
+  normalisedTrace: number,
 ): number {
-  if (amplitude === 0) return centre
-  return centre + amplitude * Math.min(1, Math.max(-1, normalisedShape))
+  if (amplitude === 0 || normalisedTrace === 0) return centre
+  return centre + amplitude * Math.min(1, Math.max(-1, normalisedTrace))
 }
 
-export function frequencyWaveBasisValue(
-  band: number,
-  component: number,
-  xRatio: number,
-): number {
-  const safeBand = Math.min(BAND_COUNT - 1, Math.max(0, band))
-  const componentRatio =
-    component / Math.max(1, FREQUENCY_WAVE_COMPONENTS_PER_BAND - 1)
-  const cycles =
-    FREQUENCY_WAVE_BASE_CYCLES[safeBand] * (0.76 + componentRatio * 0.52)
-  const fixedPhase = ((safeBand * 0.271 + component * 0.61803398875) % 1) * TAU
-  const envelope = Math.sin(Math.PI * Math.min(1, Math.max(0, xRatio)))
-  const primary = Math.sin(TAU * cycles * xRatio + fixedPhase)
-  const detail = Math.sin(
-    TAU * (cycles * 1.73 + 0.11 * safeBand) * xRatio - fixedPhase * 0.43,
-  )
-  return envelope * (primary + detail * 0.22)
-}
-
-export function createFrequencyWaveSampleMap(
-  sourceCentres: readonly number[],
-): FrequencyWaveSampleMap {
-  const storedCentres = Float64Array.from(sourceCentres)
-  const leftIndices = new Int16Array(COMPONENT_COUNT)
-  const rightIndices = new Int16Array(COMPONENT_COUNT)
-  const mixes = new Float32Array(COMPONENT_COUNT)
-  leftIndices.fill(-1)
-  rightIndices.fill(-1)
-
-  if (sourceCentres.length === 0) {
-    return { sourceCentres: storedCentres, leftIndices, rightIndices, mixes }
-  }
-
-  for (let band = 0; band < BAND_COUNT; band += 1) {
-    const low = FREQUENCY_WAVES_BAND_EDGES[band]
-    const high = FREQUENCY_WAVES_BAND_EDGES[band + 1]
-    for (
-      let component = 0;
-      component < FREQUENCY_WAVE_COMPONENTS_PER_BAND;
-      component += 1
-    ) {
-      const targetIndex = band * FREQUENCY_WAVE_COMPONENTS_PER_BAND + component
-      const ratio = (component + 0.5) / FREQUENCY_WAVE_COMPONENTS_PER_BAND
-      const targetFrequency = low * Math.pow(high / low, ratio)
-      let right = sourceCentres.findIndex(
-        (frequency) => frequency >= targetFrequency,
-      )
-      if (right < 0) right = sourceCentres.length - 1
-      const left = Math.max(0, right - 1)
-      if (right === 0 || left === right) {
-        leftIndices[targetIndex] = right
-        rightIndices[targetIndex] = right
-        continue
-      }
-      const logLeft = Math.log(sourceCentres[left])
-      const logRight = Math.log(sourceCentres[right])
-      leftIndices[targetIndex] = left
-      rightIndices[targetIndex] = right
-      mixes[targetIndex] = Math.min(
-        1,
-        Math.max(
-          0,
-          (Math.log(targetFrequency) - logLeft) / (logRight - logLeft),
-        ),
-      )
-    }
-  }
-  return { sourceCentres: storedCentres, leftIndices, rightIndices, mixes }
-}
-
-export function sampleFrequencyWaveComponents(
-  frame: SpectrumFrame,
-  map: FrequencyWaveSampleMap,
-  output: MutableLevels,
+export function copyFrequencyWaveTarget(
+  traceFrame: FrequencyWaveFrame,
+  buffers: FrequencyWaveBuffers,
 ): void {
-  const normaliser = Math.max(1, frame.max_levels)
-  for (let index = 0; index < output.length; index += 1) {
-    const left = map.leftIndices[index]
-    const right = map.rightIndices[index]
-    if (left < 0 || right < 0) {
-      output[index] = 0
-      continue
+  buffers.previous.set(buffers.current)
+  buffers.progress = 0
+  for (let band = 0; band < BAND_COUNT; band += 1) {
+    const trace = traceFrame.traces[band]
+    const offset = band * buffers.pointCount
+    let silent = true
+    for (let point = 0; point < buffers.pointCount; point += 1) {
+      const value = Math.min(
+        TRACE_QUANTISATION,
+        Math.max(-TRACE_QUANTISATION, trace[point] ?? 0),
+      )
+      buffers.target[offset + point] = value / TRACE_QUANTISATION
+      if (value !== 0) silent = false
     }
-    const mix = map.mixes[index]
-    const leftLevel = frame.levels[left] ?? 0
-    const rightLevel = frame.levels[right] ?? leftLevel
-    output[index] = Math.min(
-      1,
-      Math.max(0, (leftLevel + (rightLevel - leftLevel) * mix) / normaliser),
-    )
+    buffers.silentBands[band] = silent ? 1 : 0
+    if (silent) {
+      buffers.previous.fill(0, offset, offset + buffers.pointCount)
+      buffers.current.fill(0, offset, offset + buffers.pointCount)
+    }
+  }
+}
+
+export function morphFrequencyWaveTraces(
+  buffers: FrequencyWaveBuffers,
+  deltaSeconds: number,
+): void {
+  buffers.progress = Math.min(
+    1,
+    buffers.progress +
+      Math.max(0, deltaSeconds) / FREQUENCY_WAVE_TRACE_MORPH_SECONDS,
+  )
+  const progress = buffers.progress
+  const eased = progress * progress * (3 - 2 * progress)
+  for (let index = 0; index < buffers.current.length; index += 1) {
+    buffers.current[index] =
+      buffers.previous[index] +
+      (buffers.target[index] - buffers.previous[index]) * eased
+  }
+}
+
+export function createFrequencyWaveBuffers(
+  pointCount: number,
+): FrequencyWaveBuffers {
+  const safePointCount = Math.max(2, Math.floor(pointCount))
+  const valueCount = BAND_COUNT * safePointCount
+  return {
+    pointCount: safePointCount,
+    previous: new Float32Array(valueCount),
+    target: new Float32Array(valueCount),
+    current: new Float32Array(valueCount),
+    silentBands: new Uint8Array(BAND_COUNT).fill(1),
+    progress: 1,
   }
 }
 
 export function createFrequencyWavesRenderer(): AudioReactiveRenderer {
   const bandLevels = new Float32Array(BAND_COUNT)
-  const componentLevels = new Float32Array(COMPONENT_COUNT)
-  const componentTargets = new Float32Array(COMPONENT_COUNT)
-  let sampleMap: FrequencyWaveSampleMap | null = null
+  let buffers: FrequencyWaveBuffers | null = null
   let geometry: FrequencyWaveGeometry | null = null
   let sourceSequence = Number.NaN
 
@@ -210,122 +169,80 @@ export function createFrequencyWavesRenderer(): AudioReactiveRenderer {
       const source = frame.sourceFrame
       if (source && source.sequence !== sourceSequence) {
         sourceSequence = source.sequence
-        if (!sampleMapMatches(sampleMap, source.band_centres_hz))
-          sampleMap = createFrequencyWaveSampleMap(source.band_centres_hz)
-        sampleFrequencyWaveComponents(source, sampleMap, componentTargets)
+        const traceFrame = source.frequency_waves
+        if (traceFrame) {
+          const pointCount = traceFrame.traces[0]?.length ?? 0
+          if (!buffers || buffers.pointCount !== pointCount) {
+            buffers = createFrequencyWaveBuffers(pointCount)
+            geometry = null
+          }
+          copyFrequencyWaveTarget(traceFrame, buffers)
+        } else if (buffers) {
+          buffers.previous.fill(0)
+          buffers.target.fill(0)
+          buffers.current.fill(0)
+          buffers.silentBands.fill(1)
+          buffers.progress = 1
+        }
       }
       updateFrequencyWaveLevels(bandLevels, frame.levels, frame.deltaSeconds)
-      updateFrequencyWaveLevels(
-        componentLevels,
-        componentTargets,
-        frame.deltaSeconds,
-        COMPONENT_ATTACK_RATE,
-        COMPONENT_RELEASE_RATE,
-      )
-      if (!geometry || geometry.width !== frame.width)
-        geometry = createFrequencyWaveGeometry(frame.width)
-      drawFrequencyWaves(frame, bandLevels, componentLevels, geometry)
+      if (buffers) {
+        morphFrequencyWaveTraces(buffers, frame.deltaSeconds)
+        if (
+          !geometry ||
+          geometry.width !== frame.width ||
+          geometry.pointCount !== buffers.pointCount
+        ) {
+          geometry = createFrequencyWaveGeometry(
+            frame.width,
+            buffers.pointCount,
+          )
+        }
+      }
+      drawFrequencyWaves(frame, bandLevels, buffers, geometry)
     },
     dispose() {
       bandLevels.fill(0)
-      componentLevels.fill(0)
-      componentTargets.fill(0)
-      sampleMap = null
+      buffers = null
       geometry = null
     },
   }
 }
 
-function sampleMapMatches(
-  map: FrequencyWaveSampleMap | null,
-  sourceCentres: readonly number[],
-): map is FrequencyWaveSampleMap {
-  if (!map || map.sourceCentres.length !== sourceCentres.length) return false
-  for (let index = 0; index < sourceCentres.length; index += 1) {
-    if (map.sourceCentres[index] !== sourceCentres[index]) return false
+function createFrequencyWaveGeometry(
+  width: number,
+  pointCount: number,
+): FrequencyWaveGeometry {
+  const xPositions = new Float32Array(pointCount)
+  for (let point = 0; point < pointCount; point += 1) {
+    xPositions[point] = (width * point) / Math.max(1, pointCount - 1)
   }
-  return true
-}
-
-function createFrequencyWaveGeometry(width: number): FrequencyWaveGeometry {
-  const sampleCount = Math.max(2, Math.ceil(width / SAMPLE_SPACING) + 1)
-  const xPositions = new Float32Array(sampleCount)
-  const basis = new Float32Array(COMPONENT_COUNT * sampleCount)
-  for (let sample = 0; sample < sampleCount; sample += 1) {
-    const xRatio = sample / (sampleCount - 1)
-    xPositions[sample] = width * xRatio
-    for (let band = 0; band < BAND_COUNT; band += 1) {
-      for (
-        let component = 0;
-        component < FREQUENCY_WAVE_COMPONENTS_PER_BAND;
-        component += 1
-      ) {
-        const componentIndex =
-          band * FREQUENCY_WAVE_COMPONENTS_PER_BAND + component
-        basis[componentIndex * sampleCount + sample] = frequencyWaveBasisValue(
-          band,
-          component,
-          xRatio,
-        )
-      }
-    }
-  }
-  return {
-    width,
-    sampleCount,
-    xPositions,
-    basis,
-    shapes: new Float32Array(BAND_COUNT * sampleCount),
-  }
+  return { width, pointCount, xPositions }
 }
 
 function drawFrequencyWaves(
   { context, width, height }: CanvasRendererFrame,
   bandLevels: Float32Array,
-  componentLevels: Float32Array,
-  geometry: FrequencyWaveGeometry,
+  buffers: FrequencyWaveBuffers | null,
+  geometry: FrequencyWaveGeometry | null,
 ) {
   context.clearRect(0, 0, width, height)
   context.fillStyle = '#010208'
   context.fillRect(0, 0, width, height)
   const centre = height / 2
-  const { basis, sampleCount, shapes, xPositions } = geometry
 
   context.globalCompositeOperation = 'lighter'
   context.lineCap = 'round'
   context.lineJoin = 'round'
   for (let band = 0; band < BAND_COUNT; band += 1) {
-    const componentOffset = band * FREQUENCY_WAVE_COMPONENTS_PER_BAND
-    const shapeOffset = band * sampleCount
-    let peak = 0
-    for (let sample = 0; sample < sampleCount; sample += 1) {
-      let value = 0
-      for (
-        let component = 0;
-        component < FREQUENCY_WAVE_COMPONENTS_PER_BAND;
-        component += 1
-      ) {
-        const componentIndex = componentOffset + component
-        value +=
-          componentLevels[componentIndex] *
-          basis[componentIndex * sampleCount + sample]
-      }
-      shapes[shapeOffset + sample] = value
-      peak = Math.max(peak, Math.abs(value))
-    }
-
     const colour = FREQUENCY_WAVE_COLOURS[band]
     const amplitude = frequencyWaveAmplitude(bandLevels[band], height)
-    const normaliser = peak > 0.000001 ? peak : 1
     context.beginPath()
-    for (let sample = 0; sample < sampleCount; sample += 1) {
-      const y = frequencyWaveY(
-        centre,
-        amplitude,
-        shapes[shapeOffset + sample] / normaliser,
-      )
-      if (sample === 0) context.moveTo(xPositions[sample], y)
-      else context.lineTo(xPositions[sample], y)
+    if (!buffers || !geometry) {
+      context.moveTo(0, centre)
+      context.lineTo(width, centre)
+    } else {
+      tracePath(context, centre, amplitude, band, buffers, geometry)
     }
 
     context.strokeStyle = colour
@@ -342,4 +259,33 @@ function drawFrequencyWaves(
   context.globalAlpha = 1
   context.shadowBlur = 0
   context.globalCompositeOperation = 'source-over'
+}
+
+function tracePath(
+  context: CanvasRenderingContext2D,
+  centre: number,
+  amplitude: number,
+  band: number,
+  buffers: FrequencyWaveBuffers,
+  geometry: FrequencyWaveGeometry,
+) {
+  const offset = band * buffers.pointCount
+  const firstY = frequencyWaveY(centre, amplitude, buffers.current[offset])
+  context.moveTo(geometry.xPositions[0], firstY)
+  for (let point = 1; point < buffers.pointCount - 1; point += 1) {
+    const x = geometry.xPositions[point]
+    const y = frequencyWaveY(centre, amplitude, buffers.current[offset + point])
+    const nextX = geometry.xPositions[point + 1]
+    const nextY = frequencyWaveY(
+      centre,
+      amplitude,
+      buffers.current[offset + point + 1],
+    )
+    context.quadraticCurveTo(x, y, (x + nextX) / 2, (y + nextY) / 2)
+  }
+  const last = buffers.pointCount - 1
+  context.lineTo(
+    geometry.xPositions[last],
+    frequencyWaveY(centre, amplitude, buffers.current[offset + last]),
+  )
 }

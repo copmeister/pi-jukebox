@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     visualiser_rise_rate: float = 48.0
     visualiser_fall_rate: float = 36.0
     visualiser_stream_fps: float = 30.0
+    visualiser_trace_window_seconds: float = 0.5
+    visualiser_trace_points: int = 192
+    visualiser_trace_fps: float = 30.0
     visualiser_retry_seconds: float = 2.0
     visualiser_wpctl_executable: str = "wpctl"
     visualiser_pw_record_executable: str = "pw-record"

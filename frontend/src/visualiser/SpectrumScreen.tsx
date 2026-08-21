@@ -38,12 +38,14 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
   const [visualiserPreferences, setVisualiserPreferences] = useState(
     loadVisualiserPreferences,
   )
+  const includeFrequencyWaves =
+    visualiserPreferences.current === 'frequency-waves'
   const pointerStart = useRef<{ id: number; x: number; y: number } | null>(null)
 
   useEffect(() => {
     let source: EventSource
     try {
-      source = new EventSource(visualiserStreamUrl())
+      source = new EventSource(visualiserStreamUrl(includeFrequencyWaves))
     } catch {
       const timer = window.setTimeout(() => {
         setConnectionMessage(
@@ -70,7 +72,7 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
       )
     }
     return () => source.close()
-  }, [])
+  }, [includeFrequencyWaves])
 
   useEffect(() => {
     saveSpectrumColourScheme(colourScheme)
