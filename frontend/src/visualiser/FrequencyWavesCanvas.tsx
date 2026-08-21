@@ -12,10 +12,14 @@ import {
 } from './bandMapping'
 
 export const FREQUENCY_WAVE_COLOURS = SHARED_SIX_BAND_COLOURS
-export const FREQUENCY_WAVE_MODES = [4, 5, 6, 7, 8, 10] as const
-export const FREQUENCY_WAVE_COMPONENT_OFFSETS = [0, 2, 4] as const
+export const FREQUENCY_WAVE_MODES = [4, 6.4, 9.3, 12.9, 17.2, 22.4] as const
+export const FREQUENCY_WAVE_COMPONENT_OFFSETS = [0, 0.45, 0.9] as const
+export const FREQUENCY_WAVE_PHASE_OFFSETS = [
+  0.3, 1.23, 0.22, 2.91, 0.69, 1.47,
+] as const
 export const FREQUENCY_WAVE_SAMPLE_RATIOS = [0.25, 0.5, 0.75] as const
-export const FREQUENCY_WAVE_MAX_HEIGHT_FRACTION = 0.86
+export const FREQUENCY_WAVE_MAX_HEIGHT_FRACTION = 0.94
+export const FREQUENCY_WAVE_INPUT_GAIN = 3
 export const FREQUENCY_WAVE_DATA_INTERVAL_SECONDS = 1 / 30
 export const FREQUENCY_WAVE_EDGE_ENVELOPE = 0.3
 
@@ -103,7 +107,13 @@ export function updateFrequencyWaveComponents(
 export function frequencyWaveAmplitude(level: number, height: number): number {
   if (level <= 0 || height <= 0) return 0
   const quietGate = 0.012
-  const active = Math.min(1, Math.max(0, (level - quietGate) / (1 - quietGate)))
+  const active = Math.min(
+    1,
+    Math.max(
+      0,
+      ((level - quietGate) / (1 - quietGate)) * FREQUENCY_WAVE_INPUT_GAIN,
+    ),
+  )
   if (active <= 0) return 0
   const drive = 2.2
   const response = (1 - Math.exp(-drive * active)) / (1 - Math.exp(-drive))
@@ -133,7 +143,10 @@ export function frequencyWaveBasisValue(
   const mode =
     FREQUENCY_WAVE_MODES[safeBand] +
     FREQUENCY_WAVE_COMPONENT_OFFSETS[safeComponent]
-  return Math.sin(Math.PI * mode * Math.min(1, Math.max(0, xRatio)))
+  return Math.sin(
+    Math.PI * mode * Math.min(1, Math.max(0, xRatio)) +
+      FREQUENCY_WAVE_PHASE_OFFSETS[safeBand],
+  )
 }
 
 export function frequencyWaveDirection(band: number): -1 | 1 {

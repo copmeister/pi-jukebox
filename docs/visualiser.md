@@ -91,18 +91,21 @@ no renderer receives PCM or performs audio DSP.
   543–1,265, 1,265–2,947 and 2,947–16,000 Hz. Three equal-status components per
   line sample the 25%, 50% and 75% logarithmic positions inside that range,
   interpolating between the existing analyser centres rather than snapping to
-  a nearest bin. Base spatial modes use 4, 5, 6, 7, 8 and 10 fixed half-wave
-  lobes respectively, with two same-parity components at +2 and +4 lobes. The
-  broadest line therefore shows two complete cycles and treble remains finer.
-  Entire lines alternate initial direction, while every component retains fixed
-  centre-line nodes at both edges. The existing level stream supplies fresh
+  a nearest bin. Base spatial modes use 4, 6.4, 9.3, 12.9, 17.2 and 22.4
+  half-wave lobes respectively, or approximately 2 through 11.2 complete cycles
+  from bass to treble. Two nearby components at +0.45 and +0.9 lobes reshape
+  each line without overlapping the neighbouring colour's wavelength range.
+  Entire lines alternate initial direction and use small fixed phase offsets,
+  giving every colour independent left- and right-edge positions without random
+  motion or a forced shared end node. The level stream supplies fresh
   targets at up to 30 Hz; the Canvas uses approximately 13 ms attack, 25 ms
   release and 17 ms component interpolation on its 60 FPS animation loop. A
   lightweight symmetric spatial envelope gently reduces the outer lobes to 30%
   of their unweighted size while retaining full scale at the screen centre.
   Absolute six-band activity still controls height, so lower energy and musical
-  fade-outs naturally collapse the waves to an exactly flat centre line. Strong
-  activity can span 86% of the canvas height. There is no rolling PCM window,
+  fade-outs naturally collapse the waves to an exactly flat centre line. A 3x
+  display-only input gain lets strong activity span up to 94% of the canvas
+  height without normalising quiet passages. There is no rolling PCM window,
   inverse FFT reconstruction or additional trace payload.
 
 A predominantly horizontal swipe rotates through enabled renderers and wraps.
