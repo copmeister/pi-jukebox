@@ -2,18 +2,21 @@ import { describe, expect, it } from 'vitest'
 import type { SpectrumFrame } from '../api/types'
 import {
   FREQUENCY_WAVE_COLOURS,
+  FREQUENCY_WAVE_COMPONENT_OFFSETS,
   FREQUENCY_WAVE_DATA_INTERVAL_SECONDS,
   FREQUENCY_WAVE_MAX_HEIGHT_FRACTION,
   FREQUENCY_WAVE_MODES,
+  FREQUENCY_WAVE_SAMPLE_RATIOS,
   createFrequencyWaveSampleMap,
   createFrequencyWavesRenderer,
   frequencyWaveAmplitude,
   frequencyWaveBasisValue,
+  frequencyWaveDirection,
   frequencyWaveShapeValue,
   frequencyWaveY,
-  sampleFrequencyWaveShape,
+  sampleFrequencyWaveComponents,
+  updateFrequencyWaveComponents,
   updateFrequencyWaveLevels,
-  updateFrequencyWaveShape,
 } from './FrequencyWavesCanvas'
 import { createGoldenRegions, GOLDEN_RATIO_COLOURS } from './GoldenRatioCanvas'
 import {
@@ -263,25 +266,51 @@ describe('Frequency Waves renderer', () => {
   it('responds within a short musical transition without a half-second tail', () => {
     const levels = new Float32Array(6)
     updateFrequencyWaveLevels(levels, new Float32Array(6).fill(1), 0.05)
-    expect(levels[0]).toBeGreaterThan(0.6)
+    expect(levels[0]).toBeGreaterThan(0.75)
     const peak = levels[0]
     updateFrequencyWaveLevels(levels, new Float32Array(6), 0.1)
-    expect(levels[0]).toBeLessThan(peak * 0.4)
+    expect(levels[0]).toBeLessThan(peak * 0.25)
   })
 
-  it('uses fixed standing-wave nodes with progressively finer modes', () => {
-    expect(FREQUENCY_WAVE_MODES).toEqual([2, 3, 4, 5, 6, 8])
+  it('uses two or more complete cycles with fixed standing-wave endpoints', () => {
+    expect(FREQUENCY_WAVE_MODES).toEqual([4, 5, 6, 7, 8, 10])
+    expect(FREQUENCY_WAVE_COMPONENT_OFFSETS).toEqual([0, 2, 4])
+    expect(FREQUENCY_WAVE_SAMPLE_RATIOS).toEqual([0.25, 0.5, 0.75])
     for (let band = 0; band < 6; band += 1) {
-      for (let detail = 0; detail < 3; detail += 1) {
-        expect(frequencyWaveBasisValue(band, detail, 0)).toBe(0)
-        expect(frequencyWaveBasisValue(band, detail, 1)).toBeCloseTo(0, 10)
+      for (let component = 0; component < 3; component += 1) {
+        expect(frequencyWaveBasisValue(band, component, 0)).toBe(0)
+        expect(frequencyWaveBasisValue(band, component, 1)).toBeCloseTo(0, 10)
       }
-      expect(frequencyWaveShapeValue(band, 0, 1, -1)).toBe(0)
-      expect(frequencyWaveShapeValue(band, 1, 1, -1)).toBeCloseTo(0, 10)
+      expect(frequencyWaveShapeValue(band, 0, [1, 1, 1])).toBeCloseTo(0, 10)
+      expect(frequencyWaveShapeValue(band, 1, [1, 1, 1])).toBeCloseTo(0, 10)
+    }
+    expect(frequencyWaveBasisValue(0, 0, 0.125)).toBeCloseTo(1, 10)
+    expect(frequencyWaveBasisValue(0, 0, 0.375)).toBeCloseTo(-1, 10)
+  })
+
+  it('samples three logarithmic quartiles per band using interpolation', () => {
+    const map = createFrequencyWaveSampleMap(frame.band_centres_hz)
+    expect(map.targetFrequencies).toHaveLength(18)
+    expect(map.targetFrequencies[0]).toBeCloseTo(
+      45 * Math.pow(100 / 45, 0.25),
+      8,
+    )
+    expect(map.targetFrequencies[1]).toBeCloseTo(Math.sqrt(45 * 100), 8)
+    expect(map.targetFrequencies[2]).toBeCloseTo(
+      45 * Math.pow(100 / 45, 0.75),
+      8,
+    )
+    for (let index = 0; index < map.targetFrequencies.length; index += 1) {
+      const left = map.sourceCentres[map.leftIndices[index]]
+      const right = map.sourceCentres[map.rightIndices[index]]
+      expect(left).toBeLessThanOrEqual(map.targetFrequencies[index])
+      expect(right).toBeGreaterThanOrEqual(map.targetFrequencies[index])
+      expect(map.mixes[index]).toBeGreaterThanOrEqual(0)
+      expect(map.mixes[index]).toBeLessThanOrEqual(1)
     }
   })
 
-  it('derives bounded shape changes from spectral balance without trace snapshots', () => {
+  it('derives eighteen bounded component energies without trace snapshots', () => {
     const map = createFrequencyWaveSampleMap(frame.band_centres_hz)
     const bassWeighted = {
       ...frame,
@@ -291,41 +320,53 @@ describe('Frequency Waves renderer', () => {
       ...frame,
       levels: frame.levels.map((_, index) => Math.min(16, index)),
     }
-    const bassShape = new Float32Array(12)
-    const trebleShape = new Float32Array(12)
-    sampleFrequencyWaveShape(bassWeighted, map, bassShape)
-    sampleFrequencyWaveShape(trebleWeighted, map, trebleShape)
+    const bassComponents = new Float32Array(18)
+    const trebleComponents = new Float32Array(18)
+    sampleFrequencyWaveComponents(bassWeighted, map, bassComponents)
+    sampleFrequencyWaveComponents(trebleWeighted, map, trebleComponents)
 
-    expect(Array.from(bassShape).every((value) => Math.abs(value) <= 1)).toBe(
-      true,
-    )
-    expect(Array.from(trebleShape).every((value) => Math.abs(value) <= 1)).toBe(
-      true,
-    )
-    expect(Array.from(bassShape)).not.toEqual(Array.from(trebleShape))
+    expect(
+      Array.from(bassComponents).every((value) => value >= 0 && value <= 1),
+    ).toBe(true)
+    expect(
+      Array.from(trebleComponents).every((value) => value >= 0 && value <= 1),
+    ).toBe(true)
+    expect(Array.from(bassComponents)).not.toEqual(Array.from(trebleComponents))
     expect(FREQUENCY_WAVE_DATA_INTERVAL_SECONDS).toBeCloseTo(1 / 30)
   })
 
-  it('smoothly reforms signed detail while keeping the dominant wave stable', () => {
-    const coefficients = new Float32Array(12)
-    const targets = new Float32Array(12)
+  it('smoothly reforms three equal-status positive components in about 50 ms', () => {
+    const components = new Float32Array(18)
+    const targets = new Float32Array(18)
     targets[0] = 1
-    targets[1] = -1
-    updateFrequencyWaveShape(coefficients, targets, 1 / 60)
-    expect(coefficients[0]).toBeGreaterThan(0)
-    expect(coefficients[0]).toBeLessThan(1)
-    expect(coefficients[1]).toBeLessThan(0)
-    expect(coefficients[1]).toBeGreaterThan(-1)
+    targets[1] = 0.5
+    targets[2] = 0.25
+    updateFrequencyWaveComponents(components, targets, 0.05)
+    expect(components[0]).toBeGreaterThan(0.6)
+    expect(components[0]).toBeLessThan(1)
+    expect(components[1]).toBeCloseTo(components[0] / 2, 5)
+    expect(components[2]).toBeCloseTo(components[0] / 4, 5)
 
-    const initialShape = frequencyWaveShapeValue(0, 0.3, 0, 0)
-    const reformedShape = frequencyWaveShapeValue(
-      0,
-      0.3,
-      coefficients[0],
-      coefficients[1],
-    )
-    expect(reformedShape).not.toBe(initialShape)
-    expect(Math.abs(reformedShape)).toBeLessThanOrEqual(1)
+    const firstOnly = frequencyWaveShapeValue(0, 0.2, [1, 0, 0])
+    const secondOnly = frequencyWaveShapeValue(0, 0.2, [0, 1, 0])
+    const thirdOnly = frequencyWaveShapeValue(0, 0.2, [0, 0, 1])
+    expect(new Set([firstOnly, secondOnly, thirdOnly]).size).toBe(3)
+    expect(
+      Math.abs(frequencyWaveShapeValue(0, 0.2, [1, 1, 1])),
+    ).toBeLessThanOrEqual(1)
+  })
+
+  it('alternates initial direction while every wave rejoins at the right edge', () => {
+    expect(frequencyWaveDirection(0)).toBe(-1)
+    expect(frequencyWaveDirection(1)).toBe(1)
+    expect(frequencyWaveDirection(2)).toBe(-1)
+    expect(frequencyWaveShapeValue(0, 0.01, [1, 1, 1])).toBeLessThan(0)
+    expect(frequencyWaveShapeValue(1, 0.01, [1, 1, 1])).toBeGreaterThan(0)
+    for (let band = 0; band < 6; band += 1)
+      expect(frequencyWaveShapeValue(band, 1, [1, 0.5, 0.25])).toBeCloseTo(
+        0,
+        10,
+      )
   })
 
   it('uses a nonlinear near-full-height range without clipping the glow', () => {
