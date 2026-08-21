@@ -26,6 +26,8 @@ Version 0.6.13 makes Frequency Waves more lively and symmetrical with three inte
 
 Version 0.6.14 balances Frequency Waves toward the centre of the screen and makes its frontend interpolation follow analyser changes almost immediately, without changing audio analysis or transport.
 
+Version 0.6.15 gives Frequency Waves a clearer but restrained bass-to-treble wavelength progression, independent positions at both edges and a wider strong-passage display range while retaining absolute quiet response and the existing analyser transport.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows

@@ -5,13 +5,14 @@ import {
   FREQUENCY_WAVE_COMPONENT_OFFSETS,
   FREQUENCY_WAVE_DATA_INTERVAL_SECONDS,
   FREQUENCY_WAVE_EDGE_ENVELOPE,
+  FREQUENCY_WAVE_INPUT_GAIN,
   FREQUENCY_WAVE_MAX_HEIGHT_FRACTION,
   FREQUENCY_WAVE_MODES,
+  FREQUENCY_WAVE_PHASE_OFFSETS,
   FREQUENCY_WAVE_SAMPLE_RATIOS,
   createFrequencyWaveSampleMap,
   createFrequencyWavesRenderer,
   frequencyWaveAmplitude,
-  frequencyWaveBasisValue,
   frequencyWaveDirection,
   frequencyWaveShapeValue,
   frequencyWaveSpatialEnvelope,
@@ -275,20 +276,37 @@ describe('Frequency Waves renderer', () => {
     expect(levels[0]).toBeLessThan(peak * 0.14)
   })
 
-  it('uses two or more complete cycles with fixed standing-wave endpoints', () => {
-    expect(FREQUENCY_WAVE_MODES).toEqual([4, 5, 6, 7, 8, 10])
-    expect(FREQUENCY_WAVE_COMPONENT_OFFSETS).toEqual([0, 2, 4])
+  it('uses clearly separated bass-to-treble wavelengths with two free edges', () => {
+    expect(FREQUENCY_WAVE_MODES).toEqual([4, 6.4, 9.3, 12.9, 17.2, 22.4])
+    expect(FREQUENCY_WAVE_COMPONENT_OFFSETS).toEqual([0, 0.45, 0.9])
+    expect(FREQUENCY_WAVE_PHASE_OFFSETS).toEqual([
+      0.3, 1.23, 0.22, 2.91, 0.69, 1.47,
+    ])
     expect(FREQUENCY_WAVE_SAMPLE_RATIOS).toEqual([0.25, 0.5, 0.75])
     for (let band = 0; band < 6; band += 1) {
-      for (let component = 0; component < 3; component += 1) {
-        expect(frequencyWaveBasisValue(band, component, 0)).toBe(0)
-        expect(frequencyWaveBasisValue(band, component, 1)).toBeCloseTo(0, 10)
-      }
-      expect(frequencyWaveShapeValue(band, 0, [1, 1, 1])).toBeCloseTo(0, 10)
-      expect(frequencyWaveShapeValue(band, 1, [1, 1, 1])).toBeCloseTo(0, 10)
+      if (band > 0)
+        expect(FREQUENCY_WAVE_MODES[band]).toBeGreaterThan(
+          FREQUENCY_WAVE_MODES[band - 1] + 2,
+        )
+      if (band < 5)
+        expect(FREQUENCY_WAVE_MODES[band] + 0.9).toBeLessThan(
+          FREQUENCY_WAVE_MODES[band + 1],
+        )
     }
-    expect(frequencyWaveBasisValue(0, 0, 0.125)).toBeCloseTo(1, 10)
-    expect(frequencyWaveBasisValue(0, 0, 0.375)).toBeCloseTo(-1, 10)
+    const leftEdgeValues = Array.from({ length: 6 }, (_, band) =>
+      frequencyWaveShapeValue(band, 0, [1, 1, 1]),
+    )
+    const rightEdgeValues = Array.from({ length: 6 }, (_, band) =>
+      frequencyWaveShapeValue(band, 1, [1, 1, 1]),
+    )
+    expect(leftEdgeValues.every((value) => Math.abs(value) > 0.05)).toBe(true)
+    expect(
+      new Set(leftEdgeValues.map((value) => value.toFixed(2))).size,
+    ).toBeGreaterThanOrEqual(4)
+    expect(rightEdgeValues.every((value) => Math.abs(value) > 0.05)).toBe(true)
+    expect(
+      new Set(rightEdgeValues.map((value) => value.toFixed(2))).size,
+    ).toBeGreaterThanOrEqual(4)
   })
 
   it('samples three logarithmic quartiles per band using interpolation', () => {
@@ -359,17 +377,24 @@ describe('Frequency Waves renderer', () => {
     ).toBeLessThanOrEqual(1)
   })
 
-  it('alternates initial direction while every wave rejoins at the right edge', () => {
+  it('alternates initial direction while retaining independent edge positions', () => {
     expect(frequencyWaveDirection(0)).toBe(-1)
     expect(frequencyWaveDirection(1)).toBe(1)
     expect(frequencyWaveDirection(2)).toBe(-1)
     expect(frequencyWaveShapeValue(0, 0.01, [1, 1, 1])).toBeLessThan(0)
     expect(frequencyWaveShapeValue(1, 0.01, [1, 1, 1])).toBeGreaterThan(0)
-    for (let band = 0; band < 6; band += 1)
-      expect(frequencyWaveShapeValue(band, 1, [1, 0.5, 0.25])).toBeCloseTo(
-        0,
-        10,
-      )
+    const leftEdges = Array.from({ length: 6 }, (_, band) =>
+      frequencyWaveShapeValue(band, 0, [1, 0.5, 0.25]),
+    )
+    const rightEdges = Array.from({ length: 6 }, (_, band) =>
+      frequencyWaveShapeValue(band, 1, [1, 0.5, 0.25]),
+    )
+    expect(
+      new Set(leftEdges.map((value) => value.toFixed(2))).size,
+    ).toBeGreaterThanOrEqual(4)
+    expect(
+      new Set(rightEdges.map((value) => value.toFixed(2))).size,
+    ).toBeGreaterThanOrEqual(4)
   })
 
   it('gently favours the middle of the screen over the side lobes', () => {
@@ -383,11 +408,13 @@ describe('Frequency Waves renderer', () => {
 
   it('uses a nonlinear near-full-height range without clipping the glow', () => {
     const quiet = frequencyWaveAmplitude(0.05, 720)
-    const moderate = frequencyWaveAmplitude(0.5, 720)
+    const moderate = frequencyWaveAmplitude(0.25, 720)
     const loud = frequencyWaveAmplitude(1, 720)
     expect(quiet).toBeGreaterThan(0)
     expect(moderate).toBeGreaterThan(quiet)
     expect(loud).toBeGreaterThan(moderate)
+    expect(FREQUENCY_WAVE_INPUT_GAIN).toBe(3)
+    expect((moderate * 2) / 720).toBeGreaterThan(0.8)
     expect((loud * 2) / 720).toBeCloseTo(FREQUENCY_WAVE_MAX_HEIGHT_FRACTION)
     expect(loud).toBeLessThanOrEqual(360 - 14)
   })
