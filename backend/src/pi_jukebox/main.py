@@ -22,6 +22,7 @@ from pi_jukebox.display.backlight import BacklightService
 from pi_jukebox.library.deletion import AlbumDeletionService
 from pi_jukebox.library.scanner import LibraryScanner, ScanService
 from pi_jukebox.queue.database import QueueStore
+from pi_jukebox.radio.metadata import RadioMetadataService
 from pi_jukebox.updates.service import GitHubCliReleaseSource, UpdateService
 from pi_jukebox.version import __version__
 from pi_jukebox.visualiser.service import VisualiserService
@@ -66,11 +67,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         bluetooth_service = BluetoothService(settings)
         backlight_service = BacklightService()
         visualiser_service = VisualiserService(settings)
+        radio_metadata_service = RadioMetadataService(settings)
         application.state.cd_service = cd_service
         application.state.update_service = update_service
         application.state.bluetooth_service = bluetooth_service
         application.state.backlight_service = backlight_service
         application.state.visualiser_service = visualiser_service
+        application.state.radio_metadata_service = radio_metadata_service
         cd_service.start()
         update_service.start()
         try:
@@ -78,6 +81,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         finally:
             backlight_service.wake()
             visualiser_service.stop()
+            radio_metadata_service.close()
             cd_service.stop()
             update_service.stop()
             scan_service.wait(timeout=5)

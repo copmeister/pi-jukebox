@@ -10,6 +10,7 @@ import type {
   DisplayAction,
   QueueItem,
   QueueSnapshot,
+  RadioNowPlaying,
   ScanStart,
   ScanStatus,
   SearchResults,
@@ -413,6 +414,18 @@ function isUpdateStatus(value: unknown): value is UpdateStatus {
   )
 }
 
+function isRadioNowPlaying(value: unknown): value is RadioNowPlaying {
+  return (
+    isRecord(value) &&
+    typeof value.station_id === 'string' &&
+    typeof value.available === 'boolean' &&
+    ['track', 'programme', 'text', 'none'].includes(String(value.kind)) &&
+    isNullableString(value.text) &&
+    isNullableString(value.artist) &&
+    isNullableString(value.title)
+  )
+}
+
 function isBluetoothStatus(value: unknown): value is BluetoothStatus {
   const states = [
     'unavailable',
@@ -637,6 +650,17 @@ export function ejectCd(): Promise<ApiAction> {
 
 export function getUpdateStatus(signal?: AbortSignal): Promise<UpdateStatus> {
   return requestJson('/system/updates', isUpdateStatus, { signal })
+}
+
+export function getRadioNowPlaying(
+  stationId: string,
+  signal?: AbortSignal,
+): Promise<RadioNowPlaying> {
+  return requestJson(
+    `/radio/stations/${encodeURIComponent(stationId)}/now-playing`,
+    isRadioNowPlaying,
+    { signal },
+  )
 }
 
 export function sleepPhysicalDisplay(): Promise<DisplayAction> {

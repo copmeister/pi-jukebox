@@ -21,7 +21,12 @@ import {
   loadVisualiserPreferences,
   saveVisualiserPreferences,
   setVisualiserEnabled,
+  setVisualiserSensitivity,
 } from '../visualiser/visualiserPreferences'
+import {
+  VISUALISER_SENSITIVITY_MAX_DB,
+  VISUALISER_SENSITIVITY_MIN_DB,
+} from '../visualiser/sensitivity'
 
 function errorMessage(error: unknown): string {
   return error instanceof ApiError
@@ -109,6 +114,19 @@ export function SettingsScreen({ sleeping = false }: { sleeping?: boolean }) {
       visualiserPreferences,
       id,
       !visualiserPreferences.enabled.includes(id),
+    )
+    setVisualiserPreferences(next)
+    saveVisualiserPreferences(next)
+  }
+
+  const changeVisualiserSensitivity = (
+    id: (typeof VISUALISER_REGISTRY)[number]['id'],
+    sensitivityDb: number,
+  ) => {
+    const next = setVisualiserSensitivity(
+      visualiserPreferences,
+      id,
+      sensitivityDb,
     )
     setVisualiserPreferences(next)
     saveVisualiserPreferences(next)
@@ -297,17 +315,48 @@ export function SettingsScreen({ sleeping = false }: { sleeping?: boolean }) {
             const lastEnabled =
               enabled && visualiserPreferences.enabled.length === 1
             return (
-              <button
-                type="button"
-                role="switch"
-                aria-checked={enabled}
-                disabled={lastEnabled}
-                onClick={() => toggleVisualiser(definition.id)}
-                key={definition.id}
-              >
-                <strong>{definition.name}</strong>
-                <span aria-hidden="true">{enabled ? 'On' : 'Off'}</span>
-              </button>
+              <div className="visualiser-setting" key={definition.id}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={enabled}
+                  disabled={lastEnabled}
+                  onClick={() => toggleVisualiser(definition.id)}
+                >
+                  <strong>{definition.name}</strong>
+                  <span aria-hidden="true">{enabled ? 'On' : 'Off'}</span>
+                </button>
+                <label>
+                  <span>Sensitivity</span>
+                  <input
+                    type="range"
+                    min={VISUALISER_SENSITIVITY_MIN_DB}
+                    max={VISUALISER_SENSITIVITY_MAX_DB}
+                    step="1"
+                    value={visualiserPreferences.sensitivity[definition.id]}
+                    aria-label={`${definition.name} sensitivity`}
+                    onChange={(event) =>
+                      changeVisualiserSensitivity(
+                        definition.id,
+                        Number(event.currentTarget.value),
+                      )
+                    }
+                  />
+                  <output>
+                    {visualiserPreferences.sensitivity[definition.id] > 0
+                      ? `+${visualiserPreferences.sensitivity[definition.id]} dB`
+                      : `${visualiserPreferences.sensitivity[definition.id]} dB`}
+                  </output>
+                </label>
+                <div
+                  className="visualiser-sensitivity-scale"
+                  aria-hidden="true"
+                >
+                  <span>Low</span>
+                  <span>Normal</span>
+                  <span>High</span>
+                </div>
+              </div>
             )
           })}
         </div>

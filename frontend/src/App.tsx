@@ -23,6 +23,7 @@ import { SearchScreen } from './screens/SearchScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { NowPlayingScreen } from './screens/NowPlayingScreen'
 import { QueueProvider, useQueue } from './queue/QueueContext'
+import { radioNowPlayingText } from './radio/nowPlaying'
 
 interface AppContentProps {
   sleeping: boolean
@@ -217,7 +218,7 @@ function AppContent({ sleeping, onSleep, onWake }: AppContentProps) {
           trackArtist={
             player.status === 'playing'
               ? player.source === 'radio'
-                ? 'Live Radio'
+                ? (radioNowPlayingText(player.radioNowPlaying) ?? 'Live Radio')
                 : player.currentTrack?.artist
               : undefined
           }

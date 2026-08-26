@@ -4,8 +4,8 @@ import {
   AudioReactiveCanvas,
   type AudioReactiveRenderer,
 } from './AudioReactiveCanvas'
-import { GALAXY_BAND_EDGES } from './bandMapping'
-import { FrequencyWavesCanvas } from './FrequencyWavesCanvas'
+import { GOLDEN_RATIO_BAND_EDGES } from './bandMapping'
+import { ConcentricSquaresCanvas } from './ConcentricSquaresCanvas'
 
 describe('AudioReactiveCanvas lifecycle', () => {
   afterEach(() => {
@@ -38,18 +38,18 @@ describe('AudioReactiveCanvas lifecycle', () => {
 
     const view = render(
       <AudioReactiveCanvas
-        key="water"
+        key="first"
         frame={null}
-        bandEdges={GALAXY_BAND_EDGES}
+        bandEdges={GOLDEN_RATIO_BAND_EDGES}
         createRenderer={firstFactory}
         label="First renderer"
       />,
     )
     view.rerender(
       <AudioReactiveCanvas
-        key="galaxy"
+        key="second"
         frame={null}
-        bandEdges={GALAXY_BAND_EDGES}
+        bandEdges={GOLDEN_RATIO_BAND_EDGES}
         createRenderer={secondFactory}
         label="Second renderer"
       />,
@@ -62,7 +62,7 @@ describe('AudioReactiveCanvas lifecycle', () => {
     expect(secondDispose).toHaveBeenCalledOnce()
   })
 
-  it('cancels the Frequency Waves animation when it becomes inactive', () => {
+  it('cancels the Concentric Squares animation when it becomes inactive', () => {
     const cancel = vi.fn()
     vi.stubGlobal(
       'requestAnimationFrame',
@@ -73,16 +73,24 @@ describe('AudioReactiveCanvas lifecycle', () => {
       setTransform: vi.fn(),
     } as unknown as CanvasRenderingContext2D)
 
-    const view = render(<FrequencyWavesCanvas frame={null} />)
+    const view = render(
+      <ConcentricSquaresCanvas
+        frame={null}
+        sensitivityDb={0}
+        solidColour="cyan"
+      />,
+    )
     expect(
-      view.getByRole('img', { name: 'Frequency Waves audio visualiser' }),
+      view.getByRole('img', {
+        name: 'Concentric Squares audio visualiser, cyan',
+      }),
     ).toBeInTheDocument()
     view.unmount()
 
     expect(cancel).toHaveBeenCalledWith(42)
   })
 
-  it('caps Frequency Waves canvas oversampling on high-density displays', () => {
+  it('caps Concentric Squares canvas oversampling on high-density displays', () => {
     vi.stubGlobal(
       'requestAnimationFrame',
       vi.fn(() => 24),
@@ -98,9 +106,15 @@ describe('AudioReactiveCanvas lifecycle', () => {
       setTransform,
     } as unknown as CanvasRenderingContext2D)
 
-    const view = render(<FrequencyWavesCanvas frame={null} />)
+    const view = render(
+      <ConcentricSquaresCanvas
+        frame={null}
+        sensitivityDb={0}
+        solidColour="cyan"
+      />,
+    )
     const canvas = view.getByRole('img', {
-      name: 'Frequency Waves audio visualiser',
+      name: 'Concentric Squares audio visualiser, cyan',
     }) as HTMLCanvasElement
 
     expect(canvas.width).toBe(125)

@@ -7,12 +7,14 @@ import {
   stepDisplayedLevels,
   type SpectrumColourScheme,
 } from './spectrum'
+import { applyVisualiserSensitivity } from './sensitivity'
 
 interface SpectrumCanvasProps {
   frame: SpectrumFrame | null
   riseRate?: number
   fallRate?: number
   colourScheme: SpectrumColourScheme
+  sensitivityDb?: number
 }
 
 export function SpectrumCanvas({
@@ -20,6 +22,7 @@ export function SpectrumCanvas({
   riseRate,
   fallRate,
   colourScheme,
+  sensitivityDb = 0,
 }: SpectrumCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const frameRef = useRef(frame)
@@ -76,6 +79,14 @@ export function SpectrumCanvas({
             current.band_centres_hz,
             layout.bandCount,
           )
+          for (let index = 0; index < aggregated.levels.length; index += 1) {
+            aggregated.levels[index] = Math.round(
+              applyVisualiserSensitivity(
+                aggregated.levels[index] / current.max_levels,
+                sensitivityDb,
+              ) * current.max_levels,
+            )
+          }
           stepDisplayedLevels(
             displayedRef.current,
             aggregated.levels,
@@ -101,7 +112,7 @@ export function SpectrumCanvas({
       observer?.disconnect()
       if (!observer) window.removeEventListener('resize', resize)
     }
-  }, [fallRate, riseRate])
+  }, [fallRate, riseRate, sensitivityDb])
 
   return (
     <canvas

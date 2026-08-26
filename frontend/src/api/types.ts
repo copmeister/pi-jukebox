@@ -297,3 +297,12 @@ export interface SpectrumFrame {
   rise_rate: number
   fall_rate: number
 }
+
+export interface RadioNowPlaying {
+  station_id: string
+  available: boolean
+  kind: 'track' | 'programme' | 'text' | 'none'
+  text: string | null
+  artist: string | null
+  title: string | null
+}

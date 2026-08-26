@@ -24,6 +24,13 @@ the existing PipeWire default DAC output.
   playback pipeline.
 - Spectrum remains an observer of the final DAC sink monitor. Radio therefore
   needs no visualiser change, raw PCM transport or second playback engine.
+- While a station is playing, a separate bounded backend request asks its
+  curated stream for one ICY metadata block. The audio itself continues to flow
+  directly to the existing browser audio element; it is never proxied through
+  Python. Genuine non-empty track or programme text updates Radio, mini-player,
+  Now Playing, Sleep and the visualiser overlay automatically. Missing,
+  malformed or unavailable metadata is cleared and falls back honestly to the
+  station name and Live Radio rather than retaining a stale or invented title.
 
 No system service, PipeWire/WirePlumber rule, Bluetooth helper, updater, CD,
 Sleep, queue-storage, deployment or kiosk configuration is changed by this

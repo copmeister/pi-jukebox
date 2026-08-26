@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
 import { StationMark } from '../radio/StationMark'
+import { radioNowPlayingText } from '../radio/nowPlaying'
 import { RADIO_STATIONS, type RadioStation } from '../radio/stations'
 import { SpectrumScreen } from '../visualiser/SpectrumScreen'
 
@@ -19,6 +20,7 @@ export function RadioScreen() {
   const player = useAudioPlayer()
   const [showSpectrum, setShowSpectrum] = useState(false)
   const activeStation = player.source === 'radio' ? player.radioStation : null
+  const nowPlaying = radioNowPlayingText(player.radioNowPlaying)
 
   if (showSpectrum && activeStation) {
     return <SpectrumScreen onBack={() => setShowSpectrum(false)} />
@@ -39,6 +41,11 @@ export function RadioScreen() {
           <div className="radio-active__copy">
             <p className="eyebrow">Live Radio</p>
             <h2>{activeStation.name}</h2>
+            {nowPlaying ? (
+              <p className="radio-now-playing-text" aria-live="polite">
+                {nowPlaying}
+              </p>
+            ) : null}
             <p
               role={player.status === 'error' ? 'alert' : 'status'}
               aria-live="polite"
