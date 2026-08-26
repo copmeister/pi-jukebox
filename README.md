@@ -30,6 +30,8 @@ Version 0.6.15 gives Frequency Waves a clearer but restrained bass-to-treble wav
 
 Version 0.6.16 consolidates the fullscreen choices to Spectrum, Golden Ratio and the new nine-band Concentric Squares renderer, adds independent display sensitivity controls, and shows genuine ICY Radio metadata where supplied without proxying audio. Earlier release notes above remain as history for the removed experimental renderers.
 
+Version 0.6.17 removes the slow catalogue Search screen, touchscreen keypad and `/api/search` endpoint. Library, Jukebox and album browsing remain the supported ways to choose local music, with playback and queue behaviour unchanged.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows
@@ -101,13 +103,13 @@ The **CD** and **Bluetooth** screens are safe to open on Windows. Without Pi har
 
 The application opens in **Jukebox** mode. Standard displays four panels with 32 randomly mixed codes from A1 through D8. Large and Extra Large use three panels with 18 larger codes from A1 through C6. Panel letters retain their established colours and identity while visible. Choose a letter and then a number: the first selection starts immediately when nothing is current, while later selections append to the persistent queue. Swipe left or use **NEXT ›** to move every panel left and recycle the outgoing identity with newly randomized songs on the right. The transition resets invisibly after the panels finish moving, so it never travels backwards. Panels have no back history, and moving them never changes queued music. **Stop & Clear** requires confirmation and stops audio while clearing the complete queue.
 
-Jukebox letter and number controls use one heavy mechanical click per press, and a successful queue acceptance adds one separate latch-and-relay clunk. When an idle Jukebox selection is ready to play, and between queued songs in the same Jukebox presentation, a quiet record-loading mechanism runs for approximately 900 ms before the single browser audio element starts the track at its beginning. Queuing another selection does not interrupt the current song or play the loading mechanism early. Library and Search Play Now actions remain modern and immediate.
+Jukebox letter and number controls use one heavy mechanical click per press, and a successful queue acceptance adds one separate latch-and-relay clunk. When an idle Jukebox selection is ready to play, and between queued songs in the same Jukebox presentation, a quiet record-loading mechanism runs for approximately 900 ms before the single browser audio element starts the track at its beginning. Queuing another selection does not interrupt the current song or play the loading mechanism early. Library Play Now actions remain modern and immediate.
 
 Open **Sounds** in the Jukebox header to enable or disable the effects, adjust the effects master and category levels (including the loading mechanism), preview each category, enable or disable the mechanical loading pause, or reset the controls. Turning all effects off also removes the theatrical delay; setting only the loading volume to zero retains a silent pause. These browser-local settings are independent from music volume and Raspberry Pi system volume. They are saved only in that browser's local storage and can safely fall back to defaults if storage or Web Audio is unavailable.
 
 With at least eight catalogued tracks, each panel contains eight different songs. A catalogue of at least 32 tracks fills all visible positions uniquely. Smaller libraries are distributed through fresh shuffled cycles, so repeats occur across panels only as necessary; libraries with fewer than eight tracks repeat within a panel while avoiding immediately adjacent repeats where possible.
 
-The modern Library, Search, Queue, and Now Playing screens remain available. A Library or Search track's **Actions** menu provides Play Now, Play Next, or Add to Queue. Album details provide Play Album and Add Album to Queue. A secondary **Manage Album** action leads to a permanent, explicitly confirmed deletion flow; it is never shown as a primary playback action. The Queue screen retains touch Up/Down reordering, removal, and its existing upcoming-only clear. The mini-player and Now Playing screen provide play/pause, queue-aware previous/next, seeking, volume, and mute. **Open Spectrum** on Now Playing enters the demand-driven final-output visualiser without replacing the player or queue.
+The modern Library, Queue, and Now Playing screens remain available. A Library track's **Actions** menu provides Play Now, Play Next, or Add to Queue. Album details provide Play Album and Add Album to Queue. A secondary **Manage Album** action leads to a permanent, explicitly confirmed deletion flow; it is never shown as a primary playback action. The Queue screen retains touch Up/Down reordering, removal, and its existing upcoming-only clear. The mini-player and Now Playing screen provide play/pause, queue-aware previous/next, seeking, volume, and mute. **Open Spectrum** on Now Playing enters the demand-driven final-output visualiser without replacing the player or queue.
 
 Queue order and the current queue item persist in SQLite across browser refreshes and backend restarts. Restored audio remains paused and restarts from the beginning after one Play tap. Playback position is deliberately not saved, and restored audio never autoplays.
 
@@ -154,13 +156,6 @@ View catalogued albums:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/api/albums | ConvertTo-Json -Depth 5
-```
-
-Search the catalogue:
-
-```powershell
-Invoke-RestMethod "http://127.0.0.1:8000/api/search?q=artist-or-title" |
-    ConvertTo-Json -Depth 5
 ```
 
 Use the interactive API documentation to open a particular album or track. See [supported formats](docs/supported-formats.md) before interpreting format support as playback support.
@@ -215,7 +210,7 @@ The touchscreen opens a two-minute pairing window, displays any confirmation
 code, remembers only approved phones, and permits one connected phone at a
 time. Bluetooth activation pauses the existing browser audio without changing
 the queue. Disconnecting a phone never resumes old local audio automatically;
-choosing local Library, Search or Jukebox playback exits Bluetooth mode first.
+choosing local Library or Jukebox playback exits Bluetooth mode first.
 Phone metadata, AVRCP transport controls and system-wide volume control are not
 part of v0.6.0.
 

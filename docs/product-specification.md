@@ -4,6 +4,8 @@
 
 Pi Jukebox is a friendly, touchscreen-operated player for a local music collection. It will turn a Raspberry Pi and a 7-inch landscape screen into an appliance that boots directly into a clear, modern jukebox interface.
 
+Version 0.6.17 retires catalogue Search because its full-library substring scans were not responsive enough on the appliance. Historical milestone sections below retain Search references to describe the behavior delivered at those earlier stages; the current interface uses Library, album browsing and Jukebox selection instead.
+
 ## v0.1 goals
 
 The first release should let one person use a locally attached music library without an internet connection, account, keyboard, or mouse during normal operation.
@@ -119,7 +121,7 @@ Physical Touch Display 2 testing adds a focused presentation layer without chang
 - Settings provides persistent Standard, Large and Extra Large modes at 1280×720. Standard remains closest to the established density; Large targets approximately 1.5× typography with larger controls, and Extra Large maximizes practical readability while allowing content screens to scroll.
 - Native vertical panning replaces desktop-style scrollbar interaction. Kiosk scrollbars are hidden, ordinary content resists accidental text selection, mouse-wheel/trackpad input still works, and form/range controls retain their intended gestures.
 - Large and Extra Large use 18 selector slots mapped A1–A6, B1–B6 and C1–C6. Standard retains A1–A8 through D1–D8. Both layouts preserve letter-then-number selection, queue acceptance, forward panel recycling, sound boundaries and Stop & Clear.
-- Navigation, mini-player, Library, Search, Queue, Now Playing, CD and Settings consume the same deliberate typography, touch-target, row-height and shell-height tokens rather than browser zoom or a global transform.
+- Navigation, mini-player, Library, Queue, Now Playing, CD and Settings consume the same deliberate typography, touch-target, row-height and shell-height tokens rather than browser zoom or a global transform.
 
 ## Agreed product behaviour
 
@@ -163,7 +165,7 @@ Version 0.6.0 adds phone audio as one deliberately selected external source:
   paths, commands or privileged configuration to the browser.
 - Pause the existing local browser player before Bluetooth control, preserve
   its queue, and never auto-resume it after phone disconnect.
-- Deactivate Bluetooth before any direct Library, Search or Jukebox start; keep
+- Deactivate Bluetooth before any direct Library or Jukebox start; keep
   the authoritative queue and only one local HTML audio element.
 - Replace local mini-player/Now Playing controls with honest phone-audio state
   while Bluetooth is active. Phone playback remains controlled on the phone.
@@ -183,7 +185,6 @@ control of the jukebox and visualisation remain outside v0.6.0.
 - Active, disabled, and keyboard-focused controls must be visually distinct.
 - Text must remain readable at both supported target resolutions.
 - Main screens must tolerate short height without hiding essential navigation or the mini-player.
-- Search must remain usable by touch without relying on an operating-system keyboard.
 - Motion-heavy features, including the future visualiser, must respect reduced-motion preferences or offer a disable option.
 
 ## Data and privacy

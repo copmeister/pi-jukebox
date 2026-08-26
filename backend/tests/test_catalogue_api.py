@@ -93,49 +93,17 @@ def test_album_delete_api_requires_dedicated_confirmation_header(tmp_path: Path)
     asyncio.run(exercise())
 
 
-def test_search_api_matches_album_and_track_fields(tmp_path: Path) -> None:
-    library = tmp_path / "music"
-    touch_audio(library, "first.mp3")
-    touch_audio(library, "second.mp3")
-    app = create_app(make_settings(tmp_path, library))
+def test_search_api_is_not_exposed(tmp_path: Path) -> None:
+    app = create_app(make_settings(tmp_path, None))
 
-    async def search() -> None:
+    async def request_removed_endpoint() -> None:
         async with app.router.lifespan_context(app):
-            app.state.scan_service.scanner.metadata_reader = FakeMetadataReader(
-                {
-                    "first.mp3": metadata(
-                        title="Northern Lights",
-                        artist="Guest Vocalist",
-                        album_artist="The House Band",
-                        album="Night Drive",
-                    ),
-                    "second.mp3": metadata(
-                        title="Morning Sun",
-                        artist="Resident Singer",
-                        album_artist="The House Band",
-                        album="Daybreak",
-                    ),
-                }
-            )
-            app.state.scan_service.scanner.scan()
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-                album_title = await client.get("/api/search", params={"q": "night drive"})
-                album_artist = await client.get("/api/search", params={"q": "HOUSE BAND"})
-                track_title = await client.get("/api/search", params={"q": "northern"})
-                track_artist = await client.get("/api/search", params={"q": "guest vocalist"})
-                literal_wildcard = await client.get("/api/search", params={"q": "%"})
+                response = await client.get("/api/search", params={"q": "anything"})
+                assert response.status_code == 404
 
-                assert album_title.status_code == 200
-                assert [album["title"] for album in album_title.json()["albums"]] == ["Night Drive"]
-                assert len(album_artist.json()["albums"]) == 2
-                assert track_title.json()["tracks"][0]["title"] == "Northern Lights"
-                assert track_artist.json()["albums"][0]["title"] == "Night Drive"
-                assert track_artist.json()["tracks"][0]["artist"] == "Guest Vocalist"
-                assert literal_wildcard.json()["albums"] == []
-                assert literal_wildcard.json()["tracks"] == []
-
-    asyncio.run(search())
+    asyncio.run(request_removed_endpoint())
 
 
 def test_scan_status_reports_unconfigured_library(tmp_path: Path) -> None:

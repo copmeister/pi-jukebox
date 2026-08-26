@@ -37,7 +37,7 @@ Every successful mutation returns the complete queue snapshot. `DELETE /queue` i
 
 - `/health` — application health
 - `/library/scan` and `/library/scan/status` — non-blocking library scanning
-- `/albums`, `/albums/{id}`, `/tracks`, `/tracks/{id}`, and `/search` — catalogue browsing
+- `/albums`, `/albums/{id}`, `/tracks`, and `/tracks/{id}` — catalogue browsing
 - `/artwork/{id}` — cached embedded artwork
 - `/tracks/{id}/media` — root-confined audio with complete and single-range responses
 

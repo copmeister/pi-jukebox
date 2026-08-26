@@ -19,7 +19,6 @@ import { JukeboxScreen } from './screens/JukeboxScreen'
 import { LibraryScreen } from './screens/LibraryScreen'
 import { QueueScreen } from './screens/QueueScreen'
 import { RadioScreen } from './screens/RadioScreen'
-import { SearchScreen } from './screens/SearchScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { NowPlayingScreen } from './screens/NowPlayingScreen'
 import { QueueProvider, useQueue } from './queue/QueueContext'
@@ -106,8 +105,6 @@ function AppContent({ sleeping, onSleep, onWake }: AppContentProps) {
         onRetry={() => void catalogue.refresh()}
       />
     )
-  } else if (activeDestination === 'Search') {
-    content = <SearchScreen onOpenAlbum={openAlbum} />
   } else if (activeDestination === 'Queue') {
     content = <QueueScreen onBrowse={() => navigate('Library')} />
   } else if (activeDestination === 'Radio') {

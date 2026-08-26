@@ -99,12 +99,6 @@ class AlbumDeletionResponse(ApiModel):
     message: str
 
 
-class SearchResponse(ApiModel):
-    query: str
-    albums: list[AlbumSummaryResponse]
-    tracks: list[TrackResponse]
-
-
 def _catalogue(request: Request) -> Catalogue:
     return request.app.state.catalogue
 
@@ -215,19 +209,6 @@ def list_tracks(request: Request) -> list[dict[str, Any]]:
     """Return every catalogue track for the randomized jukebox selector."""
 
     return _catalogue(request).list_tracks()
-
-
-@router.get("/search", response_model=SearchResponse)
-def search_catalogue(
-    request: Request,
-    q: Annotated[str, Query(min_length=1, max_length=100)],
-    limit: Annotated[int, Query(ge=1, le=100)] = 50,
-) -> dict[str, Any]:
-    """Search albums, Album Artists, track artists, and track titles."""
-
-    query = " ".join(q.split())
-    results = _catalogue(request).search(query, limit=limit)
-    return {"query": query, **results}
 
 
 @router.get("/artwork/{artwork_id}", response_class=FileResponse)

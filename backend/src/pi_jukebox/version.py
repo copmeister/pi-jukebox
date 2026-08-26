@@ -1,3 +1,3 @@
 """Single authoritative Pi Jukebox application version."""
 
-__version__ = "0.6.16"
+__version__ = "0.6.17"

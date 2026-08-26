@@ -111,7 +111,7 @@ export function NowPlayingScreen({
       <div className="screen now-playing-screen">
         <ScreenState
           title="Nothing playing"
-          message="Choose a track from an album or search result to start listening."
+          message="Choose a track from the Library or Jukebox to start listening."
         />
       </div>
     )

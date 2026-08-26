@@ -67,12 +67,6 @@ export interface ScanStatus {
   latest_scan: ScanRun | null
 }
 
-export interface SearchResults {
-  query: string
-  albums: AlbumSummary[]
-  tracks: Track[]
-}
-
 export interface ScanStart {
   scan_id: number
   status: string

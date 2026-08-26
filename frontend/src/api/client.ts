@@ -13,7 +13,6 @@ import type {
   RadioNowPlaying,
   ScanStart,
   ScanStatus,
-  SearchResults,
   Track,
   UpdateStatus,
 } from './types'
@@ -201,17 +200,6 @@ function isScanStatus(value: unknown): value is ScanStatus {
     isNullableString(value.configuration_error) &&
     typeof value.running === 'boolean' &&
     (value.latest_scan === null || isScanRun(value.latest_scan))
-  )
-}
-
-function isSearchResults(value: unknown): value is SearchResults {
-  return (
-    isRecord(value) &&
-    typeof value.query === 'string' &&
-    Array.isArray(value.albums) &&
-    value.albums.every(isAlbumSummary) &&
-    Array.isArray(value.tracks) &&
-    value.tracks.every(isTrack)
   )
 }
 
@@ -523,16 +511,6 @@ export function getScanStatus(signal?: AbortSignal): Promise<ScanStatus> {
 
 export function startScan(): Promise<ScanStart> {
   return requestJson('/library/scan', isScanStart, { method: 'POST' })
-}
-
-export function searchCatalogue(
-  query: string,
-  signal?: AbortSignal,
-): Promise<SearchResults> {
-  const params = new URLSearchParams({ q: query })
-  return requestJson(`/search?${params.toString()}`, isSearchResults, {
-    signal,
-  })
 }
 
 export function artworkUrl(artworkId: number): string {
