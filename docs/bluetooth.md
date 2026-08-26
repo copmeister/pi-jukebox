@@ -278,7 +278,7 @@ At 1280×720 on Touch Display 2:
    SBC; listen for dropouts, distortion and excessive latency.
 6. Confirm Bluetooth activation pauses local audio, preserves its queue and
    never auto-resumes it after phone disconnect.
-7. Start Library, Search and Jukebox playback; confirm Bluetooth disconnects
+7. Start Library and Jukebox playback; confirm Bluetooth disconnects
    first and local playback then starts normally.
 8. Switch between two trusted phones and confirm only one is connected.
 9. Forget one phone and confirm it cannot reconnect without pairing.

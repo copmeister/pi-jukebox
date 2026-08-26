@@ -438,59 +438,6 @@ class Catalogue:
             ).fetchone()
             return dict(row) if row else None
 
-    def search(self, query: str, limit: int = 50) -> dict[str, list[dict[str, Any]]]:
-        """Search album and track metadata with case-insensitive substring matching."""
-
-        normalized_query = normalize_group_value(query)
-        if not normalized_query:
-            return {"albums": [], "tracks": []}
-        escaped_query = (
-            normalized_query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        )
-        pattern = f"%{escaped_query}%"
-        with self.connect() as connection:
-            albums = connection.execute(
-                """
-                SELECT albums.id, albums.title, album_artist.name AS album_artist,
-                       albums.artwork_id, COUNT(DISTINCT tracks.id) AS track_count,
-                       COALESCE(SUM(tracks.duration_seconds), 0) AS duration_seconds
-                FROM albums
-                JOIN artists AS album_artist ON album_artist.id = albums.album_artist_id
-                JOIN tracks ON tracks.album_id = albums.id
-                WHERE CASEFOLD(albums.title) LIKE ? ESCAPE '\\'
-                   OR CASEFOLD(album_artist.name) LIKE ? ESCAPE '\\'
-                   OR EXISTS (
-                       SELECT 1
-                       FROM tracks AS matching_track
-                       JOIN artists AS matching_artist
-                           ON matching_artist.id = matching_track.artist_id
-                       WHERE matching_track.album_id = albums.id
-                         AND (
-                             CASEFOLD(matching_track.title) LIKE ? ESCAPE '\\'
-                             OR CASEFOLD(matching_artist.name) LIKE ? ESCAPE '\\'
-                         )
-                   )
-                GROUP BY albums.id
-                ORDER BY album_artist.normalized_name, albums.normalized_title, albums.id
-                LIMIT ?
-                """,
-                (pattern, pattern, pattern, pattern, limit),
-            ).fetchall()
-            tracks = connection.execute(
-                self._track_select()
-                + """
-                WHERE CASEFOLD(tracks.title) LIKE ? ESCAPE '\\'
-                   OR CASEFOLD(track_artist.name) LIKE ? ESCAPE '\\'
-                """
-                + self._track_order_clause()
-                + " LIMIT ?",
-                (pattern, pattern, limit),
-            ).fetchall()
-            return {
-                "albums": [dict(row) for row in albums],
-                "tracks": [dict(row) for row in tracks],
-            }
-
     @staticmethod
     def _artist_id(connection: sqlite3.Connection, name: str, now: str) -> int:
         normalized_name = normalize_group_value(name)

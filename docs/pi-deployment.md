@@ -92,7 +92,7 @@ cd /home/admin/jukebox
 2. Confirm CD shows drive-ready/no-disc.
 3. Insert a disposable or already-owned audio CD. Confirm release cards and track count; reconnect internet if metadata is desired.
 4. Start ripping and play, pause, seek and navigate existing music during extraction.
-5. After the first Ready track, confirm it appears in Library/Search and can be queued before later tracks finish.
+5. After the first Ready track, confirm it appears in Library and can be queued before later tracks finish.
 6. Cancel during a later track. Confirm Ready FLACs remain, the current partial disappears and unrelated music/queue entries remain.
 7. Leave the same disc inserted and confirm **Resume Rip** appears. Resume and verify the earlier Ready files retain their timestamps while only the missing tracks are read and completed.
 8. Repeat cancellation, restart the backend or Pi, reinsert the same disc if needed and confirm Resume Rip still appears from persisted state.
@@ -103,9 +103,9 @@ cd /home/admin/jukebox
 
 ### Touch Display 2 presentation test
 
-At the native 1280×720 landscape viewport, open Settings and test Standard, Large and Extra Large. In every mode, swipe vertically on Library, Search results, Queue, CD progress and Settings content; confirm content moves naturally without selecting ordinary text and without a visible right-hand scrollbar. Mouse-wheel scrolling may be checked separately during desktop development.
+At the native 1280×720 landscape viewport, open Settings and test Standard, Large and Extra Large. In every mode, swipe vertically on Library, Queue, CD progress and Settings content; confirm content moves naturally without selecting ordinary text and without a visible right-hand scrollbar. Mouse-wheel scrolling may be checked separately during desktop development.
 
-Confirm the mini-player and all eight navigation destinations remain visible. Standard must show A–D with numbers 1–8. Large and Extra Large must show A–C with numbers 1–6, with no clipped panel rows or controls. Select C6, confirm it enters the authoritative queue normally, then test NEXT, left swipe, Sounds and Stop & Clear. Use long album, artist and track names when checking Library, Search, Queue, Now Playing, CD release cards, Bluetooth and rip progress.
+Confirm the mini-player and all eight navigation destinations remain visible. Standard must show A–D with numbers 1–8. Large and Extra Large must show A–C with numbers 1–6, with no clipped panel rows or controls. Select C6, confirm it enters the authoritative queue normally, then test NEXT, left swipe, Sounds and Stop & Clear. Use long album, artist and track names when checking Library, Queue, Now Playing, CD release cards, Bluetooth and rip progress.
 
 ## Diagnostics and recovery
 
