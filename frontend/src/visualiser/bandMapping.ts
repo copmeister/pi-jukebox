@@ -19,9 +19,6 @@ export const SHARED_SIX_BAND_COLOURS = [
   '#9b5cff',
 ] as const
 export const GOLDEN_RATIO_BAND_EDGES = SHARED_SIX_BAND_EDGES
-export const FREQUENCY_WAVES_BAND_EDGES = SHARED_SIX_BAND_EDGES
-export const GALAXY_BAND_EDGES = [45, 100, 250, 700, 2_000, 5_000, 16_000]
-export const WATER_BAND_EDGES = [45, 90, 200, 500, 1_400, 4_000, 16_000]
 
 export interface LogicalBandFrame {
   levels: number[]

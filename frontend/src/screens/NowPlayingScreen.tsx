@@ -5,6 +5,7 @@ import { Artwork } from '../components/Artwork'
 import { PlaybackControls } from '../components/PlaybackControls'
 import { ScreenState } from '../components/ScreenState'
 import { StationMark } from '../radio/StationMark'
+import { radioNowPlayingText } from '../radio/nowPlaying'
 import { SpectrumScreen } from '../visualiser/SpectrumScreen'
 
 export function NowPlayingScreen({
@@ -65,6 +66,7 @@ export function NowPlayingScreen({
   }
 
   if (player.source === 'radio' && player.radioStation) {
+    const nowPlaying = radioNowPlayingText(player.radioNowPlaying)
     return (
       <div className="screen now-playing-screen">
         <section className="now-playing-card radio-now-playing">
@@ -73,7 +75,7 @@ export function NowPlayingScreen({
             <p className="eyebrow">Live Radio · {player.status}</p>
             <h1>{player.radioStation.name}</h1>
             <p className="now-playing-artist">
-              {player.error ?? 'Streaming through the jukebox output.'}
+              {player.error ?? nowPlaying ?? 'Live Radio'}
             </p>
             <div className="now-playing-actions">
               <button

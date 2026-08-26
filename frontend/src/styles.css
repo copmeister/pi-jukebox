@@ -1176,6 +1176,15 @@ h2 {
 .radio-active__copy h2 {
   font-size: 1.12rem;
 }
+.radio-active__copy .radio-now-playing-text {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 650;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .radio-active__copy p:last-child {
   margin: 4px 0 0;
   overflow: hidden;
@@ -2389,8 +2398,15 @@ h2 {
 }
 .visualiser-settings-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+.visualiser-setting {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel-strong) 42%, transparent);
 }
 .visualiser-settings-list button {
   display: flex;
@@ -2406,6 +2422,7 @@ h2 {
   color: var(--text);
   text-align: left;
   cursor: pointer;
+  width: 100%;
 }
 .visualiser-settings-list button[aria-checked='true'] {
   border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
@@ -2426,6 +2443,38 @@ h2 {
   font-size: 0.66rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+.visualiser-setting label {
+  display: grid;
+  grid-template-columns: auto minmax(80px, 1fr) 42px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+.visualiser-setting input[type='range'] {
+  width: 100%;
+  min-height: 30px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.visualiser-setting output {
+  color: var(--text);
+  font-size: 0.65rem;
+  text-align: right;
+}
+.visualiser-sensitivity-scale {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 42px 0 72px;
+  color: color-mix(in srgb, var(--muted) 75%, transparent);
+}
+.visualiser-sensitivity-scale span {
+  font-size: 0.56rem;
+  font-weight: 600;
+  text-transform: none;
 }
 .display-size-card > header {
   display: flex;

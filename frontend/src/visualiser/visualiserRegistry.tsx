@@ -1,17 +1,18 @@
 /* eslint-disable react-refresh/only-export-components -- this module is the visualiser registry */
 import type { ComponentType } from 'react'
 import type { SpectrumFrame } from '../api/types'
-import { FrequencyWavesCanvas } from './FrequencyWavesCanvas'
+import { ConcentricSquaresCanvas } from './ConcentricSquaresCanvas'
+import type { ConcentricSquareColour } from './concentricSquares'
 import { GoldenRatioCanvas } from './GoldenRatioCanvas'
-import { ParticleGalaxyCanvas } from './ParticleGalaxyCanvas'
 import { SpectrumCanvas } from './SpectrumCanvas'
 import type { SpectrumColourScheme } from './spectrum'
 import { VISUALISER_NAMES, type VisualiserId } from './visualiserTypes'
-import { WaterCanvas } from './WaterCanvas'
 
 export interface VisualiserRendererProps {
   frame: SpectrumFrame | null
   colourScheme: SpectrumColourScheme
+  solidColour: ConcentricSquareColour
+  sensitivityDb: number
   riseRate?: number
   fallRate?: number
   onFailure?: () => void
@@ -29,6 +30,7 @@ function SpectrumRenderer({
   colourScheme,
   riseRate,
   fallRate,
+  sensitivityDb,
 }: VisualiserRendererProps) {
   return (
     <SpectrumCanvas
@@ -36,6 +38,7 @@ function SpectrumRenderer({
       riseRate={riseRate}
       fallRate={fallRate}
       colourScheme={colourScheme}
+      sensitivityDb={sensitivityDb}
     />
   )
 }
@@ -54,22 +57,10 @@ export const VISUALISER_REGISTRY: readonly VisualiserDefinition[] = [
     Renderer: GoldenRatioCanvas,
   },
   {
-    id: 'particle-galaxy',
-    name: VISUALISER_NAMES['particle-galaxy'],
-    logicalBandCount: 6,
-    Renderer: ParticleGalaxyCanvas,
-  },
-  {
-    id: 'water',
-    name: VISUALISER_NAMES.water,
-    logicalBandCount: 6,
-    Renderer: WaterCanvas,
-  },
-  {
-    id: 'frequency-waves',
-    name: VISUALISER_NAMES['frequency-waves'],
-    logicalBandCount: 6,
-    Renderer: FrequencyWavesCanvas,
+    id: 'concentric-squares',
+    name: VISUALISER_NAMES['concentric-squares'],
+    logicalBandCount: 9,
+    Renderer: ConcentricSquaresCanvas,
   },
 ]
 

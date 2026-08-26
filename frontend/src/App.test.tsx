@@ -123,8 +123,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.15',
-  latest_version: '0.6.15',
+  installed_version: '0.6.16',
+  latest_version: '0.6.16',
   checking: false,
   installing: false,
   update_available: false,
@@ -217,6 +217,20 @@ describe('App catalogue interface', () => {
           })
         if (url.endsWith('/api/bluetooth/status'))
           return jsonResponse(currentBluetoothStatus)
+        const metadataMatch = url.match(
+          /\/api\/radio\/stations\/([^/]+)\/now-playing$/,
+        )
+        if (metadataMatch) {
+          const stationId = decodeURIComponent(metadataMatch[1])
+          return jsonResponse({
+            station_id: stationId,
+            available: true,
+            kind: 'track',
+            text: 'Gustav Holst — Jupiter',
+            artist: 'Gustav Holst',
+            title: 'Jupiter',
+          })
+        }
         if (url.endsWith('/api/bluetooth/activate')) {
           currentBluetoothStatus = {
             ...availableBluetoothStatus,
@@ -375,7 +389,7 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.15')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.16')).toBeInTheDocument()
   })
 
   it('shows clean disc headings for a genuinely multi-disc album', async () => {
@@ -565,20 +579,20 @@ describe('App catalogue interface', () => {
     ).toBeInTheDocument()
     swipe(-100, 3, 4)
     expect(
-      screen.getByRole('img', { name: 'Particle Galaxy audio visualiser' }),
+      screen.getByRole('img', {
+        name: 'Concentric Squares audio visualiser, cyan',
+      }),
     ).toBeInTheDocument()
-    swipe(-100, 3, 5)
+    swipe(4, -100, 5)
     expect(
-      screen.getByRole('img', { name: 'Water audio visualiser' }),
-    ).toBeInTheDocument()
-    swipe(-100, 3, 6)
-    expect(
-      screen.getByRole('img', { name: 'Frequency Waves audio visualiser' }),
+      screen.getByRole('img', {
+        name: 'Concentric Squares audio visualiser, blue',
+      }),
     ).toBeInTheDocument()
     expect(FakeEventSource.instances.at(-1)?.url).toMatch(
       /\/api\/visualiser\/stream$/,
     )
-    swipe(-100, 3, 7)
+    swipe(-100, 3, 6)
     expect(
       screen.getByRole('img', {
         name: 'Real-time audio spectrum, smooth colours',
@@ -587,7 +601,7 @@ describe('App catalogue interface', () => {
     expect(FakeEventSource.instances.at(-1)?.url).toMatch(
       /\/api\/visualiser\/stream$/,
     )
-    swipe(4, -100, 8)
+    swipe(4, -100, 7)
     expect(
       screen.getByRole('img', {
         name: 'Real-time audio spectrum, classic colours',
@@ -596,12 +610,12 @@ describe('App catalogue interface', () => {
 
     const exitButton = screen.getByRole('button', { name: 'Exit Spectrum' })
     fireEvent.pointerDown(exitButton, {
-      pointerId: 9,
+      pointerId: 8,
       clientX: 900,
       clientY: 40,
     })
     fireEvent.pointerUp(exitButton, {
-      pointerId: 9,
+      pointerId: 8,
       clientX: 700,
       clientY: 42,
     })
@@ -661,7 +675,11 @@ describe('App catalogue interface', () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'Jukebox' })
 
-    await user.click(screen.getByRole('button', { name: 'Radio' }))
+    await user.click(
+      within(
+        screen.getByRole('navigation', { name: 'Primary navigation' }),
+      ).getByRole('button', { name: 'Radio' }),
+    )
     expect(screen.getByRole('heading', { name: 'Radio' })).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Play Classic FM' }),
@@ -673,11 +691,17 @@ describe('App catalogue interface', () => {
     ).toBeInTheDocument()
     expect(screen.getAllByText('Live Radio')).not.toHaveLength(0)
     expect(document.querySelectorAll('audio')).toHaveLength(1)
+    expect(
+      await screen.findAllByText('Gustav Holst — Jupiter'),
+    ).not.toHaveLength(0)
 
     await user.click(screen.getByRole('button', { name: 'Play Smooth Radio' }))
     expect(
       screen.getByRole('heading', { name: 'Smooth Radio' }),
     ).toBeInTheDocument()
+    expect(
+      await screen.findAllByText('Gustav Holst — Jupiter'),
+    ).not.toHaveLength(0)
     expect(
       vi
         .mocked(fetch)
@@ -691,12 +715,30 @@ describe('App catalogue interface', () => {
     expect(
       screen.getByRole('heading', { name: 'Smooth Radio' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Live Radio')).toBeInTheDocument()
+    expect(screen.getAllByText('Gustav Holst — Jupiter')).not.toHaveLength(0)
     expect(FakeEventSource.instances.at(-1)?.url).toMatch(
       /\/api\/visualiser\/stream$/,
     )
 
     await user.click(screen.getByRole('button', { name: 'Exit Spectrum' }))
+    await user.click(screen.getByRole('button', { name: 'Now Playing' }))
+    expect(
+      screen.getByRole('heading', { name: 'Smooth Radio' }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText('Gustav Holst — Jupiter')).not.toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Sleep' }))
+    expect(
+      within(screen.getByRole('button', { name: 'Wake Pi Jukebox' })).getByText(
+        'Gustav Holst — Jupiter',
+      ),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Wake Pi Jukebox' }))
+    await user.click(
+      within(
+        screen.getByRole('navigation', { name: 'Primary navigation' }),
+      ).getByRole('button', { name: 'Radio' }),
+    )
     await user.click(
       within(
         screen.getByRole('region', { name: 'Live radio controls' }),

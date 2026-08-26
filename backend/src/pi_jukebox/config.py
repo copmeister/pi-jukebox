@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     cover_art_base_url: str = "https://coverartarchive.org"
     metadata_timeout_seconds: float = 8.0
     metadata_retry_count: int = 2
+    radio_metadata_timeout_seconds: float = 5.0
+    radio_metadata_cache_seconds: float = 10.0
     update_repository: str = "copmeister/pi-jukebox"
     update_check_enabled: bool = True
     update_install_enabled: bool = False

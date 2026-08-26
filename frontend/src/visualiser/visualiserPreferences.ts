@@ -1,17 +1,35 @@
 import { VISUALISER_IDS, type VisualiserId } from './visualiserTypes'
+import {
+  DEFAULT_CONCENTRIC_SQUARE_COLOUR,
+  isConcentricSquareColour,
+  type ConcentricSquareColour,
+} from './concentricSquares'
+import { clampVisualiserSensitivity } from './sensitivity'
 
 export const VISUALISER_PREFERENCES_STORAGE_KEY =
   'pi-jukebox:visualiser-preferences'
-const VISUALISER_PREFERENCES_VERSION = 2
+const VISUALISER_PREFERENCES_VERSION = 3
+
+export type VisualiserSensitivity = Record<VisualiserId, number>
+
+export const DEFAULT_VISUALISER_SENSITIVITY: VisualiserSensitivity = {
+  spectrum: 0,
+  'golden-ratio': 2,
+  'concentric-squares': 0,
+}
 
 export interface VisualiserPreferences {
   enabled: VisualiserId[]
   current: VisualiserId
+  sensitivity: VisualiserSensitivity
+  concentricColour: ConcentricSquareColour
 }
 
 export const DEFAULT_VISUALISER_PREFERENCES: VisualiserPreferences = {
   enabled: [...VISUALISER_IDS],
   current: 'spectrum',
+  sensitivity: { ...DEFAULT_VISUALISER_SENSITIVITY },
+  concentricColour: DEFAULT_CONCENTRIC_SQUARE_COLOUR,
 }
 
 export function loadVisualiserPreferences(
@@ -30,22 +48,44 @@ export function loadVisualiserPreferences(
       version?: unknown
       enabled?: unknown
       current?: unknown
+      sensitivity?: unknown
+      concentricColour?: unknown
     }
     if (
-      ![1, VISUALISER_PREFERENCES_VERSION].includes(Number(parsed.version)) ||
+      ![1, 2, VISUALISER_PREFERENCES_VERSION].includes(
+        Number(parsed.version),
+      ) ||
       !Array.isArray(parsed.enabled)
     )
       return cloneDefaults()
     const storedEnabled =
-      parsed.version === 1
-        ? [...parsed.enabled, 'frequency-waves']
-        : parsed.enabled
+      Number(parsed.version) === VISUALISER_PREFERENCES_VERSION
+        ? parsed.enabled
+        : [...parsed.enabled, 'concentric-squares']
     const enabled = VISUALISER_IDS.filter((id) => storedEnabled.includes(id))
     if (enabled.length === 0) return cloneDefaults()
     const requested = isVisualiserId(parsed.current)
       ? parsed.current
       : enabled[0]
-    return { enabled, current: resolveEnabledVisualiser(requested, enabled) }
+    const storedSensitivity =
+      parsed.sensitivity && typeof parsed.sensitivity === 'object'
+        ? (parsed.sensitivity as Record<string, unknown>)
+        : {}
+    return {
+      enabled,
+      current: resolveEnabledVisualiser(requested, enabled),
+      sensitivity: Object.fromEntries(
+        VISUALISER_IDS.map((id) => [
+          id,
+          storedSensitivity[id] === undefined
+            ? DEFAULT_VISUALISER_SENSITIVITY[id]
+            : clampVisualiserSensitivity(storedSensitivity[id]),
+        ]),
+      ) as VisualiserSensitivity,
+      concentricColour: isConcentricSquareColour(parsed.concentricColour)
+        ? parsed.concentricColour
+        : DEFAULT_CONCENTRIC_SQUARE_COLOUR,
+    }
   } catch {
     return cloneDefaults()
   }
@@ -86,7 +126,30 @@ export function setVisualiserEnabled(
   return {
     enabled: nextEnabled,
     current: resolveEnabledVisualiser(preferences.current, nextEnabled),
+    sensitivity: preferences.sensitivity,
+    concentricColour: preferences.concentricColour,
   }
+}
+
+export function setVisualiserSensitivity(
+  preferences: VisualiserPreferences,
+  id: VisualiserId,
+  sensitivityDb: number,
+): VisualiserPreferences {
+  return {
+    ...preferences,
+    sensitivity: {
+      ...preferences.sensitivity,
+      [id]: clampVisualiserSensitivity(sensitivityDb),
+    },
+  }
+}
+
+export function setConcentricSquareColour(
+  preferences: VisualiserPreferences,
+  colour: ConcentricSquareColour,
+): VisualiserPreferences {
+  return { ...preferences, concentricColour: colour }
 }
 
 export function cycleVisualiser(
@@ -125,5 +188,7 @@ function cloneDefaults(): VisualiserPreferences {
   return {
     enabled: [...DEFAULT_VISUALISER_PREFERENCES.enabled],
     current: DEFAULT_VISUALISER_PREFERENCES.current,
+    sensitivity: { ...DEFAULT_VISUALISER_PREFERENCES.sensitivity },
+    concentricColour: DEFAULT_VISUALISER_PREFERENCES.concentricColour,
   }
 }

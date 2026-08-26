@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { SpectrumFrame } from '../api/types'
 import { mapFrameToLogicalBands } from './bandMapping'
+import { applyVisualiserSensitivity } from './sensitivity'
 
 export interface CanvasRendererFrame {
   context: CanvasRenderingContext2D
@@ -26,6 +27,7 @@ export interface AudioReactiveCanvasProps {
   label: string
   onFailure?: () => void
   maximumPixelRatio?: number
+  sensitivityDb?: number
 }
 
 export function AudioReactiveCanvas({
@@ -35,6 +37,7 @@ export function AudioReactiveCanvas({
   label,
   onFailure,
   maximumPixelRatio,
+  sensitivityDb = 0,
 }: AudioReactiveCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const frameRef = useRef(frame)
@@ -85,7 +88,9 @@ export function AudioReactiveCanvas({
         const current = frameRef.current
         if (current && current.sequence !== mappedSequence) {
           mappedSequence = current.sequence
-          mappedLevels = mapFrameToLogicalBands(current, bandEdges).levels
+          mappedLevels = mapFrameToLogicalBands(current, bandEdges).levels.map(
+            (level) => applyVisualiserSensitivity(level, sensitivityDb),
+          )
         }
         const context = canvas.getContext('2d')
         if (context) {
@@ -120,7 +125,7 @@ export function AudioReactiveCanvas({
       if (!observer) window.removeEventListener('resize', resize)
       renderer.dispose?.()
     }
-  }, [bandEdges, createRenderer, maximumPixelRatio, onFailure])
+  }, [bandEdges, createRenderer, maximumPixelRatio, onFailure, sensitivityDb])
 
   return (
     <canvas

@@ -28,6 +28,8 @@ Version 0.6.14 balances Frequency Waves toward the centre of the screen and make
 
 Version 0.6.15 gives Frequency Waves a clearer but restrained bass-to-treble wavelength progression, independent positions at both edges and a wider strong-passage display range while retaining absolute quiet response and the existing analyser transport.
 
+Version 0.6.16 consolidates the fullscreen choices to Spectrum, Golden Ratio and the new nine-band Concentric Squares renderer, adds independent display sensitivity controls, and shows genuine ICY Radio metadata where supplied without proxying audio. Earlier release notes above remain as history for the removed experimental renderers.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows
@@ -194,10 +196,11 @@ when PipeWire capture is unavailable, only Spectrum reports unavailable and
 ordinary playback remains unchanged.
 
 Open **Now Playing**, then **Open Spectrum**. The backend runs capture and FFT
-analysis only while this view is connected and sends bounded LED levels—not raw
-PCM—to the browser. The canvas uses runtime dimensions, square blocks and
-band aggregation on constrained viewports. See the [visualiser tuning and Pi
-acceptance guide](docs/visualiser.md).
+analysis only while this view is connected and sends bounded levels—not raw
+PCM—to the browser. Horizontal swipes rotate between Spectrum, Golden Ratio and
+Concentric Squares; Settings controls which appear and stores an independent
+display sensitivity for each. See the [visualiser tuning and Pi acceptance
+guide](docs/visualiser.md).
 
 ## Bluetooth receiver on Raspberry Pi
 

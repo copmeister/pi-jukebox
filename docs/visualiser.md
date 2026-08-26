@@ -15,134 +15,80 @@ Bluetooth A2DP ───┘                  │
                               active browser canvas renderer
 ```
 
-The backend runs as `admin`, the same user that owns the established PipeWire
-graph. If systemd did not supply `XDG_RUNTIME_DIR`, capture derives
-`/run/user/<current uid>` without assuming a fixed uid. `wpctl inspect
-@DEFAULT_AUDIO_SINK@` resolves the current sink's stable `node.name` and
-`pw-record` targets that name with `stream.capture.sink=true`. Numeric object
-IDs, a PulseAudio monitor alias and the observed DAC model are never hard-coded.
+The backend runs in the established PipeWire user graph. It dynamically resolves
+the current default sink's stable `node.name` and captures it with
+`stream.capture.sink=true`; numeric node IDs and DAC models are never hard-coded.
+The first fullscreen subscriber starts the isolated analysis thread and the last
+disconnect stops capture. Capture or drawing failure cannot stop playback.
 
-Capture is passive and demand-driven. The first fullscreen visualiser subscriber starts one
-daemon analysis thread; the last disconnect stops its `pw-record` child.
-Capture or FFT exceptions are contained at that thread boundary. No visualiser
-renderer owns or controls the HTML audio element, queue, Bluetooth helper, DAC
-default, CD service or updater.
+No renderer receives PCM, owns the audio element, changes PipeWire routing or
+adds FFT work. All three renderers share the existing bounded level SSE stream,
+and only the currently selected canvas is mounted.
+
+## Current renderers
+
+- **Spectrum** is the physically proven square-cell LED matrix. Its layout,
+  red peak cells, block-at-a-time movement, Smooth/Classic palettes and vertical
+  palette swipe are unchanged.
+- **Golden Ratio** is the existing edge-filling six-band recursive composition.
+  Its geometry, deterministic low-to-high colours and response are unchanged;
+  its browser-local default sensitivity is modestly higher than Spectrum.
+- **Concentric Squares** is a 32×18 square-cell field with nine edge-distance
+  layers. The centre represents the lowest frequencies and the outside layer
+  the highest. It aggregates the existing analyser centres over edges
+  35, 70, 120, 220, 400, 750, 1,400, 2,800, 6,000 and 14,000 Hz. Silence is
+  black; a nonlinear brightness curve, modest high-frequency compensation,
+  fast attack and slower release expose musical energy without normalising
+  quiet passages. A vertical swipe cycles the persisted solid colour through
+  Cyan, Blue, Green, Magenta, Orange, Red and White.
+
+A horizontal swipe cycles enabled renderers in either direction and wraps.
+Preferences persist locally. Settings keeps a restrained Visualisers section at
+the bottom where each renderer can be enabled and independently adjusted from
+-6 to +6 dB. At least one renderer must remain enabled. The sensitivity control
+is display-only: it does not mutate backend frames or analyser configuration.
 
 ## Tuning
 
-All values use the `PI_JUKEBOX_` environment prefix. Defaults are intentionally
-conservative for the Raspberry Pi 5 and are expected to be tuned after viewing
-the physical display.
+Backend settings retain the `PI_JUKEBOX_` prefix:
 
 | Setting suffix | Default | Purpose |
 | --- | ---: | --- |
-| `VISUALISER_BANDS` | 24 | Logarithmic analysis bands; the canvas aggregates on narrow viewports and interpolates extra display columns when space permits. |
-| `VISUALISER_LEVELS` | 16 | Vertical LED levels. |
-| `VISUALISER_FFT_SIZE` | 4096 | Frequency resolution and analysis window. Must be a power of two. |
+| `VISUALISER_BANDS` | 24 | Logarithmic analyser bands. |
+| `VISUALISER_LEVELS` | 16 | Spectrum LED levels. |
+| `VISUALISER_FFT_SIZE` | 4096 | FFT window; must be a power of two. |
 | `VISUALISER_HOP_SIZE` | 1024 | New samples per overlapping FFT. |
-| `VISUALISER_SAMPLE_RATE` | 48000 | Requested PipeWire capture rate. |
-| `VISUALISER_MIN_FREQUENCY` | 45 | Lowest logarithmic edge in Hz. |
-| `VISUALISER_MAX_FREQUENCY` | 16000 | Highest logarithmic edge in Hz. |
+| `VISUALISER_SAMPLE_RATE` | 48000 | Requested capture rate. |
+| `VISUALISER_MIN_FREQUENCY` | 45 | Lowest analyser edge in Hz. |
+| `VISUALISER_MAX_FREQUENCY` | 16000 | Highest analyser edge in Hz. |
 | `VISUALISER_QUIET_THRESHOLD_DB` | -62 | Energy at or below this maps to zero. |
-| `VISUALISER_HEADROOM_DB` | -8 | Energy at this level maps to full height. |
-| `VISUALISER_GAIN` | 1 | Fixed analysis gain; this is not auto-normalisation. |
-| `VISUALISER_SPECTRAL_TILT` | 0.28 | Gentle high-frequency compensation around 1 kHz. |
-| `VISUALISER_RISE_RATE` | 48 | Maximum upward block steps per second. |
-| `VISUALISER_FALL_RATE` | 36 | Maximum downward block steps per second. |
-| `VISUALISER_STREAM_FPS` | 30 | Maximum backend level-frame publication rate. |
-| `VISUALISER_RETRY_SECONDS` | 2 | Delay before retrying a missing monitor. |
+| `VISUALISER_HEADROOM_DB` | -8 | Energy at this level maps to full scale. |
+| `VISUALISER_GAIN` | 1 | Fixed analyser gain; not auto-normalisation. |
+| `VISUALISER_SPECTRAL_TILT` | 0.28 | Gentle high-frequency compensation. |
+| `VISUALISER_RISE_RATE` | 48 | Spectrum upward block steps per second. |
+| `VISUALISER_FALL_RATE` | 36 | Spectrum downward block steps per second. |
+| `VISUALISER_STREAM_FPS` | 30 | Maximum SSE publication rate. |
+| `VISUALISER_RETRY_SECONDS` | 2 | Missing-monitor retry delay. |
 
-The browser renders with `requestAnimationFrame`, independently of stream
-frequency. Each column changes by at most one block in a rendered frame. Empty
-cells are never painted. One integer `cellSize` is passed as both dimensions to
-every canvas `fillRect`; layout is centred and derives its display-column count
-from the live canvas aspect ratio. Spectrum uses the full kiosk viewport behind
-compact metadata and Exit overlays, with no reserved header, footer or frequency
-axis.
-
-## Frontend renderers and controls
-
-All five modes reuse the same demand-driven SSE connection and FFT level frame.
-Spectrum uses the analyser bands directly and may interpolate additional square
-columns for the live viewport. Golden Ratio maps the supplied frequency centres
-into the shared six logarithmic regions. Particle Galaxy and Water each map them into six broad
-musical regions using logarithmic overlap weighting, including the lowest and
-highest supplied frequencies. Frequency Waves uses those same compact levels;
-no renderer receives PCM or performs audio DSP.
-
-- **Spectrum** retains the 16-level square LED matrix and persisted Smooth or
-  Classic colour palette.
-- **Golden Ratio** draws five recursively divided golden squares and uses the
-  complete remaining golden rectangle as its sixth region. This merges the two
-  former highest-frequency regions and fills the recursive tail, eliminating
-  the tiny persistently black centre while keeping cover-style edge-to-edge
-  geometry. Its deterministic low-to-high mapping is red, orange, yellow,
-  green, cyan-blue and violet; true black at low activity, fast attack and
-  slower glow release remain unchanged.
-- **Particle Galaxy** uses six bounded, pooled particle classes, a static
-  starfield and at most eight layered sub-bass shockwaves. The live-particle cap
-  is lower than the Python reference to protect the appliance.
-- **Water** uses at most 28 vector ripple events with frequency-dependent size,
-  speed and decay, transparent overlap, clipped mirror-source reflections and
-  a cheap animated surface texture. It deliberately does not recreate the
-  reference prototype's numerical 160×90 wave field.
-- **Frequency Waves** draws six centred neon standing waves in those same
-  frequency colours. The shared ranges remain 45–100, 100–233, 233–543,
-  543–1,265, 1,265–2,947 and 2,947–16,000 Hz. Three equal-status components per
-  line sample the 25%, 50% and 75% logarithmic positions inside that range,
-  interpolating between the existing analyser centres rather than snapping to
-  a nearest bin. Base spatial modes use 4, 6.4, 9.3, 12.9, 17.2 and 22.4
-  half-wave lobes respectively, or approximately 2 through 11.2 complete cycles
-  from bass to treble. Two nearby components at +0.45 and +0.9 lobes reshape
-  each line without overlapping the neighbouring colour's wavelength range.
-  Entire lines alternate initial direction and use small fixed phase offsets,
-  giving every colour independent left- and right-edge positions without random
-  motion or a forced shared end node. The level stream supplies fresh
-  targets at up to 30 Hz; the Canvas uses approximately 13 ms attack, 25 ms
-  release and 17 ms component interpolation on its 60 FPS animation loop. A
-  lightweight symmetric spatial envelope gently reduces the outer lobes to 30%
-  of their unweighted size while retaining full scale at the screen centre.
-  Absolute six-band activity still controls height, so lower energy and musical
-  fade-outs naturally collapse the waves to an exactly flat centre line. A 3x
-  display-only input gain lets strong activity span up to 94% of the canvas
-  height without normalising quiet passages. There is no rolling PCM window,
-  inverse FFT reconstruction or additional trace payload.
-
-A predominantly horizontal swipe rotates through enabled renderers and wraps.
-The opposite direction moves backwards. A predominantly vertical swipe toggles
-Spectrum's Smooth/Classic palette; other renderers ignore it. Short or diagonal
-gestures and gestures beginning on Exit Spectrum do nothing. The restrained
-Visualisers section at the bottom of Settings stores the enabled stable renderer
-IDs and current renderer locally, prevents an empty enabled set, and repairs a
-disabled current selection by moving forward to the next enabled renderer.
-
-Only the active renderer is mounted. Each canvas owns one animation frame loop,
-resizes from its live bounds, catches drawing failures, and cancels its loop and
-listeners when switched or exited. Galaxy targets 45 fps and Water 40 fps;
-Frequency Waves targets 60 fps with preallocated level/component buffers, cached
-standing-wave geometry, a capped 1.25 canvas pixel ratio and one blurred glow
-pass. It adds no backend transforms or high-rate payload. Smooth stable Pi
-rendering takes priority over forcing 60 fps.
+All canvases resize from their live bounds, cap pixel density for Raspberry Pi
+cost, reuse level buffers and render through `requestAnimationFrame`. Concentric
+Squares calculates one integer cell size at runtime and uses it for both cell
+dimensions; at 1280×720 the 32×18 field is near edge-to-edge without stretching.
 
 ## Physical Pi acceptance
 
-No machine configuration change is part of this feature. Before evaluating
-colour/gain tuning, confirm the existing DAC is still the default and both local
-and Bluetooth audio reach it. Then:
+No machine configuration change is part of this release. Confirm on the
+Raspberry Pi that:
 
-1. Play local music, enter Now Playing > Open Spectrum, and confirm the matrix
-   responds while audio and queue behaviour remain unchanged.
-2. Return to Now Playing and confirm capture stops without pausing the track.
-3. Activate Bluetooth, stream music, open Spectrum and confirm the phone source
-   drives the same matrix. v1 shows the phone/source fallback because the
-   current Bluetooth API does not expose AVRCP track metadata.
-4. Disconnect/disable the DAC monitor and confirm Spectrum remains safely blank,
-   Exit Spectrum still works, and playback is unaffected.
-5. At 1280×720 in Standard, Large and Extra Large display modes, inspect the
-   blocks closely: every lit cell must be square, the matrix centred, the top
-   block red, and a full column blue-to-red from bottom to top.
-6. Observe CPU and temperature for at least one full album. If necessary,
-   reduce stream FPS or band count before reducing FFT frequency resolution.
+1. Local, Internet Radio and Bluetooth audio continue through the DAC while all
+   three renderers respond.
+2. Horizontal swipe wraps through enabled renderers and skips disabled ones.
+3. Spectrum's vertical swipe still changes only its palette; Concentric Squares'
+   vertical swipe changes only its solid colour.
+4. Independent sensitivity changes are visible and survive a browser restart.
+5. Concentric Squares remains square and near edge-to-edge at 1280×720, fades to
+   black with silence and responds centre-to-outside from bass to treble.
+6. Missing monitor/capture leaves the view usable and playback unaffected.
 
-The monitor represents the digital sink mix. It cannot observe analogue
-amplifier behaviour, speakers, or any future source routed to a different sink.
+The monitor observes the digital sink mix, not analogue amplifier or speaker
+behaviour, and cannot observe a future source routed to another sink.

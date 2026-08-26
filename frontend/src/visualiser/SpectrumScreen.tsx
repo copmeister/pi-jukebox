@@ -9,6 +9,7 @@ import { visualiserStreamUrl } from '../api/client'
 import type { SpectrumFrame } from '../api/types'
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
 import { useBluetooth } from '../bluetooth/BluetoothContext'
+import { radioNowPlayingText } from '../radio/nowPlaying'
 import {
   cycleSpectrumColourScheme,
   horizontalSwipeDirection,
@@ -19,10 +20,12 @@ import {
 } from './spectrum'
 import { VisualiserErrorBoundary } from './VisualiserErrorBoundary'
 import { visualiserDefinition } from './visualiserRegistry'
+import { cycleConcentricSquareColour } from './concentricSquares'
 import {
   cycleVisualiser,
   loadVisualiserPreferences,
   saveVisualiserPreferences,
+  setConcentricSquareColour,
 } from './visualiserPreferences'
 
 const SPECTRUM_SWIPE_THRESHOLD = 72
@@ -120,19 +123,30 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
       }))
       return
     }
-    if (visualiserPreferences.current !== 'spectrum') return
     const verticalDirection = verticalSwipeDirection(
       event.clientX - start.x,
       event.clientY - start.y,
       SPECTRUM_SWIPE_THRESHOLD,
     )
     if (!verticalDirection) return
-    setColourScheme((current) =>
-      cycleSpectrumColourScheme(
-        current,
-        verticalDirection === 'up' ? 'left' : 'right',
-      ),
-    )
+    if (visualiserPreferences.current === 'spectrum') {
+      setColourScheme((current) =>
+        cycleSpectrumColourScheme(
+          current,
+          verticalDirection === 'up' ? 'left' : 'right',
+        ),
+      )
+    } else if (visualiserPreferences.current === 'concentric-squares') {
+      setVisualiserPreferences((current) =>
+        setConcentricSquareColour(
+          current,
+          cycleConcentricSquareColour(
+            current.concentricColour,
+            verticalDirection === 'up' ? 'next' : 'previous',
+          ),
+        ),
+      )
+    }
   }
 
   const onPointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -156,7 +170,7 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
   const details = bluetooth.status.mode_active
     ? `${device?.name ?? 'Bluetooth receiver'} · ${bluetooth.status.message}`
     : player.source === 'radio' && player.radioStation
-      ? 'Live Radio'
+      ? (radioNowPlayingText(player.radioNowPlaying) ?? 'Live Radio')
       : localDetails
   const definition = visualiserDefinition(visualiserPreferences.current)
   const Renderer = definition.Renderer
@@ -177,6 +191,8 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
             riseRate={frame?.rise_rate}
             fallRate={frame?.fall_rate}
             colourScheme={colourScheme}
+            solidColour={visualiserPreferences.concentricColour}
+            sensitivityDb={visualiserPreferences.sensitivity[definition.id]}
             onFailure={onRendererFailure}
           />
         </VisualiserErrorBoundary>
@@ -193,6 +209,11 @@ export function SpectrumScreen({ onBack }: { onBack: () => void }) {
         {definition.id === 'spectrum' ? (
           <p className="visually-hidden" role="status" aria-live="polite">
             Spectrum colours: {colourScheme}
+          </p>
+        ) : null}
+        {definition.id === 'concentric-squares' ? (
+          <p className="visually-hidden" role="status" aria-live="polite">
+            Concentric Squares colour: {visualiserPreferences.concentricColour}
           </p>
         ) : null}
       </div>

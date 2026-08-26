@@ -8,8 +8,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import { mediaUrl } from '../api/client'
-import type { PlayerTrack, QueueItem, Track } from '../api/types'
+import { getRadioNowPlaying, mediaUrl } from '../api/client'
+import type {
+  PlayerTrack,
+  QueueItem,
+  RadioNowPlaying,
+  Track,
+} from '../api/types'
 import { useOptionalBluetooth } from '../bluetooth/BluetoothContext'
 import {
   type JukeboxSoundController,
@@ -27,11 +32,13 @@ export type PlaybackSource = 'local' | 'radio'
 
 export const JUKEBOX_LOADING_DELAY_MS = 900
 export const RADIO_RETRY_DELAY_MS = 4_000
+export const RADIO_METADATA_POLL_INTERVAL_MS = 15_000
 
 interface AudioPlayerValue {
   currentTrack: PlayerTrack | null
   source: PlaybackSource
   radioStation: RadioStation | null
+  radioNowPlaying: RadioNowPlaying | null
   status: PlaybackStatus
   error: string | null
   currentTime: number
@@ -129,6 +136,8 @@ export function AudioPlayerProvider({
   const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null)
   const [source, setSource] = useState<PlaybackSource>('local')
   const [radioStation, setRadioStation] = useState<RadioStation | null>(null)
+  const [radioNowPlaying, setRadioNowPlaying] =
+    useState<RadioNowPlaying | null>(null)
   const [status, setStatus] = useState<PlaybackStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(0)
@@ -173,6 +182,7 @@ export function AudioPlayerProvider({
     radioStationRef.current = null
     setSource('local')
     setRadioStation(null)
+    setRadioNowPlaying(null)
   }, [clearRadioRetry])
 
   const selectRadioSource = useCallback(
@@ -182,6 +192,7 @@ export function AudioPlayerProvider({
       radioStationRef.current = station
       setSource('radio')
       setRadioStation(station)
+      setRadioNowPlaying(null)
     },
     [clearRadioRetry],
   )
@@ -230,11 +241,37 @@ export function AudioPlayerProvider({
     }
   }, [attemptRadioPlayback])
 
+  useEffect(() => {
+    if (source !== 'radio' || !radioStation || status !== 'playing') return
+
+    const controller = new AbortController()
+    const stationId = radioStation.id
+    const refresh = async () => {
+      try {
+        const metadata = await getRadioNowPlaying(stationId, controller.signal)
+        if (!controller.signal.aborted)
+          setRadioNowPlaying(metadata.available ? metadata : null)
+      } catch {
+        if (!controller.signal.aborted) setRadioNowPlaying(null)
+      }
+    }
+    void refresh()
+    const timer = window.setInterval(
+      () => void refresh(),
+      RADIO_METADATA_POLL_INTERVAL_MS,
+    )
+    return () => {
+      controller.abort()
+      window.clearInterval(timer)
+    }
+  }, [radioStation, source, status])
+
   const markRadioUnavailable = useCallback(() => {
     const station = radioStationRef.current
     if (sourceRef.current !== 'radio' || !station) return
     setStatus('error')
     setError(radioPlaybackError(station))
+    setRadioNowPlaying(null)
     scheduleRadioRetry()
   }, [scheduleRadioRetry])
 
@@ -708,6 +745,7 @@ export function AudioPlayerProvider({
       currentTrack,
       source,
       radioStation,
+      radioNowPlaying,
       status,
       error,
       currentTime,
@@ -754,6 +792,7 @@ export function AudioPlayerProvider({
       previous,
       queue.snapshot?.upcoming.length,
       radioStation,
+      radioNowPlaying,
       seek,
       setVolume,
       source,
@@ -773,9 +812,10 @@ export function AudioPlayerProvider({
       <audio
         ref={audioRef}
         preload="metadata"
-        onLoadStart={() =>
+        onLoadStart={() => {
+          if (sourceRef.current === 'radio') setRadioNowPlaying(null)
           setStatus(restoringRef.current ? 'paused' : 'loading')
-        }
+        }}
         onPlaying={() => {
           restoringRef.current = false
           if (sourceRef.current === 'radio') clearRadioRetry()
@@ -788,6 +828,7 @@ export function AudioPlayerProvider({
             return
           }
           if (sourceRef.current === 'radio' && radioStationRef.current) {
+            setRadioNowPlaying(null)
             setStatus((currentStatus) =>
               currentStatus === 'error' ? currentStatus : 'paused',
             )
@@ -800,7 +841,10 @@ export function AudioPlayerProvider({
           }
         }}
         onWaiting={() => {
-          if (!restoringRef.current) setStatus('loading')
+          if (!restoringRef.current) {
+            if (sourceRef.current === 'radio') setRadioNowPlaying(null)
+            setStatus('loading')
+          }
         }}
         onTimeUpdate={(event) => {
           if (!sleeping) setCurrentTime(event.currentTarget.currentTime)

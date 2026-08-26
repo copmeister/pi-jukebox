@@ -137,6 +137,31 @@ function queueFetch(initial = snapshot()) {
         state = snapshot()
         return jsonResponse(state)
       }
+      const metadataMatch = url.match(
+        /\/api\/radio\/stations\/([^/]+)\/now-playing$/,
+      )
+      if (metadataMatch) {
+        const stationId = decodeURIComponent(metadataMatch[1])
+        return jsonResponse(
+          stationId === 'classic-fm'
+            ? {
+                station_id: stationId,
+                available: true,
+                kind: 'track',
+                text: 'Edward Elgar — Nimrod',
+                artist: 'Edward Elgar',
+                title: 'Nimrod',
+              }
+            : {
+                station_id: stationId,
+                available: false,
+                kind: 'none',
+                text: null,
+                artist: null,
+                title: null,
+              },
+        )
+      }
       throw new Error(`Unexpected request: ${url}`)
     },
   )
@@ -152,6 +177,7 @@ function Harness() {
       <p>{player.status}</p>
       <p>{player.source}</p>
       <p>{player.radioStation?.name ?? 'No radio station'}</p>
+      <p>{player.radioNowPlaying?.text ?? 'No radio metadata'}</p>
       {player.error ? <p role="alert">{player.error}</p> : null}
       <button type="button" onClick={() => void player.playNow(tracks[0])}>
         Start
@@ -301,10 +327,14 @@ describe('AudioPlayerProvider queue integration', () => {
     expect(screen.getByText('playing')).toBeInTheDocument()
     expect(audio.src).toBe(classicFm.streamUrl)
     expect(container.querySelectorAll('audio')).toHaveLength(1)
+    expect(await screen.findByText('Edward Elgar — Nimrod')).toBeInTheDocument()
+    fireEvent.waiting(audio)
+    expect(screen.getByText('No radio metadata')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Start Smooth Radio' }))
     expect(screen.getByText('Smooth Radio')).toBeInTheDocument()
     expect(audio.src).toBe(smoothRadio.streamUrl)
+    expect(screen.getByText('No radio metadata')).toBeInTheDocument()
     expect(queueApi.getState()).toEqual(initial)
     expect(
       queueApi.fetchMock.mock.calls.filter(([, init]) => init?.method),
@@ -313,6 +343,7 @@ describe('AudioPlayerProvider queue integration', () => {
     await user.click(screen.getByRole('button', { name: 'Stop Radio' }))
     expect(screen.getByText('local')).toBeInTheDocument()
     expect(screen.getByText('No radio station')).toBeInTheDocument()
+    expect(screen.getByText('No radio metadata')).toBeInTheDocument()
     expect(screen.getByText('First Song')).toBeInTheDocument()
     expect(screen.getByText('paused')).toBeInTheDocument()
     expect(audio.src).toContain('/api/tracks/1/media')

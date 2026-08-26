@@ -1,6 +1,7 @@
 import { useAudioPlayer } from '../audio/AudioPlayerContext'
 import { useBluetooth } from '../bluetooth/BluetoothContext'
 import { StationMark } from '../radio/StationMark'
+import { radioNowPlayingText } from '../radio/nowPlaying'
 import { formatTrackDuration } from '../utils/format'
 import { Artwork } from './Artwork'
 import { PlaybackControls } from './PlaybackControls'
@@ -45,13 +46,14 @@ export function MiniPlayer({
   }
 
   if (player.source === 'radio' && player.radioStation) {
+    const nowPlaying = radioNowPlayingText(player.radioNowPlaying)
     return (
       <section className="mini-player is-radio" aria-label="Mini player">
         <StationMark station={player.radioStation} compact />
         <div className="mini-player__details">
           <p className="eyebrow">Live Radio · {player.status}</p>
           <p className="mini-player__title">
-            {player.error ?? player.radioStation.name}
+            {player.error ?? nowPlaying ?? player.radioStation.name}
           </p>
           <small>{player.radioStation.name}</small>
         </div>

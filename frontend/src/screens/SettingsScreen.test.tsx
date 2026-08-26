@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -133,7 +139,7 @@ describe('Settings software updates', () => {
     expect(
       screen.getByText('Choose which visualisers appear when swiping.'),
     ).toBeInTheDocument()
-    expect(switches).toHaveLength(5)
+    expect(switches).toHaveLength(3)
     expect(
       switches.every(
         (control) => control.getAttribute('aria-checked') === 'true',
@@ -159,12 +165,29 @@ describe('Settings software updates', () => {
       await screen.findByRole('switch', { name: /Golden Ratio/i }),
     ).toHaveAttribute('aria-checked', 'false')
 
+    expect(screen.getAllByRole('slider')).toHaveLength(3)
+    expect(
+      screen.getByRole('slider', { name: 'Spectrum sensitivity' }),
+    ).toHaveValue('0')
+    expect(
+      screen.getByRole('slider', { name: 'Golden Ratio sensitivity' }),
+    ).toHaveValue('2')
+    fireEvent.change(
+      screen.getByRole('slider', { name: 'Concentric Squares sensitivity' }),
+      { target: { value: '4' } },
+    )
+    expect(
+      JSON.parse(
+        window.localStorage.getItem(VISUALISER_PREFERENCES_STORAGE_KEY) ?? '{}',
+      ).sensitivity['concentric-squares'],
+    ).toBe(4)
+
     await user.click(screen.getByRole('switch', { name: /^Spectrum/i }))
-    await user.click(screen.getByRole('switch', { name: /Particle Galaxy/i }))
-    await user.click(screen.getByRole('switch', { name: /Frequency Waves/i }))
-    const water = screen.getByRole('switch', { name: /^Water/i })
-    expect(water).toBeDisabled()
-    expect(water).toHaveAttribute('aria-checked', 'true')
+    const concentric = screen.getByRole('switch', {
+      name: /Concentric Squares/i,
+    })
+    expect(concentric).toBeDisabled()
+    expect(concentric).toHaveAttribute('aria-checked', 'true')
   })
 
   it('starts an installable stable update and reports real installation stages', async () => {

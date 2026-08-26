@@ -23,9 +23,11 @@ interface GoldenRegion {
 
 export function GoldenRatioCanvas({
   frame,
+  sensitivityDb,
   onFailure,
 }: {
   frame: SpectrumFrame | null
+  sensitivityDb: number
   onFailure?: () => void
 }) {
   const createRenderer = useCallback(() => createGoldenRatioRenderer(), [])
@@ -35,6 +37,7 @@ export function GoldenRatioCanvas({
       bandEdges={GOLDEN_RATIO_BAND_EDGES}
       createRenderer={createRenderer}
       label="Golden Ratio audio visualiser"
+      sensitivityDb={sensitivityDb}
       onFailure={onFailure}
     />
   )
