@@ -117,13 +117,7 @@ input[type='range'] {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
   overflow: hidden;
-  background:
-    radial-gradient(
-      circle at 88% 7%,
-      rgba(243, 181, 63, 0.08),
-      transparent 34%
-    ),
-    #0b1015;
+  background: #0b1015;
 }
 
 .top-bar {
