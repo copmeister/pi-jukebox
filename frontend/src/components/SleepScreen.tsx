@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { formatSpeakerStatus, type SpeakerState } from '../speaker/speakerState'
 
 interface SleepScreenProps {
   trackTitle?: string
   trackArtist?: string
   bluetoothAudio?: boolean
+  speakerState?: SpeakerState
   onWake: () => void
 }
 
@@ -17,6 +19,7 @@ export function SleepScreen({
   trackTitle,
   trackArtist,
   bluetoothAudio = false,
+  speakerState,
   onWake,
 }: SleepScreenProps) {
   const [now, setNow] = useState(() => new Date())
@@ -46,6 +49,11 @@ export function SleepScreen({
       onClick={onWake}
     >
       <time dateTime={now.toISOString()}>{clockFormatter.format(now)}</time>
+      {speakerState ? (
+        <span className="sleep-screen__speaker">
+          {formatSpeakerStatus(speakerState)}
+        </span>
+      ) : null}
       {trackTitle ? (
         <span className="sleep-screen__track">
           <strong>{trackTitle}</strong>

@@ -220,6 +220,12 @@ two-phase [Bluetooth migration and hardware-test runbook](docs/bluetooth.md).
 Until the real Pi passes pairing, routing, reboot and recovery tests, Bluetooth
 remains a hardware-test candidate.
 
+## External speaker status
+
+External FLIRC/Edifier remote commands can also provide speaker status feedback
+without changing jukebox audio. See [speaker status and Pi acceptance](docs/speaker-status.md)
+for the mappings, tracked-state limitations and volume endpoint resyncs.
+
 ## Software updates
 
 The backend checks once shortly after startup for the latest stable GitHub Release. The private repository is accessed only through the Raspberry Pi service account's authenticated GitHub CLI; credentials and release URLs are never returned to the browser. Offline checks remain unobtrusive and never delay startup.

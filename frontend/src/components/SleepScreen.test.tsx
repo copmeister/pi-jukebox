@@ -35,3 +35,25 @@ it('shows only supplied playback information', () => {
   expect(screen.getByText('Bluetooth audio')).toBeInTheDocument()
   expect(screen.queryByText('Northern Lights')).not.toBeInTheDocument()
 })
+
+it('keeps the clock and playback information alongside persistent speaker status', () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-08-20T12:34:30'))
+  const { rerender } = render(
+    <SleepScreen
+      onWake={vi.fn()}
+      trackTitle="Northern Lights"
+      speakerState={{ source: 'tv', volumeSteps: null, muted: false }}
+    />,
+  )
+  expect(screen.getByText('12:34')).toBeInTheDocument()
+  expect(screen.getByText('Northern Lights')).toBeInTheDocument()
+  expect(screen.getByText('TV | --')).toBeInTheDocument()
+  rerender(
+    <SleepScreen
+      onWake={vi.fn()}
+      speakerState={{ source: 'pi-jukebox', volumeSteps: 50, muted: true }}
+    />,
+  )
+  expect(screen.getByText('PI JUKEBOX | MUTED')).toBeInTheDocument()
+})

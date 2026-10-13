@@ -296,6 +296,71 @@ describe('App catalogue interface', () => {
     window.localStorage.clear()
   })
 
+  it('observes speaker commands across navigation, Spectrum and Sleep without changing audio or making requests', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Jukebox' })
+    await user.click(screen.getByRole('button', { name: 'Library' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Open Night Drive by The House Band',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Queue actions for Northern Lights' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Play Now' }))
+    await user.click(screen.getByRole('button', { name: 'Jukebox' }))
+    const audio = document.querySelector('audio')!
+    const original = {
+      volume: audio.volume,
+      muted: audio.muted,
+      paused: audio.paused,
+      src: audio.src,
+    }
+    const command = (key: string) => {
+      vi.mocked(fetch).mockClear()
+      fireEvent.keyDown(window, { key, ctrlKey: true, shiftKey: true })
+      fireEvent.keyUp(window, { key })
+      expect(fetch).not.toHaveBeenCalled()
+      expect({
+        volume: audio.volume,
+        muted: audio.muted,
+        paused: audio.paused,
+        src: audio.src,
+      }).toEqual(original)
+    }
+    command('F1')
+    expect(document.querySelector('.speaker-feedback')).toHaveTextContent(
+      'TV | --',
+    )
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
+    command('F2')
+    expect(document.querySelector('.speaker-feedback')).toHaveTextContent(
+      'PI JUKEBOX | --',
+    )
+    await user.click(screen.getByRole('button', { name: 'Now Playing' }))
+    await user.click(screen.getByRole('button', { name: 'Open Spectrum' }))
+    command('F3')
+    expect(document.querySelector('.speaker-feedback')).toHaveTextContent(
+      'PI JUKEBOX | --',
+    )
+    await user.click(screen.getByRole('button', { name: 'Exit Spectrum' }))
+    await user.click(screen.getByRole('button', { name: 'Sleep' }))
+    command('F5')
+    const sleep = screen.getByRole('button', { name: 'Wake Pi Jukebox' })
+    expect(sleep.querySelector('time')).toBeInTheDocument()
+    expect(sleep).toHaveTextContent('PI JUKEBOX | MUTED')
+    expect(document.querySelector('.speaker-feedback')).toHaveTextContent(
+      'PI JUKEBOX | MUTED',
+    )
+    expect(document.querySelector('.speaker-feedback')?.parentElement).toBe(
+      document.querySelector('.sleep-screen')?.parentElement,
+    )
+    expect(document.querySelector('.app-shell')).toHaveClass('is-sleeping')
+  })
+
   it('opens on Jukebox and preserves the modern Library and playback screens', async () => {
     const user = userEvent.setup()
     render(<App />)

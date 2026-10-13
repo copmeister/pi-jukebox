@@ -23,6 +23,8 @@ import { SettingsScreen } from './screens/SettingsScreen'
 import { NowPlayingScreen } from './screens/NowPlayingScreen'
 import { QueueProvider, useQueue } from './queue/QueueContext'
 import { radioNowPlayingText } from './radio/nowPlaying'
+import { useSpeakerStatus } from './speaker/useSpeakerStatus'
+import { SpeakerFeedback } from './speaker/SpeakerFeedback'
 
 interface AppContentProps {
   sleeping: boolean
@@ -40,6 +42,7 @@ function AppContent({ sleeping, onSleep, onWake }: AppContentProps) {
   const queue = useQueue()
   const bluetooth = useBluetooth()
   const player = useAudioPlayer()
+  const speaker = useSpeakerStatus()
 
   const sleep = () => {
     onSleep()
@@ -205,6 +208,7 @@ function AppContent({ sleeping, onSleep, onWake }: AppContentProps) {
       </div>
       {sleeping ? (
         <SleepScreen
+          speakerState={speaker.state}
           trackTitle={
             player.status === 'playing'
               ? player.source === 'radio'
@@ -221,6 +225,12 @@ function AppContent({ sleeping, onSleep, onWake }: AppContentProps) {
           }
           bluetoothAudio={bluetooth.status.state === 'audio_playing'}
           onWake={wake}
+        />
+      ) : null}
+      {speaker.feedback ? (
+        <SpeakerFeedback
+          state={speaker.state}
+          syncedEndpoint={speaker.feedback.syncedEndpoint}
         />
       ) : null}
     </>
