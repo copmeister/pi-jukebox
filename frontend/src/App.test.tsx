@@ -123,8 +123,8 @@ const cdStatus = {
 }
 
 const updateStatus = {
-  installed_version: '0.6.17',
-  latest_version: '0.6.17',
+  installed_version: '0.6.19',
+  latest_version: '0.6.19',
   checking: false,
   installing: false,
   update_available: false,
@@ -457,7 +457,7 @@ describe('App catalogue interface', () => {
       screen.getByRole('heading', { name: 'Insert an audio CD' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByText('Pi Jukebox 0.6.17')).toBeInTheDocument()
+    expect(await screen.findByText('Pi Jukebox 0.6.19')).toBeInTheDocument()
   })
 
   it('shows clean disc headings for a genuinely multi-disc album', async () => {
