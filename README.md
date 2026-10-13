@@ -34,6 +34,8 @@ Version 0.6.17 removes the slow catalogue Search screen, touchscreen keypad and 
 
 Version 0.6.19 adds status tracking from an external FLIRC USB remote: TV / Pi Jukebox source, Edifier volume positions from 0–50 and mute. Eight-second Volume Up/Down holds resynchronise the endpoints, with temporary feedback and persistent Sleep status; the remote controls the speakers directly and jukebox audio is unchanged.
 
+Version 0.6.20 fixes held speaker-volume tracking: known 0–50 values advance using the measured 128 ms speaker-step interval and remain visible through the hold. A first-press 15-second Volume Down hold calibrates minimum; maximum calibration is removed. FLIRC still only observes the remote, with jukebox audio unchanged.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows
