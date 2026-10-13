@@ -11,13 +11,14 @@ import { SpeakerFeedback } from './SpeakerFeedback'
 import {
   saveSpeakerState,
   loadSpeakerState,
+  SPEAKER_STORAGE_KEY,
   UNKNOWN_SPEAKER_STATE,
 } from './speakerState'
 import {
   useSpeakerStatus,
   SPEAKER_FEEDBACK_MS,
   SPEAKER_MIN_RESYNC_MS,
-  SPEAKER_MAX_RESYNC_MS,
+  SPEAKER_HOLD_STEP_MS,
 } from './useSpeakerStatus'
 
 function down(key: string, repeat = false, extra: KeyboardEventInit = {}) {
@@ -35,10 +36,19 @@ function up(key: string) {
 function advance(ms: number) {
   act(() => vi.advanceTimersByTime(ms))
 }
+function FeedbackHarness() {
+  const speaker = useSpeakerStatus()
+  return speaker.feedback ? (
+    <SpeakerFeedback
+      state={speaker.state}
+      syncedEndpoint={speaker.feedback.syncedEndpoint}
+    />
+  ) : null
+}
 
 beforeEach(() => {
   localStorage.clear()
-  vi.useFakeTimers()
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
 })
 afterEach(() => {
   cleanup()
@@ -61,7 +71,7 @@ it('lets normal keys and incomplete chords reach existing keyboard handlers', ()
   window.removeEventListener('keydown', handler)
 })
 
-it('selects sources once per press and leaves the feedback timer alone on source repeats', () => {
+it('selects sources once per press without extending feedback on source repeats', () => {
   const { result } = renderHook(useSpeakerStatus)
   down('F1')
   expect(result.current.state.source).toBe('tv')
@@ -74,7 +84,7 @@ it('selects sources once per press and leaves the feedback timer alone on source
   expect(result.current.state.source).toBe('pi-jukebox')
 })
 
-it('toggles mute only once until keyup, even for duplicate non-repeat keydowns', () => {
+it('toggles mute only once per press including duplicate non-repeat keydowns', () => {
   const { result } = renderHook(useSpeakerStatus)
   down('F5')
   down('F5', true)
@@ -85,194 +95,277 @@ it('toggles mute only once until keyup, even for duplicate non-repeat keydowns',
   expect(result.current.state.muted).toBe(false)
 })
 
-it('counts each clean volume tap exactly once, ignoring duplicate non-repeat keydowns', () => {
-  saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: 24 })
-  const { result } = renderHook(useSpeakerStatus)
-  down('F3')
-  down('F3')
-  up('F3')
-  expect(result.current.state.volumeSteps).toBe(25)
-  down('F4')
-  down('F4')
-  up('F4')
-  expect(result.current.state.volumeSteps).toBe(24)
-  down('F3')
-  up('F3')
-  expect(result.current.state.volumeSteps).toBe(25)
-})
-
-it('keeps known volume at zero after clean Down taps', () => {
-  saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: 0 })
-  const { result } = renderHook(useSpeakerStatus)
-  down('F4')
-  up('F4')
-  down('F4')
-  up('F4')
-  expect(result.current.state.volumeSteps).toBe(0)
-})
-
-it('keeps known volume at 50 after clean Up taps', () => {
-  saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: 50 })
-  const { result } = renderHook(useSpeakerStatus)
-  down('F3')
-  up('F3')
-  down('F3')
-  up('F3')
-  expect(result.current.state.volumeSteps).toBe(50)
-})
-
-it.each(['F3', 'F4'])(
-  'keeps unknown volume unknown after ordinary %s taps',
-  (key) => {
+it.each([
+  ['F3', 25],
+  ['F4', 23],
+] as const)(
+  'counts a clean %s tap once with no timer double-count',
+  (key, value) => {
+    saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: 24 })
     const { result } = renderHook(useSpeakerStatus)
     down(key)
-    up(key)
     down(key)
+    advance(80)
     up(key)
-    expect(result.current.state.volumeSteps).toBeNull()
+    expect(result.current.state.volumeSteps).toBe(value)
+    advance(1000)
+    expect(result.current.state.volumeSteps).toBe(value)
+    expect(loadSpeakerState().volumeSteps).toBe(value)
   },
 )
 
-it.each(['F3', 'F4'])(
-  'makes a detected %s hold unknown without counting repeats and refreshes feedback',
-  (key) => {
-    saveSpeakerState({ source: 'tv', volumeSteps: 50, muted: false })
+it.each([
+  ['F3', 50],
+  ['F4', 0],
+] as const)('clamps clean %s taps at %i', (key, volumeSteps) => {
+  saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps })
+  const { result } = renderHook(useSpeakerStatus)
+  down(key)
+  up(key)
+  down(key)
+  up(key)
+  expect(result.current.state.volumeSteps).toBe(volumeSteps)
+})
+
+it.each([
+  ['F3', 25, 26, 27],
+  ['F4', 23, 22, 21],
+] as const)(
+  'advances held %s by elapsed time at 128 ms per additional speaker step',
+  (key, initial, second, third) => {
+    expect(SPEAKER_HOLD_STEP_MS).toBe(128)
+    saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: 24 })
     const { result } = renderHook(useSpeakerStatus)
     down(key)
-    expect(result.current.state.volumeSteps).toBe(key === 'F3' ? 50 : 49)
-    advance(1500)
-    down(key, true)
-    expect(result.current.state.volumeSteps).toBeNull()
-    down(key, true)
-    down(key, true)
-    expect(result.current.state.volumeSteps).toBeNull()
-    expect(loadSpeakerState().volumeSteps).toBeNull()
-    advance(SPEAKER_FEEDBACK_MS - 1)
-    expect(result.current.feedback).toEqual({ syncedEndpoint: null })
+    expect(result.current.state.volumeSteps).toBe(initial)
+    advance(127)
+    expect(result.current.state.volumeSteps).toBe(initial)
     advance(1)
-    expect(result.current.feedback).toBeNull()
+    expect(result.current.state.volumeSteps).toBe(second)
+    advance(128)
+    expect(result.current.state.volumeSteps).toBe(third)
+    down(key, true)
+    expect(result.current.state.volumeSteps).toBe(third)
     up(key)
-    advance(SPEAKER_MIN_RESYNC_MS * 2)
+    advance(500)
+    expect(result.current.state.volumeSteps).toBe(third)
+  },
+)
+
+it.each(['F3', 'F4'])(
+  'retains known volume on %s repeats and ignores their count and frequency',
+  (key) => {
+    saveSpeakerState({ source: 'tv', volumeSteps: 24, muted: false })
+    const { result } = renderHook(useSpeakerStatus)
+    down(key)
+    advance(268)
+    const value = key === 'F3' ? 27 : 21
+    expect(result.current.state.volumeSteps).toBe(value)
+    for (let i = 0; i < 100; i += 1) down(key, true)
+    expect(result.current.state.volumeSteps).toBe(value)
+    advance(40)
+    down(key, true)
+    expect(result.current.state.volumeSteps).toBe(value)
+    advance(76)
+    expect(result.current.state.volumeSteps).toBe(key === 'F3' ? 28 : 20)
+    up(key)
+    expect(loadSpeakerState().volumeSteps).toBe(key === 'F3' ? 28 : 20)
+  },
+)
+
+it('catches up after a delayed callback without accumulating interval-count drift', () => {
+  let now = 1000
+  vi.spyOn(performance, 'now').mockImplementation(() => now)
+  saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: 12 })
+  const { result } = renderHook(useSpeakerStatus)
+  down('F3')
+  now = 2000
+  advance(128) // One callback runs late; 1000 ms of real elapsed time passed.
+  expect(result.current.state.volumeSteps).toBe(20)
+  now = 2024
+  advance(24) // Next wake is aligned to the original timestamp's 1024 ms boundary.
+  expect(result.current.state.volumeSteps).toBe(21)
+  up('F3')
+  advance(1000)
+  expect(result.current.state.volumeSteps).toBe(21)
+})
+
+it('samples elapsed time on release if the final timer callback was delayed', () => {
+  let now = 0
+  vi.spyOn(performance, 'now').mockImplementation(() => now)
+  saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: 12 })
+  const { result } = renderHook(useSpeakerStatus)
+  down('F3')
+  now = 512
+  up('F3')
+  expect(result.current.state.volumeSteps).toBe(17)
+  advance(1000)
+  expect(result.current.state.volumeSteps).toBe(17)
+})
+
+it.each([
+  ['F3', 49, 50],
+  ['F4', 1, 0],
+] as const)(
+  'holds %s at the endpoint with no false calibration',
+  (key, start, end) => {
+    saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: start })
+    const { result } = renderHook(useSpeakerStatus)
+    down(key)
+    advance(10000)
+    down(key, true)
+    expect(result.current.state.volumeSteps).toBe(end)
+    expect(result.current.feedback).toEqual({ syncedEndpoint: null })
+    up(key)
+  },
+)
+
+it.each(['F3', 'F4'])(
+  'keeps unknown volume unknown during ordinary %s taps and short holds',
+  (key) => {
+    const { result } = renderHook(useSpeakerStatus)
+    down(key)
+    up(key)
+    down(key)
+    advance(14900)
+    down(key, true)
     expect(result.current.state.volumeSteps).toBeNull()
-    down('F3')
-    up('F3')
-    down('F4')
-    up('F4')
+    expect(result.current.feedback).toEqual({ syncedEndpoint: null })
+    up(key)
+    advance(SPEAKER_MIN_RESYNC_MS)
     expect(result.current.state.volumeSteps).toBeNull()
   },
 )
 
-it('calibrates a continuous Volume Up hold at MAX and retains confirmation during further repeats', () => {
-  saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: 24 })
+it('does not calibrate unknown volume or show a MAX confirmation on a long Up hold', () => {
   const { result } = renderHook(useSpeakerStatus)
   down('F3')
-  down('F3', true)
-  advance(SPEAKER_MAX_RESYNC_MS - 1)
+  advance(SPEAKER_MIN_RESYNC_MS * 2)
   expect(result.current.state.volumeSteps).toBeNull()
-  advance(1)
-  expect(result.current.state.volumeSteps).toBe(50)
-  expect(result.current.feedback).toEqual({ syncedEndpoint: 'max' })
-  down('F3', true)
-  expect(result.current.state.volumeSteps).toBe(50)
-  expect(result.current.feedback).toEqual({ syncedEndpoint: 'max' })
-  expect(loadSpeakerState()).toEqual(result.current.state)
-  up('F3')
-  down('F4')
-  expect(result.current.state.volumeSteps).toBe(49)
   expect(result.current.feedback).toEqual({ syncedEndpoint: null })
+  up('F3')
 })
 
 it.each(['tv', 'pi-jukebox'] as const)(
-  'shows -- in temporary feedback when %s tracking becomes unknown',
+  'calibrates %s from the first-ever Down press without priming or an existing overlay',
   (source) => {
-    saveSpeakerState({ source, volumeSteps: 24, muted: false })
-    function FeedbackHarness() {
-      const speaker = useSpeakerStatus()
-      return speaker.feedback ? (
-        <SpeakerFeedback
-          state={speaker.state}
-          syncedEndpoint={speaker.feedback.syncedEndpoint}
-        />
-      ) : null
-    }
+    expect(SPEAKER_MIN_RESYNC_MS).toBe(15000)
+    saveSpeakerState({ source, volumeSteps: null, muted: false })
     render(<FeedbackHarness />)
-    down('F3')
-    expect(screen.getByRole('status')).toHaveTextContent(
-      `${source === 'tv' ? 'TV' : 'PI JUKEBOX'} | 25`,
-    )
-    down('F3', true)
-    expect(screen.getByRole('status')).toHaveTextContent(
-      `${source === 'tv' ? 'TV' : 'PI JUKEBOX'} | --`,
-    )
-    expect(screen.queryByText('VOLUME SYNCED')).not.toBeInTheDocument()
-    advance(SPEAKER_FEEDBACK_MS)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    down('F4')
+    const label = source === 'tv' ? 'TV' : 'PI JUKEBOX'
+    expect(screen.getByRole('status')).toHaveTextContent(`${label} | --`)
+    for (let i = 0; i < 149; i += 1) {
+      advance(100)
+      down('F4', true)
+    }
+    expect(loadSpeakerState().volumeSteps).toBeNull()
+    expect(screen.queryByText('VOLUME SYNCED · MIN')).not.toBeInTheDocument()
+    advance(99)
+    expect(loadSpeakerState().volumeSteps).toBeNull()
+    advance(1)
+    expect(screen.getByRole('status')).toHaveTextContent(`${label} | 0`)
+    expect(screen.getByText('VOLUME SYNCED · MIN')).toBeInTheDocument()
+    down('F4', true)
+    advance(2000)
+    expect(screen.getByText('VOLUME SYNCED · MIN')).toBeInTheDocument()
+    up('F4')
+    advance(SPEAKER_FEEDBACK_MS - 1)
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    advance(1)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   },
 )
 
-it('establishes zero after exactly eight continuous seconds and retains confirmation during repeats', () => {
-  const { result } = renderHook(useSpeakerStatus)
-  down('F2')
-  up('F2')
-  down('F4')
-  for (let i = 0; i < 15; i += 1) {
-    advance(500)
-    down('F4', true)
+it.each([false, true])(
+  'starts calibration on the first qualifying Down event (repeat=%s)',
+  (repeat) => {
+    const { result } = renderHook(useSpeakerStatus)
+    down('F4', false, { ctrlKey: false })
+    down('F4', repeat)
+    advance(SPEAKER_MIN_RESYNC_MS - 1)
     expect(result.current.state.volumeSteps).toBeNull()
-  }
-  advance(499)
+    advance(1)
+    expect(result.current.state.volumeSteps).toBe(0)
+    expect(result.current.feedback?.syncedEndpoint).toBe('min')
+  },
+)
+
+it('does not restart the calibration clock when source/mute or overlay renders change', () => {
+  const { result, rerender } = renderHook(useSpeakerStatus)
+  down('F4')
+  advance(10000)
+  down('F1')
+  up('F1')
+  down('F5')
+  up('F5')
+  rerender()
+  advance(4999)
   expect(result.current.state.volumeSteps).toBeNull()
   advance(1)
-  expect(result.current.state.volumeSteps).toBe(0)
-  expect(result.current.feedback).toEqual({ syncedEndpoint: 'min' })
-  down('F4', true)
-  expect(result.current.state.volumeSteps).toBe(0)
-  expect(result.current.feedback).toEqual({ syncedEndpoint: 'min' })
-  expect(loadSpeakerState()).toEqual(result.current.state)
-  up('F4')
-  down('F3')
-  expect(result.current.state.volumeSteps).toBe(1)
-  expect(result.current.feedback).toEqual({ syncedEndpoint: null })
-})
-
-it('resynchronises an existing value after Down repeats make it unknown without clearing mute', () => {
-  saveSpeakerState({ source: 'tv', volumeSteps: 2, muted: true })
-  const { result } = renderHook(useSpeakerStatus)
-  down('F4')
-  down('F4', true)
-  down('F4', true)
   expect(result.current.state).toEqual({
     source: 'tv',
-    volumeSteps: null,
+    volumeSteps: 0,
     muted: true,
   })
-  advance(SPEAKER_MIN_RESYNC_MS)
-  expect(result.current.state.volumeSteps).toBe(0)
-  down('F4', true)
-  expect(result.current.state.volumeSteps).toBe(0)
   expect(result.current.feedback?.syncedEndpoint).toBe('min')
-  expect(result.current.state.muted).toBe(true)
 })
 
-it('requires one continuous hold rather than accumulating several short presses', () => {
+it.each([
+  ['F3', 50],
+  ['F4', null],
+] as const)(
+  'keeps %s feedback visible while held and times out only after release',
+  (key, start) => {
+    saveSpeakerState({ source: 'tv', volumeSteps: start, muted: false })
+    render(<FeedbackHarness />)
+    down(key)
+    advance(4000)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      `TV | ${start ?? '--'}`,
+    )
+    up(key)
+    advance(SPEAKER_FEEDBACK_MS - 1)
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    advance(1)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  },
+)
+
+it('updates integer feedback during a known hold without hiding or resetting its clock', () => {
+  saveSpeakerState({ source: 'pi-jukebox', volumeSteps: 12, muted: false })
+  render(<FeedbackHarness />)
+  down('F3')
+  expect(screen.getByRole('status')).toHaveTextContent('PI JUKEBOX | 13')
+  advance(128)
+  expect(screen.getByRole('status')).toHaveTextContent('PI JUKEBOX | 14')
+  advance(128 * 20)
+  expect(screen.getByRole('status')).toHaveTextContent('PI JUKEBOX | 34')
+  expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+  up('F3')
+})
+
+it('requires one continuous Down hold rather than accumulating shorter presses', () => {
   const { result } = renderHook(useSpeakerStatus)
   down('F4')
-  advance(5000)
+  advance(10000)
   up('F4')
   down('F4')
-  advance(5000)
+  advance(10000)
   expect(result.current.state.volumeSteps).toBeNull()
   up('F4')
-  advance(5000)
+  advance(10000)
   expect(result.current.state.volumeSteps).toBeNull()
 })
 
 it.each(['Control', 'Shift', 'blur', 'hidden', 'up', 'invalid chord'])(
-  'cancels unfinished calibration on %s',
+  'cancels an incomplete calibration on %s and rejects late repeats',
   (reason) => {
     const { result } = renderHook(useSpeakerStatus)
     down('F4')
-    advance(3000)
+    advance(14900)
     if (reason === 'blur') fireEvent(window, new Event('blur'))
     else if (reason === 'hidden') {
       vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
@@ -282,96 +375,97 @@ it.each(['Control', 'Shift', 'blur', 'hidden', 'up', 'invalid chord'])(
       up('F3')
     } else if (reason === 'invalid chord') down('F4', true, { ctrlKey: false })
     else up(reason)
+    down('F4', true)
     advance(SPEAKER_MIN_RESYNC_MS)
     expect(result.current.state.volumeSteps).toBeNull()
+    up('F4')
+    down('F4')
+    advance(SPEAKER_MIN_RESYNC_MS)
+    expect(result.current.state.volumeSteps).toBe(0)
   },
 )
-
-it.each(['Control', 'Shift', 'blur', 'hidden', 'down', 'invalid chord'])(
-  'cancels unfinished MAX calibration on %s',
-  (reason) => {
-    const { result } = renderHook(useSpeakerStatus)
-    down('F3')
-    down('F3', true)
-    advance(3000)
-    if (reason === 'blur') fireEvent(window, new Event('blur'))
-    else if (reason === 'hidden') {
-      vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
-      fireEvent(document, new Event('visibilitychange'))
-    } else if (reason === 'down') {
-      down('F4')
-      up('F4')
-    } else if (reason === 'invalid chord') down('F3', true, { ctrlKey: false })
-    else up(reason)
-    advance(SPEAKER_MAX_RESYNC_MS)
-    expect(result.current.state.volumeSteps).toBeNull()
-  },
-)
-
-it('requires a full new hold duration when direction changes', () => {
-  const { result } = renderHook(useSpeakerStatus)
-  down('F4')
-  down('F4', true)
-  advance(3000)
-  down('F3')
-  down('F3', true)
-  up('F4')
-  advance(SPEAKER_MAX_RESYNC_MS - 1)
-  expect(result.current.state.volumeSteps).toBeNull()
-  advance(1)
-  expect(result.current.state.volumeSteps).toBe(50)
-})
-
-it('prevents orphan repeats after focus loss from starting calibration and accepts a fresh press', () => {
-  const { result } = renderHook(useSpeakerStatus)
-  down('F4')
-  fireEvent(window, new Event('blur'))
-  down('F4', true)
-  advance(SPEAKER_MIN_RESYNC_MS)
-  expect(result.current.state.volumeSteps).toBeNull()
-  down('F4')
-  advance(SPEAKER_MIN_RESYNC_MS)
-  expect(result.current.state.volumeSteps).toBe(0)
-})
 
 it.each(['F3', 'F4'])(
-  'makes known volume unknown on orphan %s repeats without starting calibration',
+  'stops %s estimated movement on focus loss without losing known state',
   (key) => {
     saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: 24 })
     const { result } = renderHook(useSpeakerStatus)
-    down(key, true)
-    expect(result.current.state.volumeSteps).toBeNull()
-    advance(SPEAKER_MIN_RESYNC_MS)
-    expect(result.current.state.volumeSteps).toBeNull()
-    expect(loadSpeakerState().volumeSteps).toBeNull()
-  },
-)
-
-it.each([
-  ['F4', SPEAKER_MIN_RESYNC_MS, 0],
-  ['F3', SPEAKER_MAX_RESYNC_MS, 50],
-] as const)(
-  'persists %s endpoint and restores state without replaying feedback or a hold',
-  (key, duration, volumeSteps) => {
-    const first = renderHook(useSpeakerStatus)
-    down('F1')
-    down('F5')
     down(key)
-    advance(duration)
-    first.unmount()
-    const { result } = renderHook(useSpeakerStatus)
-    expect(result.current.state).toEqual({
-      source: 'tv',
-      volumeSteps,
-      muted: true,
-    })
-    expect(result.current.feedback).toBeNull()
+    advance(512)
+    fireEvent(window, new Event('blur'))
+    const final = key === 'F3' ? 29 : 19
+    expect(result.current.state.volumeSteps).toBe(final)
+    down(key, true)
     advance(SPEAKER_MIN_RESYNC_MS)
-    expect(result.current.feedback).toBeNull()
+    expect(result.current.state.volumeSteps).toBe(final)
   },
 )
 
-it('cleans up listeners and timers when unmounted during a hold', () => {
+it('requires the full Down duration after switching direction and ignores old Up repeats', () => {
+  const { result } = renderHook(useSpeakerStatus)
+  down('F3')
+  advance(10000)
+  down('F4')
+  down('F3', true)
+  up('F3')
+  advance(SPEAKER_MIN_RESYNC_MS - 1)
+  expect(result.current.state.volumeSteps).toBeNull()
+  advance(1)
+  expect(result.current.state.volumeSteps).toBe(0)
+})
+
+it('persists a final estimated value without gesture state or resumed movement', () => {
+  saveSpeakerState({ source: 'tv', volumeSteps: 12, muted: true })
+  const first = renderHook(useSpeakerStatus)
+  down('F3')
+  advance(512)
+  up('F3')
+  expect(loadSpeakerState()).toEqual({
+    source: 'tv',
+    volumeSteps: 17,
+    muted: true,
+  })
+  expect(JSON.parse(localStorage.getItem(SPEAKER_STORAGE_KEY)!)).toEqual({
+    version: 1,
+    state: { source: 'tv', volumeSteps: 17, muted: true },
+  })
+  first.unmount()
+  const { result } = renderHook(useSpeakerStatus)
+  advance(SPEAKER_MIN_RESYNC_MS)
+  expect(result.current.state.volumeSteps).toBe(17)
+  expect(result.current.feedback).toBeNull()
+})
+
+it('restores a calibrated zero with source/mute and no startup feedback', () => {
+  const first = renderHook(useSpeakerStatus)
+  down('F2')
+  up('F2')
+  down('F5')
+  up('F5')
+  down('F4')
+  advance(SPEAKER_MIN_RESYNC_MS)
+  first.unmount()
+  const { result } = renderHook(useSpeakerStatus)
+  expect(result.current.state).toEqual({
+    source: 'pi-jukebox',
+    volumeSteps: 0,
+    muted: true,
+  })
+  expect(result.current.feedback).toBeNull()
+})
+
+it('retains calibrated zero if focus is lost after synchronisation', () => {
+  const { result } = renderHook(useSpeakerStatus)
+  down('F4')
+  advance(SPEAKER_MIN_RESYNC_MS)
+  fireEvent(window, new Event('blur'))
+  down('F4', true)
+  advance(1000)
+  expect(result.current.state.volumeSteps).toBe(0)
+  expect(loadSpeakerState().volumeSteps).toBe(0)
+})
+
+it('cleans up timers and listeners when unmounted during an incomplete hold', () => {
   const { unmount } = renderHook(useSpeakerStatus)
   down('F4')
   unmount()
@@ -380,23 +474,15 @@ it('cleans up listeners and timers when unmounted during a hold', () => {
   expect(down('F1')).toBe(true)
 })
 
-it.each([
-  ['min', 0, 'VOLUME SYNCED · MIN'],
-  ['max', 50, 'VOLUME SYNCED · MAX'],
-] as const)(
-  'renders %s endpoint status and confirmation without volume controls',
-  (syncedEndpoint, volumeSteps, confirmation) => {
-    render(
-      <SpeakerFeedback
-        state={{ source: 'pi-jukebox', volumeSteps, muted: false }}
-        syncedEndpoint={syncedEndpoint}
-      />,
-    )
-    expect(screen.getByRole('status')).toHaveTextContent(
-      `PI JUKEBOX | ${volumeSteps}`,
-    )
-    expect(screen.getByText(confirmation)).toBeInTheDocument()
-    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
-  },
-)
+it('renders MIN confirmation and raw integer status without volume controls', () => {
+  render(
+    <SpeakerFeedback
+      state={{ source: 'pi-jukebox', volumeSteps: 0, muted: false }}
+      syncedEndpoint="min"
+    />,
+  )
+  expect(screen.getByRole('status')).toHaveTextContent('PI JUKEBOX | 0')
+  expect(screen.getByText('VOLUME SYNCED · MIN')).toBeInTheDocument()
+  expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+})

@@ -2,7 +2,7 @@ export const SPEAKER_STORAGE_KEY = 'pi-jukebox:speaker-state:v1'
 // Empirically verified Edifier R1280DB remote-control positions, not loudness.
 export const SPEAKER_MIN_VOLUME_STEPS = 0
 export const SPEAKER_MAX_VOLUME_STEPS = 50
-export type SpeakerEndpoint = 'min' | 'max'
+export type SpeakerEndpoint = 'min'
 
 export interface SpeakerState {
   source: 'tv' | 'pi-jukebox' | null
@@ -40,7 +40,7 @@ export function speakerCommand(event: KeyboardEvent): SpeakerCommand | null {
   return commands.get(event.key) ?? null
 }
 
-// Apply one discrete press only; native repeats are handled as unknown by the hook.
+// Apply one discrete press only; the hook estimates holds from elapsed time.
 export function applySpeakerCommand(
   state: SpeakerState,
   command: SpeakerCommand,

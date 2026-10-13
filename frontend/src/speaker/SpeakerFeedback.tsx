@@ -19,9 +19,7 @@ export function SpeakerFeedback({
       aria-atomic="true"
     >
       <strong>{formatSpeakerStatus(state)}</strong>
-      {syncedEndpoint ? (
-        <small>VOLUME SYNCED · {syncedEndpoint.toUpperCase()}</small>
-      ) : null}
+      {syncedEndpoint ? <small>VOLUME SYNCED · MIN</small> : null}
     </div>
   )
 }
