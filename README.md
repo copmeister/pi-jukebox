@@ -32,6 +32,8 @@ Version 0.6.16 consolidates the fullscreen choices to Spectrum, Golden Ratio and
 
 Version 0.6.17 removes the slow catalogue Search screen, touchscreen keypad and `/api/search` endpoint. Library, Jukebox and album browsing remain the supported ways to choose local music, with playback and queue behaviour unchanged.
 
+Version 0.6.19 adds status tracking from an external FLIRC USB remote: TV / Pi Jukebox source, Edifier volume positions from 0–50 and mute. Eight-second Volume Up/Down holds resynchronise the endpoints, with temporary feedback and persistent Sleep status; the remote controls the speakers directly and jukebox audio is unchanged.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows
@@ -219,6 +221,12 @@ service, helper account, socket permissions and WirePlumber fragment using the
 two-phase [Bluetooth migration and hardware-test runbook](docs/bluetooth.md).
 Until the real Pi passes pairing, routing, reboot and recovery tests, Bluetooth
 remains a hardware-test candidate.
+
+## External speaker status
+
+External FLIRC/Edifier remote commands can also provide speaker status feedback
+without changing jukebox audio. See [speaker status and Pi acceptance](docs/speaker-status.md)
+for the mappings, tracked-state limitations and volume endpoint resyncs.
 
 ## Software updates
 
