@@ -11,7 +11,7 @@ This feature never controls playback, audio routing, software volume or IR outpu
 | Ctrl+Shift+F1 | TV / OPTICAL |
 | Ctrl+Shift+F2 | PI JUKEBOX / LINE 1 |
 | Ctrl+Shift+F3 | Tap +1; hold estimates upward movement, clamped at 50 |
-| Ctrl+Shift+F4 | Tap -1; hold estimates downward movement, clamped at 0; 15-second continuous hold calibrates MIN |
+| Ctrl+Shift+F4 | Tap -1; hold estimates downward movement, clamped at 0; 8-second continuous hold calibrates MIN |
 | Ctrl+Shift+F5 | Toggle mute once per press |
 
 Only these complete chords are consumed. Extra Alt/Meta modifiers are rejected.
@@ -42,9 +42,9 @@ timing variation can cause drift. The Pi receives no speaker feedback.
 Source starts unknown (`--`) until an absolute source command is received.
 Volume starts unknown (`--`); ordinary taps and short holds do not invent an
 absolute value. Only a continuous Volume Down hold for
-`SPEAKER_MIN_RESYNC_MS = 15000` establishes known zero and shows
-`VOLUME SYNCED · MIN`. Fifteen seconds deliberately exceeds the measured
-six-to-seven-second physical full-range movement. There is no maximum
+`SPEAKER_MIN_RESYNC_MS = 8000` establishes known zero and shows
+`VOLUME SYNCED · MIN`. Eight seconds provides approximately 1.1 seconds of margin
+above the slowest measured full-range movement (6.9 seconds). There is no maximum
 calibration, even for a long Up hold; reaching estimated 50 is only clamping.
 
 Calibration begins on the first delivered qualifying Down keydown, before
@@ -100,8 +100,8 @@ calibration from unknown, overlay creation and rerenders.
   in both directions. Values should progress at approximately one additional
   step per 128 ms and retain their final estimate after release, never becoming
   unknown because of a hold. Compare the estimate with real speaker movement.
-- From unknown, hold Down on the first press with no priming tap. At 14.9 seconds
-  it remains unknown; at 15 seconds it shows zero and minimum confirmation.
+- From unknown, hold Down on the first press with no priming tap. At 7.9 seconds
+  it remains unknown; at 8 seconds it shows zero and minimum confirmation.
   Verify physical minimum using the speaker's solid green light (it flickers
   while changes are accepted). Shorter or interrupted holds must not calibrate.
   A long Up hold from unknown stays unknown and shows no sync confirmation.
