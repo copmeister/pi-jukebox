@@ -36,6 +36,8 @@ Version 0.6.19 adds status tracking from an external FLIRC USB remote: TV / Pi J
 
 Version 0.6.20 fixes held speaker-volume tracking: known 0–50 values advance using the measured 128 ms speaker-step interval and remain visible through the hold. A first-press 15-second Volume Down hold calibrates minimum; maximum calibration is removed. FLIRC still only observes the remote, with jukebox audio unchanged.
 
+Version 0.6.21 shortens the continuous Volume Down minimum-resync gesture from 15 seconds to eight seconds, retaining a margin above the measured full-range speaker movement. Normal held-volume tracking and source/mute behaviour are unchanged.
+
 The display target is the official 7-inch Raspberry Pi Touch Display 2 in landscape at its native 1280×720 resolution. The interface provides persistent Standard, Large and Extra Large display modes for that physical screen, with natural touch scrolling and hidden kiosk scrollbars.
 
 ## What you need on Windows

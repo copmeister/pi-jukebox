@@ -212,7 +212,7 @@ it.each([
     saveSpeakerState({ ...UNKNOWN_SPEAKER_STATE, volumeSteps: start })
     const { result } = renderHook(useSpeakerStatus)
     down(key)
-    advance(10000)
+    advance(SPEAKER_MIN_RESYNC_MS - 1)
     down(key, true)
     expect(result.current.state.volumeSteps).toBe(end)
     expect(result.current.feedback).toEqual({ syncedEndpoint: null })
@@ -227,7 +227,7 @@ it.each(['F3', 'F4'])(
     down(key)
     up(key)
     down(key)
-    advance(14900)
+    advance(SPEAKER_MIN_RESYNC_MS - 100)
     down(key, true)
     expect(result.current.state.volumeSteps).toBeNull()
     expect(result.current.feedback).toEqual({ syncedEndpoint: null })
@@ -249,14 +249,14 @@ it('does not calibrate unknown volume or show a MAX confirmation on a long Up ho
 it.each(['tv', 'pi-jukebox'] as const)(
   'calibrates %s from the first-ever Down press without priming or an existing overlay',
   (source) => {
-    expect(SPEAKER_MIN_RESYNC_MS).toBe(15000)
+    expect(SPEAKER_MIN_RESYNC_MS).toBe(8000)
     saveSpeakerState({ source, volumeSteps: null, muted: false })
     render(<FeedbackHarness />)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     down('F4')
     const label = source === 'tv' ? 'TV' : 'PI JUKEBOX'
     expect(screen.getByRole('status')).toHaveTextContent(`${label} | --`)
-    for (let i = 0; i < 149; i += 1) {
+    for (let elapsed = 100; elapsed < SPEAKER_MIN_RESYNC_MS; elapsed += 100) {
       advance(100)
       down('F4', true)
     }
@@ -295,13 +295,13 @@ it.each([false, true])(
 it('does not restart the calibration clock when source/mute or overlay renders change', () => {
   const { result, rerender } = renderHook(useSpeakerStatus)
   down('F4')
-  advance(10000)
+  advance(SPEAKER_MIN_RESYNC_MS / 2)
   down('F1')
   up('F1')
   down('F5')
   up('F5')
   rerender()
-  advance(4999)
+  advance(SPEAKER_MIN_RESYNC_MS / 2 - 1)
   expect(result.current.state.volumeSteps).toBeNull()
   advance(1)
   expect(result.current.state).toEqual({
@@ -350,13 +350,13 @@ it('updates integer feedback during a known hold without hiding or resetting its
 it('requires one continuous Down hold rather than accumulating shorter presses', () => {
   const { result } = renderHook(useSpeakerStatus)
   down('F4')
-  advance(10000)
+  advance(SPEAKER_MIN_RESYNC_MS - 100)
   up('F4')
   down('F4')
-  advance(10000)
+  advance(SPEAKER_MIN_RESYNC_MS - 100)
   expect(result.current.state.volumeSteps).toBeNull()
   up('F4')
-  advance(10000)
+  advance(SPEAKER_MIN_RESYNC_MS)
   expect(result.current.state.volumeSteps).toBeNull()
 })
 
@@ -365,7 +365,7 @@ it.each(['Control', 'Shift', 'blur', 'hidden', 'up', 'invalid chord'])(
   (reason) => {
     const { result } = renderHook(useSpeakerStatus)
     down('F4')
-    advance(14900)
+    advance(SPEAKER_MIN_RESYNC_MS - 100)
     if (reason === 'blur') fireEvent(window, new Event('blur'))
     else if (reason === 'hidden') {
       vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)

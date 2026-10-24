@@ -12,7 +12,8 @@ import {
 export const SPEAKER_FEEDBACK_MS = 1800
 // Empirical full-range movement: 50 speaker steps in approximately 6.4 seconds.
 export const SPEAKER_HOLD_STEP_MS = 128
-export const SPEAKER_MIN_RESYNC_MS = 15000
+// Margin above the slowest measured full-range Down hold (approximately 6.9 s).
+export const SPEAKER_MIN_RESYNC_MS = 8000
 
 // This observes the remote. It never controls playback, software volume or speakers.
 export function useSpeakerStatus() {
